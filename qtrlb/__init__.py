@@ -1,0 +1,1 @@
+"Test content for first installation and git commit"

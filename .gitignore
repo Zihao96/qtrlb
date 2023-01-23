@@ -1,0 +1,6 @@
+# Things generate by python defaultly
+*.egg-info
+*__pycache__
+
+# Things generate by MacOS
+*.DS_Store
