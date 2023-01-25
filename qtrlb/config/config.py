@@ -15,10 +15,9 @@ class Config:
         
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
-            suffix: 'DAC' or 'DataConfig' or 'Variable', etc.
+            suffix: 'DAC' or 'DataConfig' or 'Variables', etc.
             variable_suffix: '_EJEC' or '_ALGO' or empty string '' for other managers.
             varman: A Variable manager for other manager to load parameters.
-    
     """
     def __init__(self, 
                  yamls_path: str, 
@@ -33,10 +32,10 @@ class Config:
         self.raw_file_path = os.path.join(self.yamls_path, self.suffix + self.variable_suffix + '.yaml')  
         self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
         
-        self.checkconfig()
+        self.check_config()
         
         
-    def checkconfig(self):
+    def check_config(self):
         """
         Check the structure of the yaml file by comparing with its template.
         Raise error if the structure has inconsistency.
@@ -89,7 +88,7 @@ class Config:
         Reload the yaml file to config_raw, so that changes in file will be updated.
         Then generate the self.config_dict with replaced variables.
         """
-        self.checkconfig()  # To reload the files and prevent accidentally structure change.
+        self.check_config()  # To reload the files and prevent accidentally structure change.
         self.config_dict = deepcopy(self.config_raw)
         if self.varman != {}: self.replace_vars(self.config_dict, self.varman)  
         # This is the real difference between config_dict and config_raw
@@ -180,7 +179,7 @@ class Config:
         return result
     
     
-    def keys(self, key: str, which: str = 'dict'):
+    def keys(self, key: str = '', which: str = 'dict'):
         """
         Get the keys of a dictionary inside the config_dict or config_raw corresponds to a given key.
 
