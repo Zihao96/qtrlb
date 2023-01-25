@@ -14,24 +14,24 @@ class Config:
         config_dict, with the additions of load, save, and variables.
         
         Attributes:
-            yaml_path: An absolute path of the directory containing all yamls with a template folder.
-            suffix: 'DAC' or 'DataConfig' or 'Variable', will be combined with config_path to get full path of yaml.
+            yamls_path: An absolute path of the directory containing all yamls with a template folder.
+            suffix: 'DAC' or 'DataConfig' or 'Variable', etc.
             variable_suffix: '_EJEC' or '_ALGO' or empty string '' for other managers.
             varman: A Variable manager for other manager to load parameters.
     
     """
     def __init__(self, 
-                 yaml_path: str, 
+                 yamls_path: str, 
                  suffix: str = '', 
                  variable_suffix: str = '',
                  varman = {}):
-        self.yaml_path = yaml_path
+        self.yamls_path = yamls_path
         self.suffix = suffix
         self.variable_suffix = variable_suffix
         self.varman = varman
         
-        self.raw_file_path = os.path.join(self.yaml_path, self.suffix + self.variable_suffix + '.yaml')  
-        self.template_file_path = os.path.join(self.yaml_path, 'Template', self.suffix + '.yaml')  
+        self.raw_file_path = os.path.join(self.yamls_path, self.suffix + self.variable_suffix + '.yaml')  
+        self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
         
         self.checkconfig()
         
@@ -143,13 +143,16 @@ class Config:
     def __setitem__(self, key, value):
         return self.set(key, value)
     
+    def __delitem__(self, key):
+        return self.delete(key)
+    
               
     # Then, define the fancy method with additional functionality.
     def get(self, key: str, which: str = 'dict'):
         """
         Get the value in the config_dict or config_raw corresponds to a given key.
         Examples:
-            varman = Config("Variables.yaml")
+            varman = Config('.', '_EJEC')
             varman.get("common")
             varman.get("Q0/01/amp_rabi")
 
@@ -193,6 +196,7 @@ class Config:
         """
         Set the value in the config_dict (and config_raw if asked) corresponds to a given key.
         Then save it if asked.
+        If there is no corresponding key, a tree of dict will be built.
 
         Parameters
             key : str. String of keys separated by forward slash.
@@ -206,21 +210,37 @@ class Config:
         # We can just cast them to a list, which improves readability as well.
         if isinstance(value, ndarray): value = value.tolist()
         
-        # Check the input of 'which' parameters.
-        if which != 'both' or which != 'dict':
+        if which == 'dict':
+            self.recursively_set(self.config_dict, keys_list, value)
+        elif which == 'both':
+            self.recursively_set(self.config_dict, keys_list, value)
+            self.recursively_set(self.config_raw, keys_list, value)
+            if save_raw: self.save()
+        else:
             raise ValueError("Parameter 'which' can only take string 'dict' or 'both'.")
-        
-        # Set config_dict first
-        # for i
-        
-        
-        if save_raw: self.save()
     
+    
+    def delete(self, key: str, save_raw: bool = False):
+        """
+        Delete the item in the config_dict and config_raw corresponds to a given key.
+        Then save it if asked.
 
-    
-    def __delitem__(self):
-        pass
-    
+        Parameters
+            key : str. String of keys separated by forward slash.
+            save_raw : bool. Whether we want to save config_raw or not.
+        """
+        keys_list = self.slashed_string_to_list(key)
+        
+        # Get the dict corresponds to the second last key in keys_list.
+        base_dict = self.get(''.join(keys_list[:-1]), which='dict')
+        base_raw = self.get(''.join(keys_list[:-1]), which='raw')
+        
+        # Delete the item corresponds to the last key in keys_list.
+        del base_dict[keys_list[-1]]
+        del base_raw[keys_list[-1]]
+        if save_raw: self.save()
+        
+        
     
     @staticmethod
     def slashed_string_to_list(string: str, remove_empty: bool = True) -> list:
@@ -244,7 +264,25 @@ class Config:
         return result
             
             
-            
+    @staticmethod
+    def recursively_set(config_dict: dict, keys_list: list, value):
+        """
+        A helper function for 'set' method. The real process of set happens here.
+        
+        Here I'm dealing with two situation at same time. KeyError if config_dict miss the key, 
+        or AssertionError if it has the key but the value is not a dictionary.
+        I bet you can't make it shorter with same functionality. -Zihao(2023/01/24)  
+        """
+        for i, key in enumerate(keys_list[:-1]):
+            try:
+                assert isinstance(config_dict[key], dict)
+                config_dict = config_dict[key]
+            except (KeyError, AssertionError):  
+                print(f'A new empty dictionary will be created in {"/".join(keys_list[:i])} with key "{key}".')
+                config_dict[key] = {}  
+                config_dict = config_dict[key]  # We have to use such pointer movement instead of config_dict={}.  
+        config_dict[keys_list[-1]] = value
+        
             
     
 
