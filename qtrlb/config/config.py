@@ -23,11 +23,11 @@ class Config:
                  yamls_path: str, 
                  suffix: str = '', 
                  variable_suffix: str = '',
-                 varman = {}):
+                 varman = None):
         self.yamls_path = yamls_path
         self.suffix = suffix
         self.variable_suffix = variable_suffix
-        self.varman = varman
+        if varman is not None: self.varman = varman
         
         self.raw_file_path = os.path.join(self.yamls_path, self.suffix + self.variable_suffix + '.yaml')  
         self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
@@ -90,7 +90,7 @@ class Config:
         """
         self.check_config()  # To reload the files and prevent accidentally structure change.
         self.config_dict = deepcopy(self.config_raw)
-        if self.varman != {}: self.replace_vars(self.config_dict, self.varman)  
+        if self.varman is not None: self.replace_vars(self.config_dict, self.varman)  
         # This is the real difference between config_dict and config_raw
         
         
