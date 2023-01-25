@@ -4,3 +4,6 @@
 
 # Things generate by MacOS
 *.DS_Store
+
+# Things from previous version
+*_old.py
