@@ -27,7 +27,7 @@ class Config:
         self.yamls_path = yamls_path
         self.suffix = suffix
         self.variable_suffix = variable_suffix
-        if varman is not None: self.varman = varman
+        self.varman = varman
         
         self.raw_file_path = os.path.join(self.yamls_path, self.suffix + self.variable_suffix + '.yaml')  
         self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
