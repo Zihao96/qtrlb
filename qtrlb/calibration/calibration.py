@@ -54,14 +54,24 @@ class Scan:
         
     def initialize(self):
         self.cfg.DAC.reset()
+        self.map_readout_sequencers()
 
 
     def make_sequence(self):
+        """
+        Generate self.sequence, which should be a instance of Sequence class.
+        Inside this class, we expect to have each sequence_dict mapping to a physical sequencer,
+        and thus mapping to each drive/readout qubits.
+        """
         raise NotImplementedError("This method should be implemented in its child class.")
         
 
-
-
+    def map_readout_sequencers(self):
+        """
+        Map each readout_qubits to a sequencer based on their set output port.
+        This is virtual map, and the real 'channel_map' command is called in DACManager. 
+        """
+        self.readout_sequencers_map = {}
 
 
 

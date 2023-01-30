@@ -10,7 +10,9 @@ class VariableManager(Config):
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
             variable_suffix: 'EJEC' or 'ALGO'. A underscroll will be added in this layer.
     """
-    def __init__(self, yamls_path: str, variable_suffix: str = ''):
+    def __init__(self, 
+                 yamls_path: str, 
+                 variable_suffix: str = ''):
         super().__init__(yamls_path=yamls_path, 
                          suffix='Variables',
                          variable_suffix='_'+variable_suffix)
@@ -27,11 +29,11 @@ class VariableManager(Config):
         super().load()
         
         qubits_list = [key for key in self.keys() if key.startswith('Q')]
-        self.set('qubits', qubits_list, which='dict')
+        self.set('qubits', qubits_list, which='dict')  # Keep the new key start with lowercase!
         
         self.set_parameters()
         self.check_IQ_matrices()
-        self.check_qubits_module_and_LO()
+        self.check_qubits_module_sequencer_LO()
    
     
     def set_parameters(self):
@@ -84,30 +86,29 @@ class VariableManager(Config):
                 self[f'{qubit}/IQ_means'] = [[i,i] for i in range(self[f'{qubit}/n_readout_levels'])]
 
 
-    def check_qubits_module_and_LO(self):
+    def check_qubits_module_sequencer_LO(self):
         """
-        Check that no more than 6 qubits using same module, and for qubit using same module and output, 
-        check they are using same LO frequency.
-        It's because each module on Qblox has only 6 sequencer and one LO for each output port.
+        For qubit using same module and output, check they are using same LO frequency.
+        Warn user when any two qubits are using same sequencer on same module without raising error.
         """
         for i, qubit in enumerate(self['qubits']):
-            n_sequencer_needed = 1
             qubit_module = self[f'{qubit}/module']
+            qubit_sequencer = self[f'{qubit}/sequencer']
             qubit_out = self[f'{qubit}/out']
             qubit_lo_freq = self[f'{qubit}/qubit_LO']
             
             for qubjt in self['qubits'][i+1:]:
                 qubjt_module = self[f'{qubjt}/module']
+                qubjt_sequencer = self[f'{qubjt}/sequencer']
                 qubjt_out = self[f'{qubjt}/out']
                 qubjt_lo_freq = self[f'{qubjt}/qubit_LO']
                 
                 if qubjt_module == qubit_module:
-                    n_sequencer_needed += 1
+                    if qubjt_sequencer == qubit_sequencer: 
+                        print('You have more than two qubits using same sequencer!')
                     if qubjt_out == qubit_out:
-                        assert qubjt_lo_freq==qubit_lo_freq, \
+                        assert qubjt_lo_freq == qubit_lo_freq, \
                         f'{qubit} and {qubjt} are using same output port with different LO frequency!'
-                
-            assert n_sequencer_needed <= 6, 'More than 6 qubits are using same Qblox Module!'
 
 
 
