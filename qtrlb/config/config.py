@@ -15,7 +15,7 @@ class Config:
         
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
-            suffix: 'DAC' or 'DataConfig' or 'Variables', etc.
+            suffix: 'DAC' or 'DataConfig' or 'variables', etc.
             variable_suffix: '_EJEC' or '_ALGO' or empty string '' for other managers.
             varman: A Variable manager for other manager to load parameters.
     """

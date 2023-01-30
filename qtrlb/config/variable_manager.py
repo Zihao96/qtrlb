@@ -14,7 +14,7 @@ class VariableManager(Config):
                  yamls_path: str, 
                  variable_suffix: str = ''):
         super().__init__(yamls_path=yamls_path, 
-                         suffix='Variables',
+                         suffix='variables',
                          variable_suffix='_'+variable_suffix)
         self.load()
     
@@ -29,42 +29,44 @@ class VariableManager(Config):
         super().load()
         
         qubits_list = [key for key in self.keys() if key.startswith('Q')]
+        resonators_list = [key for key in self.keys() if key.startswith('R')]
         self.set('qubits', qubits_list, which='dict')  # Keep the new key start with lowercase!
+        self.set('resonators', resonators_list, which='dict')
         
         self.set_parameters()
         self.check_IQ_matrices()
-        self.check_qubits_module_sequencer_LO()
+        self.check_module_sequencer_LO()
    
     
     def set_parameters(self):
         """
         Set mod_freq for AWG, anharmonicity, n_readout_levels, etc, into config_dict.
         """
-        for qubit in self['qubits']:
-            # Set AWG frequency for RO.
-            self.set(f'{qubit}/res_mod_freq', self[f'{qubit}/res_freq']-self['readout/readout_LO'], which='dict')
-            
-            # Make sure readout_levels are in ascending order.
-            self.set(f'{qubit}/readout_levels', sorted(self[f'{qubit}/readout_levels']), which='dict')
-            
-            self.set(f'{qubit}/lowest_readout_levels', self[f'{qubit}/readout_levels'][0], which='dict')
-            self.set(f'{qubit}/highest_readout_levels', self[f'{qubit}/readout_levels'][-1], which='dict')
-            self.set(f'{qubit}/n_readout_levels', len(self[f'{qubit}/readout_levels']), which='dict')
-                
-            # Loop all subspace.
-            for subspace in self[f'{qubit}']:
+        for q in self['qubits']:
+            for subspace in self[f'{q}']:
                 if not subspace.isdecimal(): continue
             
                 # Set AWG frequency for each subspace.
-                self.set(f'{qubit}/{subspace}/mod_freq', 
-                         self[f'{qubit}/{subspace}/freq']-self[f'{qubit}/qubit_LO'], 
+                self.set(f'{q}/{subspace}/mod_freq', 
+                         self[f'{q}/{subspace}/freq']-self[f'{q}/qubit_LO'], 
                          which='dict')
                 
                 # Set anharmonicity for each subspace.
                 if subspace == '01': continue
-                self.set(f'{qubit}/{subspace}/anharmonicity', 
-                         self[f'{qubit}/{subspace}/freq']-self[f'{qubit}/{(int(subspace)-11):02}/freq'], 
+                self.set(f'{q}/{subspace}/anharmonicity', 
+                         self[f'{q}/{subspace}/freq']-self[f'{q}/{(int(subspace)-11):02}/freq'], 
                          which='dict')  # Yep, I made it. --Zihao(01/25/2023)  
+                
+        for r in self['resonators']:
+            # Set AWG frequency for Resonator.
+            self.set(f'{r}/mod_freq', self[f'{r}/freq']-self[f'{r}/resonator_LO'], which='dict')
+            
+            # Make sure readout_levels are in ascending order.
+            self.set(f'{r}/readout_levels', sorted(self[f'{r}/readout_levels']), which='dict')
+            
+            self.set(f'{r}/lowest_readout_levels', self[f'{r}/readout_levels'][0], which='dict')
+            self.set(f'{r}/highest_readout_levels', self[f'{r}/readout_levels'][-1], which='dict')
+            self.set(f'{r}/n_readout_levels', len(self[f'{r}/readout_levels']), which='dict')
         
         
     def check_IQ_matrices(self):
@@ -73,44 +75,44 @@ class VariableManager(Config):
         If their shapes are not compatible with readout_levels,
         default compatible matrices will be generated without saving.
         """
-        for qubit in self['qubits']:
+        for r in self['resonators']:
             try:
-                assert (self[f'{qubit}/n_readout_levels'] == len(self[f'{qubit}/IQ_means']) 
-                        == len(self[f'{qubit}/IQ_covariances']) == len(self[f'{qubit}/corr_matrix']))
+                assert (self[f'{r}/n_readout_levels'] == len(self[f'{r}/IQ_means']) 
+                        == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix']))
             except AssertionError:
-                print(f'The shapes of IQ matrices in {qubit} are not compatible with its readout_levels.'
+                print(f'The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
                       +'New matrices will be generated. Please save it by calling cfg.save()')
                 
-                self[f'{qubit}/corr_matrix'] = np.identity(self[f'{qubit}/n_readout_levels']).tolist()
-                self[f'{qubit}/IQ_covariances'] = [1 for i in range(self[f'{qubit}/n_readout_levels'])]
-                self[f'{qubit}/IQ_means'] = [[i,i] for i in range(self[f'{qubit}/n_readout_levels'])]
+                self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels']).tolist()
+                self[f'{r}/IQ_covariances'] = [1 for i in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_means'] = [[i,i] for i in range(self[f'{r}/n_readout_levels'])]
 
 
-    def check_qubits_module_sequencer_LO(self):
+    def check_module_sequencer_LO(self):
         """
-        For qubit using same module and output, check they are using same LO frequency.
-        Warn user when any two qubits are using same sequencer on same module without raising error.
+        For qubits/resonators using same module, check they are using different sequencer.
+        Furthermore, if they use same output, check they are using same LO frequency.
         """
         for i, qubit in enumerate(self['qubits']):
-            qubit_module = self[f'{qubit}/module']
-            qubit_sequencer = self[f'{qubit}/sequencer']
-            qubit_out = self[f'{qubit}/out']
-            qubit_lo_freq = self[f'{qubit}/qubit_LO']
-            
             for qubjt in self['qubits'][i+1:]:
-                qubjt_module = self[f'{qubjt}/module']
-                qubjt_sequencer = self[f'{qubjt}/sequencer']
-                qubjt_out = self[f'{qubjt}/out']
-                qubjt_lo_freq = self[f'{qubjt}/qubit_LO']
-                
-                if qubjt_module == qubit_module:
-                    if qubjt_sequencer == qubit_sequencer: 
-                        print('You have more than two qubits using same sequencer!')
-                    if qubjt_out == qubit_out:
-                        assert qubjt_lo_freq == qubit_lo_freq, \
+                if self[f'{qubjt}/module'] == self[f'{qubit}/module']:
+                    
+                    assert self[f'{qubjt}/sequencer'] != self[f'{qubit}/sequencer'], \
+                    f'{qubit} and {qubjt} are using same sequencer!'
+                    
+                    if self[f'{qubjt}/out'] == self[f'{qubit}/out']:
+                        assert self[f'{qubjt}/qubit_LO'] == self[f'{qubit}/qubit_LO'], \
                         f'{qubit} and {qubjt} are using same output port with different LO frequency!'
 
-
+        for i, resonator in enumerate(self['resonators']):    
+            for resonatos in self['resonators'][i+1:]:
+                if self[f'{resonatos}/module'] == self[f'{resonator}/module']:
+                    
+                    assert self[f'{resonatos}/sequencer'] != self[f'{resonator}/sequencer'], \
+                    f'{resonator} and {resonatos} are using same sequencer!'
+                    
+                    assert self[f'{resonatos}/resonator_LO'] == self[f'{resonator}/resonator_LO'], \
+                    f'{resonatos} and {resonator} are using same output port with different LO frequency!'        
 
 
 
