@@ -37,6 +37,7 @@ class DACManager(Config):
         """
         Implement the setting/parameters onto Qblox.
         This function should be called after we know which specific qubits/resonators will be used.
+        The qubits/resonators should be list of string: ['Q2', 'Q4'], ['R1', 'R3'], etc.
         
         Right now it's just a temporary way to null the mixer.
         We suppose the parameters are independent of both LO and AWG frequency.
@@ -47,8 +48,8 @@ class DACManager(Config):
         
         # Qubits first, then resonators. Module first, then Sequencer.
         for q in qubits:
-            qubit_module = self.varman[f'Q{q}/module']  # Just an interger. It's for convenience.
-            qubit_sequencer = self.varman[f'Q{q}/sequencer']
+            qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
+            qubit_sequencer = self.varman[f'{q}/sequencer']
             this_module = getattr(self.qblox, f'module{qubit_module}')  # The real module/sequencer object.
             this_sequencer = getattr(this_module, f'sequencer{qubit_sequencer}')  
             
@@ -56,20 +57,22 @@ class DACManager(Config):
                 if attribute.startswith('out') or attribute.startswith('in'):
                     setattr(this_module, attribute, self[f'Module{qubit_module}/{attribute}'])
                     
-            setattr(this_module, 'out{}_lo_freq'.format(self.varman[f'Q{q}/out']), self.varman[f'Q{q}/qubit_LO'])
+            setattr(this_module, 'out{}_lo_freq'.format(self.varman[f'{q}/out']), self.varman[f'{q}/qubit_LO'])
+            setattr(this_sequencer,'marker_ovr_en', True)
+            setattr(this_sequencer,'marker_ovr_value', 15)
             setattr(this_sequencer,'sync_en', True)
             setattr(this_sequencer,'mod_en_awg', True)
-            setattr(this_sequencer,'gain_awg_path0', self.varman[f'Q{q}/{subspace}/amp_rabi'])
-            setattr(this_sequencer,'gain_awg_path1', self.varman[f'Q{q}/{subspace}/amp_rabi'])
-            setattr(this_sequencer,'nco_freq', self.varman[f'Q{q}/{subspace}/mod_freq'])                        
+            setattr(this_sequencer,'gain_awg_path0', self.varman[f'{q}/{subspace}/amp_rabi'])
+            setattr(this_sequencer,'gain_awg_path1', self.varman[f'{q}/{subspace}/amp_rabi'])
+            setattr(this_sequencer,'nco_freq', self.varman[f'{q}/{subspace}/mod_freq'])                        
             setattr(this_sequencer,'mixer_corr_gain_ratio', self[f'Module{qubit_module}/mixer_corr_gain_ratio'])
             setattr(this_sequencer,'mixer_corr_phase_offset_degree', self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
-            setattr(this_sequencer, 'channel_map_path0_out{}_en'.format(self.varman[f'Q{q}/out'] * 2), True)
-            setattr(this_sequencer, 'channel_map_path1_out{}_en'.format(self.varman[f'Q{q}/out'] * 2 + 1), True)
+            setattr(this_sequencer, 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2), True)
+            setattr(this_sequencer, 'channel_map_path1_out{}_en'.format(self.varman[f'{q}/out'] * 2 + 1), True)
         
         for r in resonators:
-            resonator_module = self.varman[f'R{r}/module']
-            resonator_sequencer = self.varman[f'R{r}/sequencer']
+            resonator_module = self.varman[f'{r}/module']
+            resonator_sequencer = self.varman[f'{r}/sequencer']
             this_module = getattr(self.qblox, f'module{resonator_module}')
             this_sequencer = getattr(this_module, f'sequencer{resonator_sequencer}')  
             
@@ -77,17 +80,19 @@ class DACManager(Config):
                 if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
                     setattr(this_module, attribute, self[f'Module{resonator_module}/{attribute}'])
                     
-            setattr(this_module, 'out0_in0_lo_freq', self.varman[f'R{r}/resonator_LO'])
-            setattr(this_module, 'scope_acq_sequencer_select', self.varman[f'R{r}/sequencer'])
+            setattr(this_module, 'out0_in0_lo_freq', self.varman[f'{r}/resonator_LO'])
+            setattr(this_module, 'scope_acq_sequencer_select', self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
+            setattr(this_sequencer,'marker_ovr_en', True)
+            setattr(this_sequencer,'marker_ovr_value', 15)
             setattr(this_sequencer,'sync_en', True)
             setattr(this_sequencer,'mod_en_awg', True)
             setattr(this_sequencer,'demod_en_acq', True)
-            setattr(this_sequencer,'integration_length_acq', self.varman['common/integration_length'])
-            setattr(this_sequencer,'gain_awg_path0', self.varman[f'R{r}/amp'])
-            setattr(this_sequencer,'gain_awg_path1', self.varman[f'R{r}/amp'])
-            setattr(this_sequencer,'nco_freq', self.varman[f'R{r}/mod_freq'])                        
-            setattr(this_sequencer,'mixer_corr_gain_ratio', self[f'Module{qubit_module}/mixer_corr_gain_ratio'])
-            setattr(this_sequencer,'mixer_corr_phase_offset_degree', self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
+            setattr(this_sequencer,'integration_length_acq', self.varman['f{r}/integration_length'])
+            setattr(this_sequencer,'gain_awg_path0', self.varman[f'{r}/amp'])
+            setattr(this_sequencer,'gain_awg_path1', self.varman[f'{r}/amp'])
+            setattr(this_sequencer,'nco_freq', self.varman[f'{r}/mod_freq'])                        
+            setattr(this_sequencer,'mixer_corr_gain_ratio', self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
+            setattr(this_sequencer,'mixer_corr_phase_offset_degree', self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
             setattr(this_sequencer, 'channel_map_path0_out0_en', True)
             setattr(this_sequencer, 'channel_map_path1_out1_en', True)
             
