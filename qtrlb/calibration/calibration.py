@@ -1,5 +1,4 @@
 import numpy as np
-from qtrlb.utils.waveforms import get_waveform  # TODO: Write it.
 
 
 
@@ -12,11 +11,10 @@ class Scan:
         
         Attributes:
             config: A MetaManager.
-            drive_qubits: 'Q2', or ['Q3', 'Q4'].
+            drive_qubits: 'Q2', or ['Q3', 'Q4']. User has to specify the subspace.
             readout_resonators: 'R3' or ['R1', 'R5'].
             subspace: '12' or ['01', '01'], length should be save as drive_qubits.
-            prepulse: 'Q4/X180_01' or [['Q3/Y90_01', 'Q3/X180_12'], ['']],
-                       length should be save as drive_qubits.
+            prepulse: {'Q0': ['Q0/X180_01'], 'Q1': ['Q0/X90_12', 'Q1/Y90_12']}
             postpulse: Same requirement as prepulse.
     """
     def __init__(self, 
@@ -24,27 +22,29 @@ class Scan:
                  scan_name: str,
                  x_label: str, 
                  x_unit, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
                  scan_start: float | list, 
                  scan_stop: float | list, 
                  npoints: int, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
-                 subspace: str | list = ['01'],
-                 prepulse: str | list = None,
-                 postpulse: str | list = None,
+                 heralding: bool = False,
+                 subspace: list = None,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
                  fitmodel = None):
         self.config = config
         self.scan_name = scan_name
         self.x_label = x_label
         self.x_unit = x_unit
-        self.scan_start = scan_start
-        self.scan_stop = scan_stop
-        self.npoints = npoints
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
-        self.subspace = self.make_it_list(subspace)
-        self.prepulse = self.make_it_list(prepulse)
-        self.postpulse = self.make_it_list(prepulse)
+        self.scan_start = self.make_it_list(scan_start)
+        self.scan_stop = self.make_it_list(scan_stop)
+        self.npoints = npoints
+        self.heralding = heralding
+        self.subspace = subspace if subspace is not None else ['01']*len(drive_qubits)
+        self.prepulse = prepulse if prepulse is not None else {}
+        self.postpulse = postpulse if postpulse is not None else {}
         self.fitmodel = fitmodel
         
         self.initialize()
@@ -67,38 +67,87 @@ class Scan:
         """
         Check and reshape the input parameters.
         Configure the Qblox based on drive_qubits and readout_resonators using in this scan.
+        Generate self.system_info.
+        Add subspace prepulse and pad the prepulse/postpulse with 'I'.
         We call implement_parameters methods here instead of during init/load of DACManager,
         because we want those modules/sequencers not being used to keep their default status.
         """     
-        # TODO: Need to make sure prepulse has correct 2D shape.
         self.check_attribute()
         
-        # TODO: Some of the parameters are unnecessary since we will change them in Q1ASM program anyway.
+        # TODO: Gain and NCO freq are unnecessary since we will change them in Q1ASM program anyway.
         self.config.DAC.implement_parameters(qubits=self.drive_qubits, 
                                              resonators=self.readout_resonators,
                                              subspace=self.subspace)
+        
+        self.system_info = {}
+        for qudit in (self.drive_qubits + self.readout_resonators):
+            self.system_info[qudit] = {}
+            # self.system_info[qudit]['sequence_dict'] = {}
+            self.system_info[qudit]['prepulse'] = []
+            self.system_info[qudit]['postpulse'] = []
+        
+        # TODO: Or maybe move it into Sequence.
+        self.pad_subspace_prepulse_postpulse()
+        
         
         
     def check_attribute(self):
         """
         Check the qubits/resonators are always string with 'Q' or 'R'.
         Warn user if any drive_qubits are not being readout without raising error.
-        Make sure each qubit has a subspace.
-        Make sure each qubit has a prepulse/postpulse list.
+        Make sure each qubit has a scan_start, scan_stop, subspace.
+        Make sure the prepulse/postpulse is indeed in form of dictionary.
         """
         for qudit in (self.drive_qubits + self.readout_resonators):
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
             assert qudit.startswith('Q') or qudit.startswith('R'), f'The value of {qudit} is invalid.'
         
         for qubit in self.drive_qubits:
-            if f'R{qubit[1:]}' not in self.readout_qubits:
-                print(f'The {qubit} will not be readout!')
+            if f'R{qubit[1:]}' not in self.readout_qubits: print(f'The {qubit} will not be readout!')
         
+        assert len(self.scan_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
+        assert len(self.scan_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
-        assert len(self.prepulse) == len(self.drive_qubits), 'Please specify prepulse for each qubit.'
-        assert len(self.postpulse) == len(self.drive_qubits), 'Please specify postpulse for each qubit.'
+        assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
+        assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
+
+
         
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def make_sequence(self):
         """
         Generate the self.sequences, which is a dictionary including all sequence dictionaries
@@ -265,9 +314,6 @@ class Scan:
             return []
         else:
             return [thing]
-
-
-
 
 
 

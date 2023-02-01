@@ -126,37 +126,6 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    # TODO: Delete it.
-    def build_channel_map(self, qubits: list, resonators: list,):
-        """
-        Build maps between two output paths of each output port 
-        and two output paths of each sequencer, based on Variable.yaml
-        """
-        
-        # For drive
-        for qubit in self.varman['qubits']:
-            qubit_module = self.varman[f'{qubit}/module']
-            qubit_sequencer = self.varman[f'{qubit}/sequencer']
-            qubit_out = self.varman[f'{qubit}/out']
-
-            qblox_module = getattr(self.qblox, f'module{qubit_module}')
-            qblox_sequencer = getattr(qblox_module, f'sequencer{qubit_sequencer}')
-            
-            if qubit_out == 0:
-                qblox_sequencer.channel_map_path0_out0_en(True)
-                qblox_sequencer.channel_map_path1_out1_en(True)
-            elif qubit_out == 1:
-                qblox_sequencer.channel_map_path0_out2_en(True)
-                qblox_sequencer.channel_map_path1_out3_en(True)
-            else:
-                raise ValueError(f'The value of out{qubit_out} in {qubit} is invalid.')
-
-        # For readout
-        readout_module = self.varman['readout/module']
-        qblox_module = getattr(self.qblox, f'module{readout_module}')
-        for sequencer in qblox_module.sequencers:
-            sequencer.channel_map_path0_out0_en(True)
-            sequencer.channel_map_path1_out1_en(True)
 
 
 
