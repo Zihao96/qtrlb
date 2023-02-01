@@ -12,8 +12,12 @@ class Scan:
         
         Attributes:
             config: A MetaManager.
-            drive_qubits: 'Q2', or ['Q3', 'Q4']
-            readout_resonators: 'R3' or ['R1', 'R5']
+            drive_qubits: 'Q2', or ['Q3', 'Q4'].
+            readout_resonators: 'R3' or ['R1', 'R5'].
+            subspace: '12' or ['01', '01'], length should be save as drive_qubits.
+            prepulse: 'Q4/X180_01' or [['Q3/Y90_01', 'Q3/X180_12'], ['']],
+                       length should be save as drive_qubits.
+            postpulse: Same requirement as prepulse.
     """
     def __init__(self, 
                  config, 
@@ -25,7 +29,7 @@ class Scan:
                  npoints: int, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 subspace: str = '01',
+                 subspace: str | list = ['01'],
                  prepulse: str | list = None,
                  postpulse: str | list = None,
                  fitmodel = None):
@@ -38,10 +42,12 @@ class Scan:
         self.npoints = npoints
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
-        self.subspace = subspace
+        self.subspace = self.make_it_list(subspace)
         self.prepulse = self.make_it_list(prepulse)
         self.postpulse = self.make_it_list(prepulse)
         self.fitmodel = fitmodel
+        
+        self.initialize()
         
         
     def run(self, 
@@ -50,7 +56,6 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_reps = n_reps
         
-        self.initialize()
         self.make_sequence() 
         self.upload_sequence()
         self.acquire_data()  # This is really run the thing and return to the IQ data.
@@ -60,10 +65,26 @@ class Scan:
         
     def initialize(self):
         """
+        Check and reshape the input parameters.
         Configure the Qblox based on drive_qubits and readout_resonators using in this scan.
-        Warn user if any drive_qubits are not being readout without raising error.
-        We call these methods here instead of during init/load of DACManager,
+        We call implement_parameters methods here instead of during init/load of DACManager,
         because we want those modules/sequencers not being used to keep their default status.
+        """     
+        # TODO: Need to make sure prepulse has correct 2D shape.
+        self.check_attribute()
+        
+        # TODO: Some of the parameters are unnecessary since we will change them in Q1ASM program anyway.
+        self.config.DAC.implement_parameters(qubits=self.drive_qubits, 
+                                             resonators=self.readout_resonators,
+                                             subspace=self.subspace)
+        
+        
+    def check_attribute(self):
+        """
+        Check the qubits/resonators are always string with 'Q' or 'R'.
+        Warn user if any drive_qubits are not being readout without raising error.
+        Make sure each qubit has a subspace.
+        Make sure each qubit has a prepulse/postpulse list.
         """
         for qudit in (self.drive_qubits + self.readout_resonators):
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
@@ -73,9 +94,9 @@ class Scan:
             if f'R{qubit[1:]}' not in self.readout_qubits:
                 print(f'The {qubit} will not be readout!')
         
-        self.config.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                             resonators=self.readout_resonators,
-                                             subspace=self.subspace)
+        assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
+        assert len(self.prepulse) == len(self.drive_qubits), 'Please specify prepulse for each qubit.'
+        assert len(self.postpulse) == len(self.drive_qubits), 'Please specify postpulse for each qubit.'
         
         
     def make_sequence(self):
@@ -98,10 +119,12 @@ class Scan:
         Please check the link below for detail:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/basic_sequencing.html
         """
-        self.sequences = {}
+        self.sequences = {}        
         
-        for qudit in (self.drive_qubits + self.readout_resonators):
+        for i, qudit in enumerate(self.drive_qubits + self.readout_resonators):
             self.sequences[qudit] = {}
+            
+            
             self.set_waveforms(qudit=qudit)
             self.set_weights(qudit=qudit)
             self.set_acquisitions(qudit=qudit)
@@ -198,6 +221,7 @@ class Scan:
         return program
     
     
+    # TODO: Just take a try, don't be afraid.
     def add_subspace_prepulse(self, qudit: str, program: str):
         qubit_ss_prepulse = """
         

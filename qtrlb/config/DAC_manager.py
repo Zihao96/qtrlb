@@ -33,7 +33,7 @@ class DACManager(Config):
         self.set('modules', modules_list, which='dict')  # Keep the new key start with lowercase!
         
         
-    def implement_parameters(self, qubits: list, resonators: list, subspace: str):
+    def implement_parameters(self, qubits: list, resonators: list, subspace: list):
         """
         Implement the setting/parameters onto Qblox.
         This function should be called after we know which specific qubits/resonators will be used.
@@ -47,7 +47,7 @@ class DACManager(Config):
         self.disconnect_existed_map()
         
         # Qubits first, then resonators. Module first, then Sequencer.
-        for q in qubits:
+        for i, q in enumerate(qubits):
             qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
             qubit_sequencer = self.varman[f'{q}/sequencer']
             this_module = getattr(self.qblox, f'module{qubit_module}')  # The real module/sequencer object.
@@ -62,9 +62,9 @@ class DACManager(Config):
             setattr(this_sequencer,'marker_ovr_value', 15)
             setattr(this_sequencer,'sync_en', True)
             setattr(this_sequencer,'mod_en_awg', True)
-            setattr(this_sequencer,'gain_awg_path0', self.varman[f'{q}/{subspace}/amp_rabi'])
-            setattr(this_sequencer,'gain_awg_path1', self.varman[f'{q}/{subspace}/amp_rabi'])
-            setattr(this_sequencer,'nco_freq', self.varman[f'{q}/{subspace}/mod_freq'])                        
+            setattr(this_sequencer,'gain_awg_path0', self.varman[f'{q}/{subspace[i]}/amp_rabi'])
+            setattr(this_sequencer,'gain_awg_path1', self.varman[f'{q}/{subspace[i]}/amp_rabi'])
+            setattr(this_sequencer,'nco_freq', self.varman[f'{q}/{subspace[i]}/mod_freq'])                        
             setattr(this_sequencer,'mixer_corr_gain_ratio', self[f'Module{qubit_module}/mixer_corr_gain_ratio'])
             setattr(this_sequencer,'mixer_corr_phase_offset_degree', self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
             setattr(this_sequencer, 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2), True)
@@ -87,7 +87,7 @@ class DACManager(Config):
             setattr(this_sequencer,'sync_en', True)
             setattr(this_sequencer,'mod_en_awg', True)
             setattr(this_sequencer,'demod_en_acq', True)
-            setattr(this_sequencer,'integration_length_acq', self.varman['f{r}/integration_length'])
+            setattr(this_sequencer,'integration_length_acq', self.varman['common/integration_length'])
             setattr(this_sequencer,'gain_awg_path0', self.varman[f'{r}/amp'])
             setattr(this_sequencer,'gain_awg_path1', self.varman[f'{r}/amp'])
             setattr(this_sequencer,'nco_freq', self.varman[f'{r}/mod_freq'])                        
