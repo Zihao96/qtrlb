@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from qtrlb.utils.waveforms import get_waveform  # TODO: Write it.
-from qtrlb.utils.pulse import pulse_interpreter  # TODO: Write it. Make sure Empty DataFrame works.
+from qtrlb.utils.waveforms import get_waveform
+from qtrlb.utils.pulses import pulse_interpreter  # TODO: Write it. Make sure Empty DataFrame works.
 
 
 
@@ -16,7 +16,7 @@ class Scan:
             drive_qubits: 'Q2', or ['Q3', 'Q4']. User has to specify the subspace.
             readout_resonators: 'R3' or ['R1', 'R5'].
             subspace: '12' or ['01', '01'], length should be save as drive_qubits.
-            prepulse: {'Q0': ['Q0/X180_01'], 'Q1': ['Q0/X90_12', 'Q1/Y90_12']}
+            prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
     """
     def __init__(self, 
@@ -78,7 +78,6 @@ class Scan:
         """     
         self.check_attribute()
         
-        # TODO: Gain and NCO freq are unnecessary since we will change them in Q1ASM program anyway.
         self.config.DAC.implement_parameters(qubits=self.drive_qubits, 
                                              resonators=self.readout_resonators,
                                              subspace=self.subspace)
@@ -112,6 +111,14 @@ class Scan:
         Generate the Pandas DataFrame of prepulse, postpulse, with padded 'I'.
         Both subspace and input prepulse will be included into prepulse.
         All qubits and resonators will become the (row) index of dataframe.
+        An additional interger attribute 'length' in [ns] will be associated with each column.
+        
+        Example of full prepulse DataFrame:
+           subspace_0 subspace_1 prepulse_0 prepulse_1
+        Q3    X180_01          I     Y90_01          I
+        Q4    X180_01    X180_12     Y90_01     Z90_12
+        R3          I          I          I          I
+        R4          I          I          I          I
         """
 
         for qudit in self.qudits:
@@ -120,9 +127,17 @@ class Scan:
 
         self.subspace_pulse = {}
         for q, ss in zip(self.drive_qubits, self.subspace):
-            self.subspace_pulse[q] = [f'{q}/X180_{l}{l+1}' for l in range(int(ss[0]))]
+            self.subspace_pulse[q] = [f'X180_{l}{l+1}' for l in range(int(ss[0]))]
         for r in self.readout_resonators:
             self.subspace_pulse[r] = []
+            
+        length = int(self.config.varman['common/qubit_pulse_length']*1e9)
+        # I agree it's not very general here, since we assume everything in prepulse/postpulse is qubit gate.
+        # Thus we pad the dataframe with Indentity but all with qubit's gate time.
+        # It's will break the sync between sequencers when we have any pulse that is not exactly that time.
+        # I believe we can deal with special pulse when we really meet them.
+        # For example, such experiment should be a child class with redefined add_prepulse, or add_pulse to whole sequence.
+        # Right now I just want to make things work first, then make them better. --Zihao(02/06/2023)
 
 
         # Generate the DataFrame
@@ -134,10 +149,14 @@ class Scan:
 
         full_prepulse_df = pd.concat([subspace_df, prepulse_df], axis=1)
         self.full_prepulse_df = full_prepulse_df.fillna('I')
+        
 
         postpulse_df = pd.DataFrame.from_dict(self.postpulse, orient='index')
         postpulse_df = postpulse_df.rename(columns={i:f'postpulse_{i}' for i in range(postpulse_df.shape[1])})
         self.postpulse_df = postpulse_df.fillna('I')
+
+        for col_name, column in self.full_prepulse_df.items(): column.length = length
+        for col_name, column in self.postpulse_df.items(): column.length = length
 
 
     def make_sequence(self):
@@ -163,7 +182,18 @@ class Scan:
         self.sequences = {qudit:{} for qudit in self.qudits}        
         
         self.set_waveforms_acquisitions()
+        
         self.init_program()
+        self.add_relaxation()
+        self.add_heralding()
+        self.add_prepulse()
+        self.add_mainpulse()
+        self.add_postpulse()
+        self.add_readout()
+        self.add_stop()
+        # TODO: I feel like the structure here is already like scan, not general experiment.
+        # Maybe I need to move it somewhere else
+
     
         
     def set_waveforms_acquisitions(self):
@@ -177,9 +207,12 @@ class Scan:
         """
         for qudit in self.qudits:
             pulse_type = 'qubit' if qudit.startswith('Q') else 'resonator'
-            waveforms = {qudit: {'data': get_waveform(self.config.varman[f'common/{pulse_type}_pulse_length'], 
-                                                      self.config.varman[f'{qudit}/pulse_shape']), 
-                                 'index': 0}}
+            
+            waveform = get_waveform(int(self.config.varman[f'common/{pulse_type}_pulse_length']*1e9), 
+                                    self.config.varman[f'{qudit}/pulse_shape'])
+            
+            waveforms = {qudit: {'data': waveform, 'index': 0}}
+            
             acquisitions = {'readout':   {'num_bins': self.npoints, 'index': 0},
                             'heralding': {'num_bins': self.npoints, 'index': 1}}
             
@@ -192,7 +225,7 @@ class Scan:
         
         for qudit in self.qudits:
             program = """
-            # R0 is the value of main parameter of 1D Scan.
+            # R0 is the value of main parameter of 1D Scan, if needed.
             # R1 is the count of repetition for algorithm or npoints for parameter sweep.
             # R2 is the relaxation time in microseconds.
             # Other register for backup.
@@ -242,6 +275,25 @@ class Scan:
             
             self.sequences[qudit]['program'] += prepulse
         
+        
+    def add_prepulse2(self):
+        
+        # Suppose I've added .time (or maybe .length) attribute to each column of self.full_prepulse_df.
+        for col_name, column in self.full_prepulse_df.items():
+            for qudit in self.qudits:
+                prepulse = """
+                #-----------Prepulse-----------
+                """
+                init_pulse_str = column[qudit]
+                prepulse += pulse_interpreter(config = self.config, 
+                                              qudit = qudit, 
+                                              pulse_string = init_pulse_str, 
+                                              length = column.length)
+                self.sequences[qudit]['program'] += prepulse
+        
+        
+        
+        
 
     def add_mainpulse(self):        
         """
@@ -263,13 +315,13 @@ class Scan:
             self.sequences[qudit]['program'] += postpulse
 
 
-    # TODO: Maybe make RO as a pulse in pulse_interpreter.
+    # TODO: Maybe make RO as a pulse in pulse_interpreter?
     def add_readout(self):
         
         readout_length_s = self.config.varman['commmon/resonator_pulse_length']
-        readout_length_ns = int( np.ceil(readout_length_s*1e9) )
+        readout_length_ns = int(readout_length_s*1e9)
         tof_s = self.config.varman['commmon/tof']
-        tof_ns = int( np.ceil(tof_s*1e9) )
+        tof_ns = int(tof_s*1e9)
         
         for qubit in self.drive_qubits:
             readout = f"""
@@ -279,11 +331,14 @@ class Scan:
             self.sequences[qubit]['program'] += readout
             
         for resonator in self.readout_resonators:
+            freq = int(self.config.varman[f'{resonator}/mod_freq'] * 4)
+            gain = int(self.config.varman[f'{resonator}/amp'] * 32768)
             readout = f"""
             #-----------readout-----------
+                        set_freq         {freq}
+                        set_awg_gain     {gain},{gain}
                         play             0,0,{tof_ns} 
-                        acquire          0,R1,{readout_length_ns}
-                        
+                        acquire          0,R1,{readout_length_ns}                        
             """
             self.sequences[resonator]['program'] += readout 
             
