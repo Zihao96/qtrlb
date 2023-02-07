@@ -315,12 +315,12 @@ class Scan:
         for qudit in self.qudits: self.sequences[qudit]['program'] += stop
 
 
-    # TODO: Set a maximum of it.
     def add_wait(self, time: float):
         """
         The time parameter should be in unit of [sec]
         """
         time_ns = round(time * 1e9)
+        assert time_ns < 65535 & time_ns >= 4, 'The wait time can only be in [4,65535).'
         wait = f"""
         #-----------Wait-----------
                     wait             {time_ns}                               

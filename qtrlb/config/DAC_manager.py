@@ -60,13 +60,14 @@ class DACManager(Config):
                     setattr(this_module, attribute, self[f'Module{qubit_module}/{attribute}'])
                     
             setattr(this_module, 'out{}_lo_freq'.format(self.varman[f'{q}/out']), self.varman[f'{q}/qubit_LO'])
-            setattr(this_sequencer,'sync_en', True)
-            setattr(this_sequencer,'mod_en_awg', True)
-            # setattr(this_sequencer,'gain_awg_path0', self.varman[f'{q}/{subspace[i]}/amp_rabi'])
-            # setattr(this_sequencer,'gain_awg_path1', self.varman[f'{q}/{subspace[i]}/amp_rabi'])
-            # setattr(this_sequencer,'nco_freq', self.varman[f'{q}/{subspace[i]}/mod_freq'])                  
-            setattr(this_sequencer, 'mixer_corr_gain_ratio', self[f'Module{qubit_module}/mixer_corr_gain_ratio'])
-            setattr(this_sequencer,' mixer_corr_phase_offset_degree', self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
+            this_sequencer.sync_en(True)
+            this_sequencer.mod_en_awg(True)
+            
+            # this_sequencer.gain_awg_path0(self.varman[f'{q}/{subspace[i]}/amp_rabi'])
+            # this_sequencer.gain_awg_path1(self.varman[f'{q}/{subspace[i]}/amp_rabi'])
+            # this_sequencer.nco_freq(self.varman[f'{q}/{subspace[i]}/mod_freq']) 
+            this_sequencer.mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
+            this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
             setattr(this_sequencer, 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2), True)
             setattr(this_sequencer, 'channel_map_path1_out{}_en'.format(self.varman[f'{q}/out'] * 2 + 1), True)
         
@@ -79,20 +80,23 @@ class DACManager(Config):
             for attribute in self[f'Module{resonator_module}'].keys():
                 if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
                     setattr(this_module, attribute, self[f'Module{resonator_module}/{attribute}'])
-                    
-            setattr(this_module, 'out0_in0_lo_freq', self.varman[f'{r}/resonator_LO'])
-            setattr(this_module, 'scope_acq_sequencer_select', self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
-            setattr(this_sequencer,'sync_en', True)
-            setattr(this_sequencer,'mod_en_awg', True)
-            setattr(this_sequencer,'demod_en_acq', True)
-            setattr(this_sequencer,'integration_length_acq', self.varman['common/integration_length'])
-            # setattr(this_sequencer,'gain_awg_path0', self.varman[f'{r}/amp'])
-            # setattr(this_sequencer,'gain_awg_path1', self.varman[f'{r}/amp'])
-            # setattr(this_sequencer,'nco_freq', self.varman[f'{r}/mod_freq'])                      
-            setattr(this_sequencer, 'mixer_corr_gain_ratio', self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
-            setattr(this_sequencer, 'mixer_corr_phase_offset_degree', self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
-            setattr(this_sequencer, 'channel_map_path0_out0_en', True)
-            setattr(this_sequencer, 'channel_map_path1_out1_en', True)
+            
+            this_module.out0_in0_lo_freq(self.varman[f'{r}/resonator_LO'])        
+            this_module.scope_acq_sequencer_select(self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
+            this_sequencer.sync_en(True)
+            this_sequencer.mod_en_awg(True)
+            this_sequencer.demod_en_awg(True)
+            this_sequencer.integration_length_acq(self.varman['common/integration_length'])
+            this_sequencer.channel_map_path0_out0_en(True)
+            this_sequencer.channel_map_path1_out1_en(True)
+
+            # this_sequencer.gain_awg_path0(self.varman[f'{r}/amp'])
+            # this_sequencer.gain_awg_path1(self.varman[f'{r}/amp'])
+            # this_sequencer.nco_freq(self.varman[f'{r}/mod_freq'])                    
+            this_sequencer.mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
+            this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
+
+            
             
         # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
         # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 
