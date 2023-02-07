@@ -16,7 +16,6 @@ class VariableManager(Config):
         super().__init__(yamls_path=yamls_path, 
                          suffix='variables',
                          variable_suffix='_'+variable_suffix)
-        self.load()
     
     
     def load(self):
