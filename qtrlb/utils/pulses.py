@@ -24,9 +24,9 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
         else:
             acq_index = kwargs['acq_index']
         
-        freq = int(cfg.variables[f'{qudit}/mod_freq'] * 4)
-        gain = int(cfg.variables[f'{qudit}/amp'] * 32768)
-        tof_ns = int(cfg.variables['commmon/tof'] * 1e9)
+        freq = round(cfg.variables[f'{qudit}/mod_freq'] * 4)
+        gain = round(cfg.variables[f'{qudit}/amp'] * 32768)
+        tof_ns = round(cfg.variables['common/tof'] * 1e9)
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
@@ -36,8 +36,8 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
         
     elif pulse_string.startswith('X'):
         angle, subspace = pulse_string[1:].split('_')
-        freq = int(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = int(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
+        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
+        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
@@ -46,19 +46,19 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
         
     elif pulse_string.startswith('Y'):
         angle, subspace = pulse_string[1:].split('_')
-        freq = int(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = int(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
+        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
+        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
         pulse_program = f"""
-                    set_ph_delta     {int(250e6)}
+                    set_ph_delta     {round(250e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
                     play             0,0,{length} 
-                    set_ph_delta     {int(750e6)}
+                    set_ph_delta     {round(750e6)}
         """
         
     elif pulse_string.startswith('Z'):
         angle, subspace = pulse_string[1:].split('_')
-        angle = int(angle/360*1e9)
+        angle = round(angle/360*1e9)
         pulse_program = f"""
                     set_ph_delta     {angle}
                     wait             {length}
@@ -67,14 +67,14 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
     elif pulse_string.startswith('H'):
         # H = Y90 * Z, in operator order, so Z first.
         _, subspace = pulse_string.split('_')
-        freq = int(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = int(cfg.variables[f'{qudit}/{subspace}/amp_90'] * 32768)
+        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
+        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_90'] * 32768)
         pulse_program = f"""
-                    set_ph_delta     {int(750e6)}
+                    set_ph_delta     {round(750e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
                     play             0,0,{length} 
-                    set_ph_delta     {int(750e6)}
+                    set_ph_delta     {round(750e6)}
         """
     
     # TODO: Write it.

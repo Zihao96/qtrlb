@@ -17,6 +17,9 @@ class DACManager(Config):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
+        
+        self.load()
+        
         Cluster.close_all()
         self.qblox = Cluster(self['name'], self['address'])
         self.qblox.reset()

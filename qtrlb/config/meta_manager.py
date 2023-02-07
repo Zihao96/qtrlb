@@ -10,7 +10,7 @@ class MetaManager:
     def __init__(self, manager_dict):
         self.manager_dict = manager_dict
         
-        for manager_name, manager in self.manager_dict:
+        for manager_name, manager in self.manager_dict.items():
             self.__setattr__(manager_name, manager)
       
     

@@ -33,6 +33,7 @@ class Config:
         self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
         
         self.check_config()
+        # Please do not call self.load() here.
         
         
     def check_config(self):

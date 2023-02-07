@@ -47,7 +47,7 @@ class Scan:
         self.fitmodel = fitmodel
         
         self.qudits = self.drive_qubits + self.readout_resonators
-        self.heralding_enable = self.cfg.variables['commmon/heralding']
+        self.heralding_enable = self.cfg.variables['common/heralding']
         
         self.initialize()
         self.make_sequence() 
@@ -77,8 +77,8 @@ class Scan:
         self.check_attribute()
         
         self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                             resonators=self.readout_resonators,
-                                             subspace=self.subspace)
+                                          resonators=self.readout_resonators,
+                                          subspace=self.subspace)
         
         self.generate_pulse_dataframe()        
         
@@ -95,7 +95,7 @@ class Scan:
             assert qudit.startswith('Q') or qudit.startswith('R'), f'The value of {qudit} is invalid.'
             
         for qubit in self.drive_qubits:
-            if f'R{qubit[1:]}' not in self.readout_qubits: print(f'The {qubit} will not be readout!')
+            if f'R{qubit[1:]}' not in self.readout_resonators: print(f'The {qubit} will not be readout!')
         
         assert len(self.scan_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
         assert len(self.scan_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
@@ -132,9 +132,9 @@ class Scan:
         self.full_prepulse_df = pd.concat([self.subspace_df, self.prepulse_df], axis=1)
             
         
-        readout_length_ns = int(self.cfg.variables['commmon/resonator_pulse_length'] * 1e9)
-        tof_ns = int(self.cfg.variables['commmon/tof'] * 1e9)    
-        drive_length_ns = int(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)    
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
         
         # Assign the length attribute to each column.
         for col_name, column in self.full_prepulse_df.items(): column.length = drive_length_ns
@@ -195,7 +195,7 @@ class Scan:
         for qudit in self.qudits:
             pulse_type = 'qubit' if qudit.startswith('Q') else 'resonator'
             
-            waveform = get_waveform(int(self.cfg.variables[f'common/{pulse_type}_pulse_length']*1e9), 
+            waveform = get_waveform(round(self.cfg.variables[f'common/{pulse_type}_pulse_length'] * 1e9), 
                                     self.cfg.variables[f'{qudit}/pulse_shape'])
             
             waveforms = {qudit: {'data': waveform, 'index': 0}}
@@ -212,32 +212,32 @@ class Scan:
         
         for qudit in self.qudits:
             program = """
-            # R0 is the value of main parameter of 1D Scan, if needed.
-            # R1 is the count of repetition for algorithm or npoints for parameter sweep.
-            # R2 is the relaxation time in microseconds.
-            # Other register for backup.
-            
-                        wait_sync        4
-                        move             0,R0
-                        move             0,R1
-                        move             0,R2
-                        move             0,R3
-                        move             0,R4
-                        move             0,R5
-            
-            main_loop:  wait_sync        4                               # Sync at beginning of the loop.
-                        reset_ph                                         # Reset phase to eliminate effect of previous VZ gate.
-                        set_mrk          15                              # Enable all markers (binary 1111) for switching on output.
-                        upd_param        4                               # Update parameters and wait 4ns.
-            """
+        # R0 is the value of main parameter of 1D Scan, if needed.
+        # R1 is the count of repetition for algorithm or npoints for parameter sweep.
+        # R2 is the relaxation time in microseconds.
+        # Other register for backup.
+        
+                    wait_sync        4
+                    move             0,R0
+                    move             0,R1
+                    move             0,R2
+                    move             0,R3
+                    move             0,R4
+                    move             0,R5
+        
+        main_loop:  wait_sync        4                               # Sync at beginning of the loop.
+                    reset_ph                                         # Reset phase to eliminate effect of previous VZ gate.
+                    set_mrk          15                              # Enable all markers (binary 1111) for switching on output.
+                    upd_param        4                               # Update parameters and wait 4ns.
+        """
             self.sequences[qudit]['program'] = program
         
         
     def add_relaxation(self):
-        relaxation_time_s = self.cfg.variables['commmon/relaxation_time']
+        relaxation_time_s = self.cfg.variables['common/relaxation_time']
         relaxation_time_us = int( np.ceil(relaxation_time_s*1e6) )
         relaxation = f"""
-        #-----------Relaxation-----------
+                #-----------Relaxation-----------
                     move             {relaxation_time_us},R2
         relx_loop:  wait             1000
                     loop             R2,@relx_loop
@@ -246,7 +246,7 @@ class Scan:
         
         
     def add_heralding(self, acq_index: int = 1):
-        heralding_delay = self.cfg.variables['commmon/heralding_delay']
+        heralding_delay = self.cfg.variables['common/heralding_delay']
         self.add_readout(acq_index=acq_index)
         self.add_wait(time=heralding_delay)
         
@@ -304,7 +304,7 @@ class Scan:
 
     def add_stop(self):
         stop = f"""
-        #-----------Stop-----------
+                #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0                               # Disable all markers (binary 0000) for switching off output.
                     upd_param        4                               # Update parameters and wait 4ns.
@@ -320,7 +320,7 @@ class Scan:
         """
         The time parameter should be in unit of [sec]
         """
-        time_ns = int(time * 1e9)
+        time_ns = round(time * 1e9)
         wait = f"""
         #-----------Wait-----------
                     wait             {time_ns}                               

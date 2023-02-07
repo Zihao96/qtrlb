@@ -15,6 +15,7 @@ def begin_measurement_session(yamls_path: str, variable_suffix: str = ''):
     cfg = MetaManager({'variables':varman,
                        'DAC':dacman})
     
+    return cfg
     
     
     
