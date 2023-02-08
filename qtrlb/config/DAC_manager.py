@@ -20,9 +20,9 @@ class DACManager(Config):
         
         self.load()
         
-        # Cluster.close_all()
-        # self.qblox = Cluster(self['name'], self['address'])
-        # self.qblox.reset()
+        Cluster.close_all()
+        self.qblox = Cluster(self['name'], self['address'])
+        self.qblox.reset()
     
     
     def load(self):
@@ -74,6 +74,7 @@ class DACManager(Config):
             # this_sequencer.nco_freq(self.varman[f'{q}/{subspace[i]}/mod_freq']) 
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
+            this_sequencer.sequence(f'./Jsons/{q}_sequence.json')
 
         
         for r in resonators:
@@ -91,8 +92,8 @@ class DACManager(Config):
             this_module.scope_acq_sequencer_select(self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
             this_sequencer.sync_en(True)
             this_sequencer.mod_en_awg(True)
-            this_sequencer.demod_en_awg(True)
-            this_sequencer.integration_length_acq(self.varman['common/integration_length'])
+            this_sequencer.demod_en_acq(True)
+            this_sequencer.integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
             this_sequencer.channel_map_path0_out0_en(True)
             this_sequencer.channel_map_path1_out1_en(True)
 
@@ -101,7 +102,7 @@ class DACManager(Config):
             # this_sequencer.nco_freq(self.varman[f'{r}/mod_freq'])                    
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
-           
+            this_sequencer.sequence(f'./Jsons/{r}_sequence.json')
             
         # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
         # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 

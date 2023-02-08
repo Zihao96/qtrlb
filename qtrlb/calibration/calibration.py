@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from qtrlb.utils.waveforms import get_waveform
@@ -47,11 +48,12 @@ class Scan:
         self.fitmodel = fitmodel
         
         self.qudits = self.drive_qubits + self.readout_resonators
+        self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.npoints).transpose().tolist()
         self.x_step = [(stop-start)/(self.npoints-1) for start, stop in zip(self.x_start, self.x_stop)]
         self.heralding_enable = self.cfg.variables['common/heralding']
         
-        self.initialize()
+        self.generate_pulse_dataframe()
         self.make_sequence() 
         self.upload_sequence()
         
@@ -65,25 +67,6 @@ class Scan:
         self.acquire_data()  # This is really run the thing and return to the IQ data.
         self.analyze_data()
         self.plot()
-        
-    
-    # TODO: Move it earlier.
-    def initialize(self):
-        """
-        Check and reshape the input parameters.
-        Configure the Qblox based on drive_qubits and readout_resonators using in this scan.
-        Generate self.full_prepulse_df.
-        Add subspace prepulse and pad the prepulse/postpulse with 'I'.
-        We call implement_parameters methods here instead of during init/load of DACManager,
-        because we want those modules/sequencers not being used to keep their default status.
-        """     
-        self.check_attribute()
-        
-        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-        #                                   resonators=self.readout_resonators,
-        #                                   subspace=self.subspace)
-        
-        self.generate_pulse_dataframe()        
         
         
     def check_attribute(self):
@@ -100,8 +83,8 @@ class Scan:
         for qubit in self.drive_qubits:
             if f'R{qubit[1:]}' not in self.readout_resonators: print(f'The {qubit} will not be readout!')
         
-        assert len(self.scan_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
-        assert len(self.scan_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
+        assert len(self.x_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
+        assert len(self.x_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
@@ -366,9 +349,27 @@ class Scan:
         
     ##################################################    
     def upload_sequence(self):
-        pass
+        """
+        Create json file of sequence for each sequencer/qudit.
+        Configure the Qblox to desired parameters then upload json files.
+        
+        We call implement_parameters methods here instead of during init/load of DACManager,
+        because we want those modules/sequencers not being used to keep their default status.
+        """
+        for qudit, sequence_dict in self.sequences.items():
+            with open(f'./Jsons/{qudit}_sequence.json', 'w', encoding='utf-8') as file:
+                json.dump(sequence_dict, file, indent=4)
+                file.close()
+                
+        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+                                          resonators=self.readout_resonators,
+                                          subspace=self.subspace)
     
-    
+    def acquire_data(self):
+        for i in range(self.n_reps):
+            self.cfg.DAC.start_sequencer()
+        
+        
         
     @staticmethod
     def make_it_list(thing):
