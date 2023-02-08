@@ -20,26 +20,26 @@ class Scan:
     """
     def __init__(self, 
                  cfg, 
-                 scan_name: str,
-                 x_label: str, 
-                 x_unit, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 scan_start: float | list, 
-                 scan_stop: float | list, 
+                 # scan_name: str,
+                 # x_label: str, 
+                 # x_unit: str, 
+                 x_start: float | list, 
+                 x_stop: float | list, 
                  npoints: int, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  fitmodel = None):
         self.cfg = cfg
-        self.scan_name = scan_name
-        self.x_label = x_label
-        self.x_unit = x_unit
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
-        self.scan_start = self.make_it_list(scan_start)
-        self.scan_stop = self.make_it_list(scan_stop)
+        # self.scan_name = scan_name
+        # self.x_label = x_label
+        # self.x_unit = x_unit
+        self.x_start = self.make_it_list(x_start)
+        self.x_stop = self.make_it_list(x_stop)
         self.npoints = npoints
         self.subspace = subspace if subspace is not None else ['01']*len(drive_qubits)
         self.prepulse = prepulse if prepulse is not None else {}
@@ -47,6 +47,8 @@ class Scan:
         self.fitmodel = fitmodel
         
         self.qudits = self.drive_qubits + self.readout_resonators
+        self.x_values = np.linspace(self.x_start, self.x_stop, self.npoints).transpose().tolist()
+        self.x_step = [(stop-start)/(self.npoints-1) for start, stop in zip(self.x_start, self.x_stop)]
         self.heralding_enable = self.cfg.variables['common/heralding']
         
         self.initialize()
@@ -64,7 +66,8 @@ class Scan:
         self.analyze_data()
         self.plot()
         
-        
+    
+    # TODO: Move it earlier.
     def initialize(self):
         """
         Check and reshape the input parameters.
@@ -76,9 +79,9 @@ class Scan:
         """     
         self.check_attribute()
         
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                          resonators=self.readout_resonators,
-                                          subspace=self.subspace)
+        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+        #                                   resonators=self.readout_resonators,
+        #                                   subspace=self.subspace)
         
         self.generate_pulse_dataframe()        
         
@@ -174,6 +177,8 @@ class Scan:
         self.set_waveforms_acquisitions()
         
         self.init_program()
+        self.add_initparameter()
+        self.add_mainloop()
         self.add_relaxation()
         if self.heralding_enable: self.add_heralding()
         self.add_prepulse()
@@ -209,7 +214,6 @@ class Scan:
 
         
     def init_program(self):
-        
         for qudit in self.qudits:
             program = """
         # R0 is the value of main parameter of 1D Scan, if needed.
@@ -224,13 +228,26 @@ class Scan:
                     move             0,R3
                     move             0,R4
                     move             0,R5
+        """
+            self.sequences[qudit]['program'] = program
         
+        
+    def add_initparameter(self):
+        """
+        Suppose to be called by child class.
+        """
+        print('The base experiment class has been called. No initial parameter will be set.')
+        
+        
+    def add_mainloop(self):
+        for qudit in self.qudits:
+            loop = """        
         main_loop:  wait_sync        4                               # Sync at beginning of the loop.
                     reset_ph                                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15                              # Enable all markers (binary 1111) for switching on output.
                     upd_param        4                               # Update parameters and wait 4ns.
         """
-            self.sequences[qudit]['program'] = program
+            self.sequences[qudit]['program'] += loop
         
         
     def add_relaxation(self):
@@ -270,7 +287,6 @@ class Scan:
         Suppose to be called by child class.
         """
         print('The base experiment class has been called. No main pulse will be added.')
-        return
 
         
     def add_postpulse(self):
