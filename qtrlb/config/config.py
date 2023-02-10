@@ -1,11 +1,8 @@
 from copy import deepcopy
-from ruamel.yaml import load, dump, CSafeLoader, CSafeDumper, error
+from ruamel.yaml import YAML
 from numpy import ndarray
 import os
-import warnings
-warnings.simplefilter('ignore', error.MantissaNoDotYAML1_1Warning)  
-# To ignore the message when we load .yaml files. 
-# It happens because They require dot for float number
+
 
 
 class Config:
@@ -47,9 +44,11 @@ class Config:
         # Check the things are actually there.
         try:  
             with open(self.raw_file_path, 'r') as f:
-                self.config_raw = load(f, CSafeLoader)
+                yaml = YAML(typ='safe', pure=True)
+                self.config_raw = yaml.load(f)
             with open(self.template_file_path, 'r') as f:
-                self.config_template = load(f, CSafeLoader)
+                yaml = YAML(typ='safe', pure=True)
+                self.config_template = yaml.load(f)
         except FileNotFoundError as e:
             print('Missing Yaml file or its template. Please check your working directory!!!')
             raise e
@@ -78,9 +77,9 @@ class Config:
         We shouldn't save config_dict since we only want the change happen at one places.
         The f.write only take string, and dump indeed return to a string.
         """
-        config_str = dump(self.config_raw, Dumper=CSafeDumper, default_flow_style=False)
-        with open(self.raw_file_path, 'w') as f:
-            f.write(config_str)
+        with open(self.raw_file_path, 'w') as f:        
+            yaml = YAML(typ='safe', pure=True)
+            yaml.dump(self.config_raw, f)
         print(f'The config_raw of {self.suffix} Manager has been saved successfully.')
         
     

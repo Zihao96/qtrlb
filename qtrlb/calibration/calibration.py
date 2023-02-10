@@ -361,9 +361,9 @@ class Scan:
                 json.dump(sequence_dict, file, indent=4)
                 file.close()
                 
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                          resonators=self.readout_resonators,
-                                          subspace=self.subspace)
+        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+        #                                   resonators=self.readout_resonators,
+        #                                   subspace=self.subspace)
     
     def acquire_data(self):
         for i in range(self.n_reps):

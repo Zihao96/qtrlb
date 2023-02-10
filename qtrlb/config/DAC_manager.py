@@ -20,9 +20,9 @@ class DACManager(Config):
         
         self.load()
         
-        Cluster.close_all()
-        self.qblox = Cluster(self['name'], self['address'])
-        self.qblox.reset()
+        # Cluster.close_all()
+        # self.qblox = Cluster(self['name'], self['address'])
+        # self.qblox.reset()
     
     
     def load(self):
