@@ -13,9 +13,9 @@ class Scan:
         
         Attributes:
             cfg: A MetaManager.
-            drive_qubits: 'Q2', or ['Q3', 'Q4']. User has to specify the subspace.
+            drive_qubits: 'Q2', or ['Q3', 'Q4'].
             readout_resonators: 'R3' or ['R1', 'R5'].
-            subspace: '12' or ['01', '01'], length should be save as drive_qubits.
+            subspace: '12' or ['01', '01'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
     """
@@ -47,11 +47,15 @@ class Scan:
         self.postpulse = postpulse if postpulse is not None else {}
         self.fitmodel = fitmodel
         
+        self.n_runs = 0
         self.qudits = self.drive_qubits + self.readout_resonators
+        self.classification_enable = self.cfg.variables['common/classification']
+        self.heralding_enable = self.cfg.variables['common/heralding']
+        
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.npoints).transpose().tolist()
         self.x_step = [(stop-start)/(self.npoints-1) for start, stop in zip(self.x_start, self.x_stop)]
-        self.heralding_enable = self.cfg.variables['common/heralding']
+
         
         self.generate_pulse_dataframe()
         self.make_sequence() 
@@ -109,7 +113,7 @@ class Scan:
         for q, ss in zip(self.drive_qubits, self.subspace):
             self.subspace_pulse[q] = [f'X180_{l}{l+1}' for l in range(int(ss[0]))]
 
-        self.readout_pulse = {r:['RO'] for r in self.readout_resonators}
+        self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
         
         self.prepulse_df = self.dict_to_DataFrame(self.prepulse, 'prepulse', self.qudits)
         self.subspace_df = self.dict_to_DataFrame(self.subspace_pulse, 'subspace', self.qudits)
@@ -365,9 +369,39 @@ class Scan:
         #                                   resonators=self.readout_resonators,
         #                                   subspace=self.subspace)
     
+    
+    
     def acquire_data(self):
+        
+        # Should make_exp_dir here, or outside acquire_data but before start_sequencer()
+        # And we use DataManager to save copy of yamls and jsons before start_sequencer().
+        # If sequence program has problem, then upload_sequence will raise Error, rather than here.
+        # In that case we won't create the junk experiment folder.
+        # In problem happen after we start_sequencer, then it worth to create the experiment folder.
+        # Because we might already get some data and want to save it.
+        self.data_path = self.cfg.datamanager.make_exp_dir(experiment_suffix=self.experiment_suffix)  # A ordinary method.
+        self.cfg.datamanager.save_yamls_jsons(data_path=self.data_path,
+                                              cfg=self.cfg,
+                                              sequence=self.sequence)  # A static method.
+        
+        self.measurement = {r: {} for r in self.readout_resonators}
+        # I haven't have a good idea about how to do those ADCProcess.
+        # But I don't want anything here in this layer except 'R4', 'R5'.
+        
         for i in range(self.n_reps):
-            self.cfg.DAC.start_sequencer()
+            self.cfg.DAC.start_sequencer(qubits=self.drive_qubits, 
+                                         resonators=self.readout_resonators,
+                                         subspace=self.subspace)
+            # The subspace is not useful right now. You can delete it after finishing subspace-sequencer map program.
+            # TODO: write this comment into docstring of DAC, not here.
+            
+            self.cfg.ADC.get_acquisitions(resonators=self.readout_resonators,
+                                          measurement=self.measurement)
+        
+        
+        
+        
+        
         
         
         
