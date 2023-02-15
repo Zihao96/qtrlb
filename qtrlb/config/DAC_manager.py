@@ -143,10 +143,21 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, heralding_enable: bool):
+    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, 
+                        heralding_enable: bool, keep_raw: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.
+        
+        Reference about data structure:
+        https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/api_reference/cluster.html#qblox_instruments.native.Cluster.get_acquisitions
+        
+        Note from Zihao(02/15/2023):
+        We need to call delete_scope_acquisition everytime.
+        Otherwise the binned result will accumulate and be averaged automatically for next repetition.
+        Within one repetition (one round), we can only keep raw data from last bin (last acquire instruction).
+        Which means for Scan, only the raw trace belong to last point in x_points will be stored.
+        So it's barely useful, but I still leave the interface here.
         """
         
         for qudit in qubits + resonators:
@@ -155,22 +166,33 @@ class DACManager(Config):
         for r in resonators:
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
             
-            # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Return boolean.
-            acq_state = self.module[r].get_acquisition_state(self.sequencer[r], timeout)  
-            if not acq_state: raise TimeoutError('You need to leave more time for acquisition')
+            # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
+            self.module[r].get_acquisition_state(self.sequencer[r], timeout)  
 
-            # Store the data from buffer of FPGA to RAM of instrument.
-            self.module[r].store_scope_acquisition(self.sequencer[r], 'readout')
+            # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
+            if keep_raw: 
+                self.module[r].store_scope_acquisition(self.sequencer[r], 'readout')
+                self.module[r].store_scope_acquisition(self.sequencer[r], 'heralding')
             
-            # Retrive the heterodyned result back to python in Host PC.
+            # Retrive the heterodyned result (binned data) back to python in Host PC.
             data = self.module[r].get_acquisitions(self.sequencer[r])
-
-            # Clear the memory of instrument.
+            
+            # Clear the memory of instrument. 
+            # It's necessary otherwise the acquisition result will accumulate and be averaged.
             self.module[r].delete_scope_acquisition(self.sequencer[r], 'readout')
+            self.module[r].delete_scope_acquisition(self.sequencer[r], 'heralding')
+            
+            # Append list of each repetition into measurement dictionary.
+            measurement[r]['Heterodyned_readout']['I'].append(data['readout']['acquisition']['bins']['integration']['path0']) 
+            measurement[r]['Heterodyned_readout']['Q'].append(data['readout']['acquisition']['bins']['integration']['path1'])
+            measurement[r]['Heterodyned_heralding']['I'].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
+            measurement[r]['Heterodyned_heralding']['Q'].append(data['heralding']['acquisition']['bins']['integration']['path1'])
 
 
-            # TODO: Finish this one. Check the double readout works and figure out how we retrive the data.
-
-
+            if keep_raw:
+                measurement[r]['raw_readout']['I'].append(data['readout']['acquisition']['scope']['path0']['data']) 
+                measurement[r]['raw_readout']['Q'].append(data['readout']['acquisition']['scope']['path1']['data'])
+                measurement[r]['raw_heralding']['I'].append(data['heralding']['acquisition']['scope']['path0']['data']) 
+                measurement[r]['raw_heralding']['Q'].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
 

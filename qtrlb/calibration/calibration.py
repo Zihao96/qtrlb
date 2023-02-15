@@ -19,7 +19,7 @@ class Scan:
             x_name: 'drive_amplitude', 't1', 'ramsey'.
             x_start: 0 or [0.5, 1.5], length should be same as drive_qubits.
             x_stop: 10 or [10.5, 11.5], length should be same as drive_qubits.
-            npoints: number of points on x_axis. Start and stop points will be both included.
+            x_points: number of points on x_axis. Start and stop points will be both included.
             subspace: '12' or ['01', '01'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
@@ -33,7 +33,7 @@ class Scan:
                  # x_unit: str, 
                  x_start: float | list, 
                  x_stop: float | list, 
-                 npoints: int, 
+                 x_points: int, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
@@ -46,7 +46,7 @@ class Scan:
         # self.x_unit = x_unit
         self.x_start = self.make_it_list(x_start)
         self.x_stop = self.make_it_list(x_stop)
-        self.npoints = npoints
+        self.x_points = x_points
         self.subspace = subspace if subspace is not None else ['01']*len(drive_qubits)
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
@@ -58,8 +58,8 @@ class Scan:
         self.heralding_enable = self.cfg.variables['common/heralding']
         
         self.check_attribute()
-        self.x_values = np.linspace(self.x_start, self.x_stop, self.npoints).transpose().tolist()
-        self.x_step = [(stop-start)/(self.npoints-1) for start, stop in zip(self.x_start, self.x_stop)]
+        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).transpose().tolist()
+        self.x_step = [(stop-start)/(self.x_points-1) for start, stop in zip(self.x_start, self.x_stop)]
 
         
         self.generate_pulse_dataframe()
@@ -205,8 +205,8 @@ class Scan:
             
             waveforms = {qudit: {'data': waveform, 'index': 0}}
             
-            acquisitions = {'readout':   {'num_bins': self.npoints, 'index': 0},
-                            'heralding': {'num_bins': self.npoints, 'index': 1}}
+            acquisitions = {'readout':   {'num_bins': self.x_points, 'index': 0},
+                            'heralding': {'num_bins': self.x_points, 'index': 1}}
             
             self.sequences[qudit]['waveforms'] = waveforms
             self.sequences[qudit]['weights'] = {}
@@ -217,11 +217,11 @@ class Scan:
         for qudit in self.qudits:
             program = """
         # R0 is the value of main parameter of 1D Scan, if needed.
-        # R1 is the count of repetition for algorithm or npoints for parameter sweep.
+        # R1 is the count of repetition for algorithm or x_points for parameter sweep.
         # R2 is the relaxation time in microseconds.
         # Other register for backup.
         
-                    wait_sync        4
+                    wait_sync        8
                     move             0,R0
                     move             0,R1
                     move             0,R2
@@ -242,10 +242,10 @@ class Scan:
     def add_mainloop(self):
         for qudit in self.qudits:
             loop = """        
-        main_loop:  wait_sync        4                               # Sync at beginning of the loop.
+        main_loop:  wait_sync        8                               # Sync at beginning of the loop.
                     reset_ph                                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15                              # Enable all markers (binary 1111) for switching on output.
-                    upd_param        4                               # Update parameters and wait 4ns.
+                    upd_param        8                               # Update parameters and wait 8ns.
         """
             self.sequences[qudit]['program'] += loop
         
@@ -323,8 +323,8 @@ class Scan:
                 #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0                               # Disable all markers (binary 0000) for switching off output.
-                    upd_param        4                               # Update parameters and wait 4ns.
-                    jlt              R1,{self.npoints},@main_loop
+                    upd_param        8                               # Update parameters and wait 4ns.
+                    jlt              R1,{self.x_points},@main_loop
                     
                     stop             
         """
@@ -399,11 +399,15 @@ class Scan:
     
     def acquire_data(self):
         """
-        
+        Create measurement dictionary, then start sequencer and save data into this dictionary.
         """
-        self.measurement = {r: {} for r in self.readout_resonators}
-        # I haven't have a good idea about how to do those ADCProcess.
-        # But I don't want anything here in this layer except 'R4', 'R5'.
+        self.measurement = {r: {'raw_readout': {'I':[], 'Q':[]},
+                                'raw_heralding': {'I':[], 'Q':[]},
+                                'Heterodyned_readout': {'I':[], 'Q':[]},
+                                'Heterodyned_heralding':{'I':[], 'Q':[]}
+                                } for r in self.readout_resonators}
+        # TODO: determine whether dictionary with 'I'/'Q' as key, or list with two empty list nested.
+
         
         for i in range(self.n_reps):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
