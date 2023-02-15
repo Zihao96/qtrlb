@@ -19,9 +19,12 @@ class DACManager(Config):
                          varman=varman)
         self.load()
         
-        # Cluster.close_all()
-        # self.qblox = Cluster(self['name'], self['address'])
-        # self.qblox.reset()
+        
+        Cluster.close_all()
+        # self.qblox = Cluster(self['name'], self['address'])  # TODO: Change it back when finish.
+        dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
+        self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
+        self.qblox.reset()
     
     
     def load(self):
@@ -33,10 +36,13 @@ class DACManager(Config):
         modules_list = [key for key in self.keys() if key.startswith('Module')]
         self.set('modules', modules_list, which='dict')  # Keep the new key start with lowercase!
         
-        # self.build_qudit_module_map()  # TODO: Change name and write it.
-        # A dictionary like {'Q3':{'module':module object, 'sequencer':sequencer object}}
-        # Or move it into implement_parameters.
-        
+        # These dictionary contain pointer to real object in instrument driver.
+        self.module = {}
+        self.sequencer = {}
+        for qudit in self.varman['qubits'] + self.varman['resonators']:
+            self.module[qudit] = getattr(self.qblox, 'module{}'.format(self.varman[f'{qudit}/module']))
+            self.sequencer[qudit] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{qudit}/sequencer']))
+             
         
     def implement_parameters(self, qubits: list, resonators: list, subspace: list):
         """
@@ -137,25 +143,33 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    def start_sequencer(self, qubits: list, resonators: list, measurements: dict):
+    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, heralding_enable: bool):
         """
         Ask the instrument to start sequencer.
+        Then store the Heterodyned result into measurement.
         """
-        # TODO: Finish this one.
+        
         for qudit in qubits + resonators:
-            this_module = getattr(self.qblox, 'module{}'.format(self.varman[f'{qudit}/module'])) 
-            this_module.start_sequencer()
+            self.module[qudit].start_sequencer()  # Really start sequencer.
 
         for r in resonators:
-            pass
+            timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
+            
+            # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Return boolean.
+            acq_state = self.module[r].get_acquisition_state(self.sequencer[r], timeout)  
+            if not acq_state: raise TimeoutError('You need to leave more time for acquisition')
+
+            # Store the data from buffer of FPGA to RAM of instrument.
+            self.module[r].store_scope_acquisition(self.sequencer[r], 'readout')
+            
+            # Retrive the heterodyned result back to python in Host PC.
+            data = self.module[r].get_acquisitions(self.sequencer[r])
+
+            # Clear the memory of instrument.
+            self.module[r].delete_scope_acquisition(self.sequencer[r], 'readout')
 
 
-
-
-
-
-
-
+            # TODO: Finish this one. Check the double readout works and figure out how we retrive the data.
 
 
 

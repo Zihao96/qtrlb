@@ -66,12 +66,12 @@ class Scan:
         self.make_sequence() 
         self.save_sequence()
         
-        # # Configure the Qblox to desired parameters then upload json files.
-        # # We call implement_parameters methods here instead of during init/load of DACManager,
-        # # because we want those modules/sequencers not being used to keep their default status.
-        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-        #                                   resonators=self.readout_resonators,
-        #                                   subspace=self.subspace)
+        # Configure the Qblox to desired parameters then upload json files.
+        # We call implement_parameters methods here instead of during init/load of DACManager,
+        # because we want those modules/sequencers not being used to keep their default status.
+        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+                                          resonators=self.readout_resonators,
+                                          subspace=self.subspace)
         
         
     def run(self, 
@@ -408,7 +408,8 @@ class Scan:
         for i in range(self.n_reps):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
-                                         measurement=self.measurement)
+                                         measurement=self.measurement,
+                                         heralding_enable=self.heralding_enable)
 
         
     @staticmethod
