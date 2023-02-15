@@ -80,7 +80,7 @@ class VariableManager(Config):
                 assert (self[f'{r}/n_readout_levels'] == len(self[f'{r}/IQ_means']) 
                         == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix']))
             except AssertionError:
-                print(f'The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
+                print(f'VariablesManager: The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
                       +'New matrices will be generated. Please save it by calling cfg.save()')
                 
                 self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels']).tolist()

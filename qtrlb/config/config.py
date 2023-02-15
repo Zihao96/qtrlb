@@ -1,8 +1,8 @@
 from copy import deepcopy
 from ruamel.yaml import YAML
+from ruamel.yaml.main import round_trip_dump
 from numpy import ndarray
 import os
-
 
 
 class Config:
@@ -12,7 +12,7 @@ class Config:
         
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
-            suffix: 'DAC' or 'DataConfig' or 'variables', etc.
+            suffix: 'DAC' or 'ADC' or 'data' or 'variables', etc.
             variable_suffix: '_EJEC' or '_ALGO' or empty string '' for other managers.
             varman: A Variable manager for other manager to load parameters.
     """
@@ -38,16 +38,14 @@ class Config:
         Check the structure of the yaml file by comparing with its template.
         Raise error if the structure has inconsistency.
         Generate attribute self.config_raw if all check pass.
-        
-        Notes: We only check Q0 and its '01' and '12' subspace in Variables.yaml.
+        The YAML object help to load yaml file directly to python dictionary.
         """
         # Check the things are actually there.
         try:  
+            yaml = YAML(typ='safe', pure=True)
             with open(self.raw_file_path, 'r') as f:
-                yaml = YAML(typ='safe', pure=True)
                 self.config_raw = yaml.load(f)
             with open(self.template_file_path, 'r') as f:
-                yaml = YAML(typ='safe', pure=True)
                 self.config_template = yaml.load(f)
         except FileNotFoundError as e:
             print('Missing Yaml file or its template. Please check your working directory!!!')
@@ -69,18 +67,23 @@ class Config:
                 Config.compare_dict(dict_raw[k], dict_template[k], suffix=suffix)
             
     
-    def save(self):
+    def save(self, yamls_path: str = None):
         """
         Save the config_raw dictionary to the yaml file.
+        Allow user to pass a path of directory to save config_raw at another place.
         Be careful since the old content will be overwritten!!!
         Notes:
         We shouldn't save config_dict since we only want the change happen at one places.
-        The f.write only take string, and dump indeed return to a string.
+        Function round_trip_dump can help perserve the shape and order of the dictionary.
         """
-        with open(self.raw_file_path, 'w') as f:        
-            yaml = YAML(typ='safe', pure=True)
-            yaml.dump(self.config_raw, f)
-        print(f'The config_raw of {self.suffix} Manager has been saved successfully.')
+        if yamls_path is None:
+            file_path = self.raw_file_path 
+        else: 
+            file_path = os.path.join(yamls_path, self.suffix + self.variable_suffix + '.yaml') 
+        
+        with open(file_path, 'w') as f:        
+            round_trip_dump(self.config_raw, f)
+        print(f'Config: The config_raw of {self.suffix} Manager has been saved successfully.')
         
     
     def load(self):
@@ -277,7 +280,7 @@ class Config:
                 assert isinstance(config_dict[key], dict)
                 config_dict = config_dict[key]
             except (KeyError, AssertionError):  
-                print(f'A new empty dictionary will be created in {"/".join(keys_list[:i])} with key "{key}".')
+                print(f'Config: A new empty dictionary will be created in {"/".join(keys_list[:i])} with key "{key}".')
                 config_dict[key] = {}  
                 config_dict = config_dict[key]  # We have to use such pointer movement instead of config_dict={}.  
         config_dict[keys_list[-1]] = value

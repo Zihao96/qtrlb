@@ -17,7 +17,6 @@ class DACManager(Config):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
-        
         self.load()
         
         # Cluster.close_all()
@@ -33,6 +32,10 @@ class DACManager(Config):
         
         modules_list = [key for key in self.keys() if key.startswith('Module')]
         self.set('modules', modules_list, which='dict')  # Keep the new key start with lowercase!
+        
+        # self.build_qudit_module_map()  # TODO: Change name and write it.
+        # A dictionary like {'Q3':{'module':module object, 'sequencer':sequencer object}}
+        # Or move it into implement_parameters.
         
         
     def implement_parameters(self, qubits: list, resonators: list, subspace: list):
@@ -51,9 +54,8 @@ class DACManager(Config):
         # Qubits first, then resonators. Module first, then Sequencer.
         for i, q in enumerate(qubits):
             qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
-            qubit_sequencer = self.varman[f'{q}/sequencer']
             this_module = getattr(self.qblox, f'module{qubit_module}')  # The real module/sequencer object.
-            this_sequencer = getattr(this_module, f'sequencer{qubit_sequencer}')  
+            this_sequencer = getattr(this_module, 'sequencer{}'.format(self.varman[f'{q}/sequencer']))  
             
             for attribute in self[f'Module{qubit_module}'].keys():
                 if attribute.startswith('out') or attribute.startswith('in'):
@@ -75,13 +77,13 @@ class DACManager(Config):
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
             this_sequencer.sequence(f'./Jsons/{q}_sequence.json')
+            this_module.arm_sequencer(this_sequencer)
 
         
         for r in resonators:
             resonator_module = self.varman[f'{r}/module']
-            resonator_sequencer = self.varman[f'{r}/sequencer']
             this_module = getattr(self.qblox, f'module{resonator_module}')
-            this_sequencer = getattr(this_module, f'sequencer{resonator_sequencer}')  
+            this_sequencer = getattr(this_module, 'sequencer{}'.format(self.varman[f'{r}/sequencer']))  
             
             for attribute in self[f'Module{resonator_module}'].keys():
                 if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
@@ -103,6 +105,7 @@ class DACManager(Config):
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
             this_sequencer.sequence(f'./Jsons/{r}_sequence.json')
+            this_module.arm_sequencer(this_sequencer)
             
         # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
         # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 
@@ -134,9 +137,17 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
+    def start_sequencer(self, qubits: list, resonators: list, measurements: dict):
+        """
+        Ask the instrument to start sequencer.
+        """
+        # TODO: Finish this one.
+        for qudit in qubits + resonators:
+            this_module = getattr(self.qblox, 'module{}'.format(self.varman[f'{qudit}/module'])) 
+            this_module.start_sequencer()
 
-
-
+        for r in resonators:
+            pass
 
 
 

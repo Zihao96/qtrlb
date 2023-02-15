@@ -18,7 +18,7 @@ class DriveAmplitudeScan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         # scan_name='drive_amplitude_scan',
+                         x_name='drive_amplitude',
                          # x_label='drive_amplitude', 
                          # x_unit='a.u.', 
                          x_start=amp_start, 

@@ -5,10 +5,13 @@ class MetaManager:
     
         Example of manager_dict:
         manager_dict = {'variables': varman,
-                        'DAC': dacman}
+                        'DAC': dacman,
+                        'ADC': adcman,
+                        'data':dataman}
     """
-    def __init__(self, manager_dict):
+    def __init__(self, manager_dict: dict, working_dir: str):
         self.manager_dict = manager_dict
+        self.working_dir = working_dir
         
         for manager_name, manager in self.manager_dict.items():
             self.__setattr__(manager_name, manager)
@@ -24,9 +27,13 @@ class MetaManager:
         # It's fine we load VariableManager twice. It's fast.
         
         
-    def save(self):
+    def save(self, yamls_path=None):
+        """
+        Call all managers' save method.
+        Allow user to pass a path of directory to save config_raw at another place.
+        """
         for manager in self.manager_dict.values():
-            manager.save()
+            manager.save(yamls_path=yamls_path)
         
         
         

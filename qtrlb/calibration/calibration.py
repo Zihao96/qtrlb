@@ -1,3 +1,4 @@
+import os
 import json
 import numpy as np
 import pandas as pd
@@ -15,6 +16,10 @@ class Scan:
             cfg: A MetaManager.
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
             readout_resonators: 'R3' or ['R1', 'R5'].
+            x_name: 'drive_amplitude', 't1', 'ramsey'.
+            x_start: 0 or [0.5, 1.5], length should be same as drive_qubits.
+            x_stop: 10 or [10.5, 11.5], length should be same as drive_qubits.
+            npoints: number of points on x_axis. Start and stop points will be both included.
             subspace: '12' or ['01', '01'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
@@ -23,7 +28,7 @@ class Scan:
                  cfg, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 # scan_name: str,
+                 x_name: str,
                  # x_label: str, 
                  # x_unit: str, 
                  x_start: float | list, 
@@ -36,7 +41,7 @@ class Scan:
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
-        # self.scan_name = scan_name
+        self.x_name = x_name
         # self.x_label = x_label
         # self.x_unit = x_unit
         self.x_start = self.make_it_list(x_start)
@@ -59,7 +64,14 @@ class Scan:
         
         self.generate_pulse_dataframe()
         self.make_sequence() 
-        self.upload_sequence()
+        self.save_sequence()
+        
+        # # Configure the Qblox to desired parameters then upload json files.
+        # # We call implement_parameters methods here instead of during init/load of DACManager,
+        # # because we want those modules/sequencers not being used to keep their default status.
+        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+        #                                   resonators=self.readout_resonators,
+        #                                   subspace=self.subspace)
         
         
     def run(self, 
@@ -68,6 +80,7 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_reps = n_reps
         
+        self.make_exp_dir()
         self.acquire_data()  # This is really run the thing and return to the IQ data.
         self.analyze_data()
         self.plot()
@@ -85,7 +98,7 @@ class Scan:
             assert qudit.startswith('Q') or qudit.startswith('R'), f'The value of {qudit} is invalid.'
             
         for qubit in self.drive_qubits:
-            if f'R{qubit[1:]}' not in self.readout_resonators: print(f'The {qubit} will not be readout!')
+            if f'R{qubit[1:]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
         assert len(self.x_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
         assert len(self.x_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
@@ -223,7 +236,7 @@ class Scan:
         """
         Suppose to be called by child class.
         """
-        print('The base experiment class has been called. No initial parameter will be set.')
+        print('Scan: The base experiment class has been called. No initial parameter will be set.')
         
         
     def add_mainloop(self):
@@ -273,7 +286,7 @@ class Scan:
         """
         Suppose to be called by child class.
         """
-        print('The base experiment class has been called. No main pulse will be added.')
+        print('Scan: The base experiment class has been called. No main pulse will be added.')
 
         
     def add_postpulse(self):
@@ -352,58 +365,51 @@ class Scan:
         
         
     ##################################################    
-    def upload_sequence(self):
+    def save_sequence(self, jsons_path: str = None):
         """
-        Create json file of sequence for each sequencer/qudit.
-        Configure the Qblox to desired parameters then upload json files.
-        
-        We call implement_parameters methods here instead of during init/load of DACManager,
-        because we want those modules/sequencers not being used to keep their default status.
+        Create json file of sequence for each sequencer/qudit and save it.
+        Allow user to pass a path of directory to save jsons at another place.
         """
+        if jsons_path is None:
+            jsons_path = os.path.join(self.cfg.working_dir, 'Json') 
+
         for qudit, sequence_dict in self.sequences.items():
-            with open(f'./Jsons/{qudit}_sequence.json', 'w', encoding='utf-8') as file:
+            with open(f'{jsons_path}/{qudit}_sequence.json', 'w', encoding='utf-8') as file:
                 json.dump(sequence_dict, file, indent=4)
                 file.close()
-                
-        # self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-        #                                   resonators=self.readout_resonators,
-        #                                   subspace=self.subspace)
+            
     
+    def make_exp_dir(self):
+        """
+        Create an experiment directory under cfg.data.base_directory.
+        Then save a copy of jsons and yamls to experiment directory.
+        
+        Note from Zihao(02/14/2023)
+        If sequence program has problem, then __init__() will raise Error, rather than run().
+        In that case we won't create the junk experiment folder.
+        If problem happen after we start_sequencer, then it worth to create the experiment folder.
+        Because we might already get some data and want to save it.
+        """
+        self.data_path = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
+                                                    experiment_suffix=self.experiment_suffix)
+        
+        self.cfg.save(yamls_path=os.join.path(self.data_path, 'Yamls'))
+        self.save_sequence(jsons_path=os.join.path(self.data_path, 'Jsons'))
     
     
     def acquire_data(self):
+        """
         
-        # Should make_exp_dir here, or outside acquire_data but before start_sequencer()
-        # And we use DataManager to save copy of yamls and jsons before start_sequencer().
-        # If sequence program has problem, then upload_sequence will raise Error, rather than here.
-        # In that case we won't create the junk experiment folder.
-        # In problem happen after we start_sequencer, then it worth to create the experiment folder.
-        # Because we might already get some data and want to save it.
-        self.data_path = self.cfg.datamanager.make_exp_dir(experiment_suffix=self.experiment_suffix)  # A ordinary method.
-        self.cfg.datamanager.save_yamls_jsons(data_path=self.data_path,
-                                              cfg=self.cfg,
-                                              sequence=self.sequence)  # A static method.
-        
+        """
         self.measurement = {r: {} for r in self.readout_resonators}
         # I haven't have a good idea about how to do those ADCProcess.
         # But I don't want anything here in this layer except 'R4', 'R5'.
         
         for i in range(self.n_reps):
-            self.cfg.DAC.start_sequencer(qubits=self.drive_qubits, 
+            self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
-                                         subspace=self.subspace)
-            # The subspace is not useful right now. You can delete it after finishing subspace-sequencer map program.
-            # TODO: write this comment into docstring of DAC, not here.
-            
-            self.cfg.ADC.get_acquisitions(resonators=self.readout_resonators,
-                                          measurement=self.measurement)
-        
-        
-        
-        
-        
-        
-        
+                                         measurement=self.measurement)
+
         
     @staticmethod
     def make_it_list(thing):
