@@ -1,8 +1,8 @@
 import datetime
 import os
+import h5py
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.config.meta_manager import MetaManager
 
 
 class DataManager(Config):
@@ -40,7 +40,7 @@ class DataManager(Config):
         
         self.date = self.datetime.strftime(self['date_fmt'])
         self.time = self.datetime.strftime(self['time_fmt'])
-        self.basename = self.time + '_' + experiment_type + '_' + 'experiment_suffix'
+        self.basename = self.time + '_' + experiment_type + '_' + experiment_suffix
         
         self.data_path = os.path.join(self['base_directory'], self.date, self.basename)
         self.yamls_path = os.path.join(self.data_path, 'Yamls')
@@ -55,8 +55,30 @@ class DataManager(Config):
             return self.data_path
         
         
+    @staticmethod
+    def save_measurement(data_path: str, measurement: dict, attrs: dict = None):
+        """
+        Save the measurement dictionary into a hdf5.
+        I keep this layer because we can also pass information of scan here and save it as attrs.
+        # TODO: package attributes in Scan.__init__ from drive_qubits to fit model and pass it here.
+        """
+        if attrs is None: attrs = {}
+        hdf5_path = os.path.join(data_path, 'measurement.hdf5')  
         
-    
+        with h5py.File(hdf5_path, 'w') as h5file:
+            DataManager.save_dict_to_hdf5(measurement, h5file)
+            for k, v in attrs.items(): h5file.attrs[k] = v
         
-
         
+    @staticmethod
+    def save_dict_to_hdf5(dictionary: dict, h5: h5py.File | h5py.Group):
+        """
+        Recursively save a nested dictionary to hdf5 file/group. 
+        """
+        for k, v in dictionary.items():
+            if isinstance(v, dict):
+                subgroup = h5.create_group(k)
+                DataManager.save_dict_to_hdf5(v, subgroup)
+            else:
+                h5.create_dataset(k, data = v)
+                

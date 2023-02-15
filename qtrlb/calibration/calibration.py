@@ -53,6 +53,7 @@ class Scan:
         self.fitmodel = fitmodel
         
         self.n_runs = 0
+        self.measurements = []
         self.qudits = self.drive_qubits + self.readout_resonators
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
@@ -60,18 +61,17 @@ class Scan:
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).transpose().tolist()
         self.x_step = [(stop-start)/(self.x_points-1) for start, stop in zip(self.x_start, self.x_stop)]
-
         
         self.generate_pulse_dataframe()
         self.make_sequence() 
-        self.save_sequence()
-        
+        jsons_path = self.save_sequence()
+        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+                                          resonators=self.readout_resonators,
+                                          subspace=self.subspace,
+                                          jsons_path=jsons_path)
         # Configure the Qblox to desired parameters then upload json files.
         # We call implement_parameters methods here instead of during init/load of DACManager,
         # because we want those modules/sequencers not being used to keep their default status.
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                          resonators=self.readout_resonators,
-                                          subspace=self.subspace)
         
         
     def run(self, 
@@ -81,9 +81,14 @@ class Scan:
         self.n_reps = n_reps
         
         self.make_exp_dir()
-        self.acquire_data()  # This is really run the thing and return to the IQ data.
-        self.analyze_data()
+        self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
+        self.cfg.data.save_measurement(data_path=self.data_path,
+                                       measurement=self.measurement)
+        
+        self.process_data()  # Need the ProcessManager, hardcode three common situation.
         self.plot()
+        self.n_runs += 1
+        self.measurements.append(self.measurement)
         
         
     def check_attribute(self):
@@ -371,12 +376,14 @@ class Scan:
         Allow user to pass a path of directory to save jsons at another place.
         """
         if jsons_path is None:
-            jsons_path = os.path.join(self.cfg.working_dir, 'Json') 
+            jsons_path = os.path.join(self.cfg.working_dir, 'Jsons') 
 
         for qudit, sequence_dict in self.sequences.items():
-            with open(f'{jsons_path}/{qudit}_sequence.json', 'w', encoding='utf-8') as file:
+            file_path = os.path.join(jsons_path, f'{qudit}_sequence.json')
+            with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(sequence_dict, file, indent=4)
-                file.close()
+                
+        return jsons_path
             
     
     def make_exp_dir(self):
@@ -393,27 +400,43 @@ class Scan:
         self.data_path = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
                                                     experiment_suffix=self.experiment_suffix)
         
-        self.cfg.save(yamls_path=os.join.path(self.data_path, 'Yamls'))
-        self.save_sequence(jsons_path=os.join.path(self.data_path, 'Jsons'))
+        self.cfg.save(yamls_path=os.path.join(self.data_path, 'Yamls'))
+        self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
     
     
     def acquire_data(self):
         """
         Create measurement dictionary, then start sequencer and save data into this dictionary.
         """
-        self.measurement = {r: {'raw_readout': {'I':[], 'Q':[]},
-                                'raw_heralding': {'I':[], 'Q':[]},
-                                'Heterodyned_readout': {'I':[], 'Q':[]},
-                                'Heterodyned_heralding':{'I':[], 'Q':[]}
+        self.measurement = {r: {'raw_readout': [[],[]],  # First element for I, second element for Q.
+                                'raw_heralding': [[],[]],
+                                'Heterodyned_readout': [[],[]],
+                                'Heterodyned_heralding':[[],[]]
                                 } for r in self.readout_resonators}
-        # TODO: determine whether dictionary with 'I'/'Q' as key, or list with two empty list nested.
-
         
         for i in range(self.n_reps):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
                                          measurement=self.measurement,
                                          heralding_enable=self.heralding_enable)
+            
+            
+    def process_data(self):
+        """
+
+        """
+        # TODO: Determine what process we need to implement for three common situation.
+        # Or may be let ProcessManager to determine it.
+        if self.heralding_enable:
+            self.process_list = []
+        elif self.classification_enable:
+            self.process_list = []
+        else:
+            self.process_list = []
+
+
+    def plot(self):
+        pass
 
         
     @staticmethod

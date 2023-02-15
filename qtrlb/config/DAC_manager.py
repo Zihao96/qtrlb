@@ -1,3 +1,4 @@
+import os
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
 from qblox_instruments import Cluster
@@ -17,14 +18,14 @@ class DACManager(Config):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
-        self.load()
-        
-        
+
         Cluster.close_all()
         # self.qblox = Cluster(self['name'], self['address'])  # TODO: Change it back when finish.
         dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
         self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         self.qblox.reset()
+        
+        self.load()
     
     
     def load(self):
@@ -44,7 +45,7 @@ class DACManager(Config):
             self.sequencer[qudit] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{qudit}/sequencer']))
              
         
-    def implement_parameters(self, qubits: list, resonators: list, subspace: list):
+    def implement_parameters(self, qubits: list, resonators: list, subspace: list, jsons_path: str):
         """
         Implement the setting/parameters onto Qblox.
         This function should be called after we know which specific qubits/resonators will be used.
@@ -82,8 +83,9 @@ class DACManager(Config):
             # this_sequencer.nco_freq(self.varman[f'{q}/{subspace[i]}/mod_freq']) 
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
-            this_sequencer.sequence(f'./Jsons/{q}_sequence.json')
-            this_module.arm_sequencer(this_sequencer)
+            file_path = os.path.join(jsons_path, f'{q}_sequence.json')
+            this_sequencer.sequence(file_path)
+            this_module.arm_sequencer(self.varman[f'{q}/sequencer'])
 
         
         for r in resonators:
@@ -110,12 +112,14 @@ class DACManager(Config):
             # this_sequencer.nco_freq(self.varman[f'{r}/mod_freq'])                    
             this_sequencer.mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
-            this_sequencer.sequence(f'./Jsons/{r}_sequence.json')
-            this_module.arm_sequencer(this_sequencer)
+            file_path = os.path.join(jsons_path, f'{r}_sequence.json')
+            this_sequencer.sequence(file_path)
+            this_module.arm_sequencer(self.varman[f'{r}/sequencer'])
             
         # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
         # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 
         # --Zihao (01/30/2023)
+        # TODO: use self.sequencer/module here.
     
     
     def disconnect_existed_map(self):
@@ -165,34 +169,34 @@ class DACManager(Config):
 
         for r in resonators:
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
+            seq_num = self.varman[f'{r}/sequencer']
             
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
-            self.module[r].get_acquisition_state(self.sequencer[r], timeout)  
+            self.module[r].get_acquisition_state(seq_num, timeout)  
 
             # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
             if keep_raw: 
-                self.module[r].store_scope_acquisition(self.sequencer[r], 'readout')
-                self.module[r].store_scope_acquisition(self.sequencer[r], 'heralding')
+                self.module[r].store_scope_acquisition(seq_num, 'readout')
+                self.module[r].store_scope_acquisition(seq_num, 'heralding')
             
             # Retrive the heterodyned result (binned data) back to python in Host PC.
-            data = self.module[r].get_acquisitions(self.sequencer[r])
+            data = self.module[r].get_acquisitions(seq_num)
             
             # Clear the memory of instrument. 
             # It's necessary otherwise the acquisition result will accumulate and be averaged.
-            self.module[r].delete_scope_acquisition(self.sequencer[r], 'readout')
-            self.module[r].delete_scope_acquisition(self.sequencer[r], 'heralding')
+            self.module[r].delete_acquisition_data(seq_num, 'readout')
+            self.module[r].delete_acquisition_data(seq_num, 'heralding')
             
             # Append list of each repetition into measurement dictionary.
-            measurement[r]['Heterodyned_readout']['I'].append(data['readout']['acquisition']['bins']['integration']['path0']) 
-            measurement[r]['Heterodyned_readout']['Q'].append(data['readout']['acquisition']['bins']['integration']['path1'])
-            measurement[r]['Heterodyned_heralding']['I'].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
-            measurement[r]['Heterodyned_heralding']['Q'].append(data['heralding']['acquisition']['bins']['integration']['path1'])
-
+            measurement[r]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 
+            measurement[r]['Heterodyned_readout'][1].append(data['readout']['acquisition']['bins']['integration']['path1'])
+            measurement[r]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
+            measurement[r]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
 
             if keep_raw:
-                measurement[r]['raw_readout']['I'].append(data['readout']['acquisition']['scope']['path0']['data']) 
-                measurement[r]['raw_readout']['Q'].append(data['readout']['acquisition']['scope']['path1']['data'])
-                measurement[r]['raw_heralding']['I'].append(data['heralding']['acquisition']['scope']['path0']['data']) 
-                measurement[r]['raw_heralding']['Q'].append(data['heralding']['acquisition']['scope']['path1']['data'])
+                measurement[r]['raw_readout'][0].append(data['readout']['acquisition']['scope']['path0']['data']) 
+                measurement[r]['raw_readout'][1].append(data['readout']['acquisition']['scope']['path1']['data'])
+                measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
+                measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
 
