@@ -85,7 +85,7 @@ class Scan:
         self.cfg.data.save_measurement(data_path=self.data_path,
                                        measurement=self.measurement)
         
-        self.process_data()  # Need the ProcessManager, hardcode three common situation.
+        self.process_data()  
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
