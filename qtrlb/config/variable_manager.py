@@ -34,7 +34,6 @@ class VariableManager(Config):
         self.set('resonators', resonators_list, which='dict')
         
         self.set_parameters()
-        self.check_IQ_matrices()
         self.check_module_sequencer_LO()
    
     
@@ -68,25 +67,6 @@ class VariableManager(Config):
             self.set(f'{r}/highest_readout_levels', self[f'{r}/readout_levels'][-1], which='dict')
             self.set(f'{r}/n_readout_levels', len(self[f'{r}/readout_levels']), which='dict')
         
-        
-    def check_IQ_matrices(self):
-        """
-        Check the shape of those IQ matrices inside Variables.yaml. 
-        If their shapes are not compatible with readout_levels,
-        default compatible matrices will be generated without saving.
-        """
-        for r in self['resonators']:
-            try:
-                assert (self[f'{r}/n_readout_levels'] == len(self[f'{r}/IQ_means']) 
-                        == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix']))
-            except AssertionError:
-                print(f'VariablesManager: The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
-                      +'New matrices will be generated. Please save it by calling cfg.save()')
-                
-                self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels']).tolist()
-                self[f'{r}/IQ_covariances'] = [1 for i in range(self[f'{r}/n_readout_levels'])]
-                self[f'{r}/IQ_means'] = [[i,i] for i in range(self[f'{r}/n_readout_levels'])]
-
 
     def check_module_sequencer_LO(self):
         """

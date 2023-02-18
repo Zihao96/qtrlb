@@ -7,6 +7,7 @@ from qtrlb.utils.pulses import pulse_interpreter
 
 
 
+
 class Scan:
     """ Base class for all parameter-sweep experiment.
         The framework of how experiment flow will be constructed here.
@@ -82,10 +83,9 @@ class Scan:
         
         self.make_exp_dir()
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
-        self.cfg.data.save_measurement(data_path=self.data_path,
-                                       measurement=self.measurement)
-        
-        self.process_data()  
+        self.cfg.data.save_measurement(data_path=self.data_path, measurement=self.measurement)
+        self.cfg.process.process_data(measurement=self.measurement, fitmodel=self.fitmodel)
+
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
@@ -420,20 +420,6 @@ class Scan:
                                          measurement=self.measurement,
                                          heralding_enable=self.heralding_enable)
             
-            
-    def process_data(self):
-        """
-
-        """
-        # TODO: Determine what process we need to implement for three common situation.
-        # Or may be let ProcessManager to determine it.
-        if self.heralding_enable:
-            self.process_list = []
-        elif self.classification_enable:
-            self.process_list = []
-        else:
-            self.process_list = []
-
 
     def plot(self):
         pass
