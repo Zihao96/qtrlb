@@ -83,12 +83,15 @@ class ProcessManager(Config):
                                                                                  n_levels=self[f'{r}/n_readout_levels'])
                 data_dict['PopulationCorrected_readout'] = np.linalg.solve(self[f'{r}/corr_matrix'],
                                                                            data_dict['PopulationNormalized_readout'])
-                # TODO: Figure out the last step, who times who.
+                data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
+                # TODO: Figure out the corrected step, who times who.
                 # TODO: think about how we do fit. Need to consider 2D data and multiple qubit scan.
                 # Maybe it really worth to have the fit and plot outside the process_data.
                 # Especially we actually have multiple level to fit.
+                
             else:
-                continue
-        
+                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
+                                                           angle=self[f'{r}/IQ_rotation_angle'])
+
         
         

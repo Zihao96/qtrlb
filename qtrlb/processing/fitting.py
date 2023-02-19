@@ -19,6 +19,23 @@ from numpy import exp, sin
 PI = np.pi
 
 
+def fit(input_data: list | np.adarray, x: list | np.ndarray, fitmodel: Model):
+    """
+    Fit data based on a given mathematical model.
+    User can choose Model in this file or built-in lmfit Model.
+    Return to a ModelResult object.
+    Fitting result can be accessed by result.best_values (dict).
+    The corresponding y-datapoint can be accessed by result.best_fit (ndarray).
+    qtrlb.processing.processing has same function.
+    """
+    input_data = np.array(input_data)
+    x = np.array(x)
+    fitmodel = fitmodel()
+    params = fitmodel.guess(input_data, x)
+    result = fitmodel.fit(input_data, params=params, x=x)
+    return result
+
+
 def exp_sin_func(x, tau, freq, phase, A, C):
     return C + A * exp(-x/tau) * sin(2*PI*freq*x + phase)
 
