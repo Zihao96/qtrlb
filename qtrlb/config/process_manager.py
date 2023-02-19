@@ -1,8 +1,9 @@
 import numpy as np
 from lmfit import Model
+from scipy.spatial.distance import pdist
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, fit
+from qtrlb.processing.processing import rotate_IQ, gmm_predict, gmm_fit, normalize_population, fit
 
 
 class ProcessManager(Config):
@@ -92,6 +93,13 @@ class ProcessManager(Config):
             else:
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
+                means, covariances = gmm_fit(data_dict['IQrotated_readout'], n_components=self[f'{r}/n_readout_levels'])
+                max_distance = np.max(pdist(means)) 
+                # Need to figure out which two elements in means give maximum, and get slope, and rotate IQ again.
+                # I think the key here is the Positional notation !!!
 
         
-        
+
+
+    def fit_data(self): # Think about which layer to put it will be better.
+        pass
