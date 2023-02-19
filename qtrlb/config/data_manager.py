@@ -1,6 +1,7 @@
 import datetime
 import os
 import h5py
+import numpy as np
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
 
@@ -82,3 +83,18 @@ class DataManager(Config):
             else:
                 h5.create_dataset(k, data = v)
                 
+
+    @staticmethod                
+    def load_hdf5_to_dict(h5: h5py.File | h5py.Group, dictionary: dict = None):
+        """
+        Recursively load a hdf5 file/group to a nested dictionary.
+        """
+        if dictionary == None: dictionary={}
+        dictionary = dict(h5)
+        
+        for k, v in dictionary.items():
+            if isinstance(v, h5py.Group):
+                dictionary[k] = DataManager.load_hdf5_to_dict(v, dictionary[k])
+            else:
+                dictionary[k] = np.array(v)
+        return dictionary

@@ -194,7 +194,7 @@ class Config:
         return result.keys()
     
     
-    def set(self, key: str, value, which: str = 'both', save_raw: bool = False):
+    def set(self, key: str, value: type, which: str = 'both', save_raw: bool = False):
         """
         Set the value in the config_dict (and config_raw if asked) corresponds to a given key.
         Then save it if asked.
