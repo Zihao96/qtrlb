@@ -26,7 +26,6 @@ def fit(input_data: list | np.adarray, x: list | np.ndarray, fitmodel: Model):
     Return to a ModelResult object.
     Fitting result can be accessed by result.best_values (dict).
     The corresponding y-datapoint can be accessed by result.best_fit (ndarray).
-    qtrlb.processing.processing has same function.
     """
     input_data = np.array(input_data)
     x = np.array(x)

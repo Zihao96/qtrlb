@@ -1,9 +1,9 @@
 import numpy as np
 from lmfit import Model
-from scipy.spatial.distance import pdist
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.processing.processing import rotate_IQ, gmm_predict, gmm_fit, normalize_population, fit
+from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population,\
+                                        autorotate_IQ
 
 
 class ProcessManager(Config):
@@ -72,20 +72,34 @@ class ProcessManager(Config):
                 continue
             
             elif self['heralding']:
-                continue
+                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
+                                                           angle=self[f'{r}/IQ_rotation_angle'])
+                data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Heterodyned_heralding'], 
+                                                           angle=self[f'{r}/IQ_rotation_angle'])
+                
+                data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                                means=self[f'{r}/IQ_means'], 
+                                                                covariances=self[f'{r}/IQ_covariances'])
+                data_dict['GMMpredicted_heralding'] = gmm_predict(data_dict['IQrotated_heralding'], 
+                                                                  means=self[f'{r}/IQ_means'], 
+                                                                  covariances=self[f'{r}/IQ_covariances'])
+                
                 
             elif self['classification']:
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
+                
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                                 means=self[f'{r}/IQ_means'], 
                                                                 covariances=self[f'{r}/IQ_covariances'])
+                
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
                                                                                  n_levels=self[f'{r}/n_readout_levels'])
+                
                 data_dict['PopulationCorrected_readout'] = np.linalg.solve(self[f'{r}/corr_matrix'],
                                                                            data_dict['PopulationNormalized_readout'])
+                
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
-                # TODO: Figure out the corrected step, who times who.
                 # TODO: think about how we do fit. Need to consider 2D data and multiple qubit scan.
                 # Maybe it really worth to have the fit and plot outside the process_data.
                 # Especially we actually have multiple level to fit.
@@ -93,13 +107,16 @@ class ProcessManager(Config):
             else:
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
-                means, covariances = gmm_fit(data_dict['IQrotated_readout'], n_components=self[f'{r}/n_readout_levels'])
-                max_distance = np.max(pdist(means)) 
-                # Need to figure out which two elements in means give maximum, and get slope, and rotate IQ again.
-                # I think the key here is the Positional notation !!!
 
+                data_dict['IQautorotated_readout'] = autorotate_IQ(data_dict['IQrotated_readout'], 
+                                                                   n_components=self[f'{r}/n_readout_levels'])
+
+                data_dict['IQaveraged_readout'] = np.mean(data_dict['IQautorotated_readout'], axis=1)
+        
+                data_dict['to_fit'] = data_dict['IQaveraged_readout'][0]
         
 
 
     def fit_data(self): # Think about which layer to put it will be better.
         pass
+    
