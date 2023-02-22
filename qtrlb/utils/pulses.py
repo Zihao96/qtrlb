@@ -1,4 +1,5 @@
 
+
 def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs):
     """
     Generate the string sequence program for Qblox sequencer based on a input string.

@@ -9,8 +9,6 @@ from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import pulse_interpreter
 
 
-
-
 class Scan:
     """ Base class for all parameter-sweep experiment.
         The framework of how experiment flow will be constructed here.
@@ -159,7 +157,8 @@ class Scan:
         # Thus we pad the dataframe with Indentity but all with qubit's gate time.
         # It's will break the sync between sequencers when we have any pulse that is not exactly that time.
         # I believe we can deal with special pulse when we really meet them.
-        # For example, such experiment should be a child class with redefined add_prepulse, or add_pulse to whole sequence.
+        # For example, such experiment should be a child class with redefined add_prepulse, 
+        # Or even add_pulse to whole sequence.
         # Right now I just want to make things work first, then make them better. --Zihao(02/06/2023)
 
 
@@ -167,7 +166,7 @@ class Scan:
     def make_sequence(self):
         """
         Generate the self.sequences, which is a dictionary including all sequence dictionaries
-        we will dump to json file.
+        that we will dump to json file.
         
         Example:
         self.sequences = {'Q3': Q3_sequence_dict,
@@ -254,10 +253,10 @@ class Scan:
     def add_mainloop(self):
         for qudit in self.qudits:
             loop = """        
-        main_loop:  wait_sync        8                               # Sync at beginning of the loop.
-                    reset_ph                                         # Reset phase to eliminate effect of previous VZ gate.
-                    set_mrk          15                              # Enable all markers (binary 1111) for switching on output.
-                    upd_param        8                               # Update parameters and wait 8ns.
+        main_loop:  wait_sync        8               # Sync at beginning of the loop.
+                    reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
+                    set_mrk          15              # Enable all markers (binary 1111) for switching on output.
+                    upd_param        8               # Update parameters and wait 8ns.
         """
             self.sequences[qudit]['program'] += loop
         
@@ -275,9 +274,8 @@ class Scan:
         
         
     def add_heralding(self, acq_index: int = 1):
-        heralding_delay = self.cfg.variables['common/heralding_delay']
         self.add_readout(acq_index=acq_index)
-        self.add_wait(time=heralding_delay)
+        self.add_wait(time=self.cfg.variables['common/heralding_delay'])
         
 
     def add_prepulse(self):
@@ -334,8 +332,8 @@ class Scan:
         stop = f"""
                 #-----------Stop-----------
                     add              R1,1,R1
-                    set_mrk          0                               # Disable all markers (binary 0000) for switching off output.
-                    upd_param        8                               # Update parameters and wait 4ns.
+                    set_mrk          0               # Disable all markers (binary 0000) for switching off output.
+                    upd_param        8               # Update parameters and wait 4ns.
                     jlt              R1,{self.x_points},@main_loop
                     
                     stop             
@@ -427,6 +425,7 @@ class Scan:
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
                                          measurement=self.measurement)
+            print(f'rep {i} finished!')  # TODO: Delete it after test.
             
 
     def fit(self): 
