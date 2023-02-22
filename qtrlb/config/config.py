@@ -1,8 +1,8 @@
+import os
 from copy import deepcopy
 from ruamel.yaml import YAML
 from ruamel.yaml.main import round_trip_dump
 from numpy import ndarray
-import os
 
 
 class Config:
@@ -48,7 +48,7 @@ class Config:
             with open(self.template_file_path, 'r') as f:
                 self.config_template = yaml.load(f)
         except FileNotFoundError as e:
-            print('Missing Yaml file or its template. Please check your working directory!!!')
+            print('Config: Missing Yaml file or its template. Please check your working directory!!!')
             raise e
             
         # Recursively checking each keys
@@ -177,7 +177,7 @@ class Config:
             try:
                 result = result[key]
             except KeyError:
-                raise KeyError(f'There is no key "{key}" in {"/".join(keys_list[:i])}')
+                raise KeyError(f'Config: There is no key "{key}" in {"/".join(keys_list[:i])}')
 
         return result
     
@@ -255,7 +255,7 @@ class Config:
         try:
             result = string.split('/')
         except AttributeError as e:
-            print(f'The {string} is not a string.')
+            print(f'Config: The {string} is not a string.')
             raise e
         
         # Remove all empty string ''            

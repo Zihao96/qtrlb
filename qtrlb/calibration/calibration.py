@@ -1,7 +1,10 @@
 import os
 import json
+import traceback
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import pulse_interpreter
 
@@ -24,33 +27,37 @@ class Scan:
             subspace: '12' or ['01', '01'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
+            level_to_fit: 0, 1 or [0,1,0,0], length should be same as readout_resonators.
+            fitmodel: It should be better to pick from qtrlb.processing.fitting.
     """
     def __init__(self, 
                  cfg, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
                  x_name: str,
-                 # x_label: str, 
-                 # x_unit: str, 
+                 x_label_plot: str, 
+                 x_unit_plot: str, 
                  x_start: float | list, 
                  x_stop: float | list, 
                  x_points: int, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
-                 fitmodel = None):
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None):
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
         self.x_name = x_name
-        # self.x_label = x_label
-        # self.x_unit = x_unit
+        self.x_label_plot = x_label_plot
+        self.x_unit_plot = x_unit_plot
         self.x_start = self.make_it_list(x_start)
         self.x_stop = self.make_it_list(x_stop)
         self.x_points = x_points
-        self.subspace = subspace if subspace is not None else ['01']*len(drive_qubits)
+        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(drive_qubits)
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
+        self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(readout_resonators)
         self.fitmodel = fitmodel
         
         self.n_runs = 0
@@ -81,11 +88,11 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_reps = n_reps
         
-        self.make_exp_dir()
+        self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(data_path=self.data_path, measurement=self.measurement)
-        self.cfg.process.process_data(measurement=self.measurement, fitmodel=self.fitmodel)
-
+        self.cfg.process.process_data(measurement=self.measurement)
+        self.fit()
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
@@ -185,7 +192,7 @@ class Scan:
         self.add_initparameter()
         self.add_mainloop()
         self.add_relaxation()
-        if self.heralding_enable: self.add_heralding()
+        if self.cfg.variables['common/heralding']: self.add_heralding()
         self.add_prepulse()
         self.add_mainpulse()
         self.add_postpulse()
@@ -397,11 +404,13 @@ class Scan:
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we might already get some data and want to save it.
         """
-        self.data_path = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
-                                                    experiment_suffix=self.experiment_suffix)
+        self.data_path, self.date, self.time = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
+                                                                          experiment_suffix=self.experiment_suffix)
         
         self.cfg.save(yamls_path=os.path.join(self.data_path, 'Yamls'))
         self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
+        
+        for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplot'))
     
     
     def acquire_data(self):
@@ -417,12 +426,71 @@ class Scan:
         for i in range(self.n_reps):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
-                                         measurement=self.measurement,
-                                         heralding_enable=self.heralding_enable)
+                                         measurement=self.measurement)
             
 
+    def fit(self): 
+        """
+        Fit data in measurement dictionary and save result back into it.
+        The model should be better to pick from qtrlb.processing.fitting.
+        data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
+        
+        # TODO: Check possible 2D data fit.
+        """
+        for i, r in enumerate(self.readout_resonators):
+            try: 
+                fitmodel = self.fitmodel()
+                params = fitmodel.guess(data=self.measurement[r]['to_fit'][self.level_to_fit[i]], 
+                                        x=self.x_values)
+                result = fitmodel.fit(data=self.measurement[r]['to_fit'][self.level_to_fit[i]], 
+                                      params=params, 
+                                      x=self.x_values)
+                self.measurement[r]['fit_result'] = result.best_values  # A dictionary
+                self.measurement[r]['fit_values'] = result.best_fit  # A ndarray
+                self.measurement[r]['fit_model'] = str(result.model)
+            except Exception:
+                traceback_str = traceback.format_exc()
+                print(f'Failed to fit {r} data. ', traceback_str)
+                self.measurement[r]['fit_result'] = None
+                self.measurement[r]['fit_values'] = None
+                self.measurement[r]['fit_model'] = str(self.fitmodel)
+                
+
     def plot(self):
-        pass
+        self.plot_main()
+        self.plot_IQ()
+        if self.classification_enable or self.heralding_enable:
+            self.plot_all_population()
+
+
+    def plot_main(self):
+        for i, r in enumerate(self.readout_resonators):
+            xlabel = self.x_label_plot + self.x_unit_plot
+            if self.classification_enable or self.heralding_enable:
+                ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
+            else:
+                ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
+            title = f'{self.date}/{self.time},{self.x_name},{r}'
+            
+            fig, ax = plt.subplots(1,1)
+            ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
+            ax.plot(self.x_values, self.measurement[r]['fit_values'], color='purple')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
+            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+            
+            
+    def plot_IQ(self):
+        for i, r in enumerate(self.readout_resonators):
+            for x in range(self.x_points):
+                I = self.measurement[r]['IQrotated_readout'][0]
+                Q = self.measurement[r]['IQrotated_readout'][1]
+                fig, ax = plt.subplots(1,1)
+                ax.scatter(I, Q)
+                ax.axvline(color='k', ls='dashed')    
+                ax.axhline(color='k', ls='dashed')
+                ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal')
+                fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}.png'))
+                plt.close(fig)
 
         
     @staticmethod

@@ -1,6 +1,7 @@
 import datetime
 import os
 import h5py
+import traceback
 import numpy as np
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
@@ -50,10 +51,12 @@ class DataManager(Config):
         try:
             os.makedirs(self.yamls_path)
             os.makedirs(self.jsons_path)
-            return self.data_path
+            return self.data_path, self.date, self.time
         except FileExistsError:
+            traceback_str = traceback.format_exc()
             print('DataManager: Experiment directory exists. No directory will be created.')
-            return self.data_path
+            print(traceback_str)
+            return self.data_path, self.date, self.time
         
         
     @staticmethod

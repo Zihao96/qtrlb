@@ -19,7 +19,7 @@ from numpy import exp, sin
 PI = np.pi
 
 
-def fit(input_data: list | np.adarray, x: list | np.ndarray, fitmodel: Model):
+def fit(input_data: list | np.ndarray, x: list | np.ndarray, fitmodel: Model):
     """
     Fit data based on a given mathematical model.
     User can choose Model in this file or built-in lmfit Model.

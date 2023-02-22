@@ -147,8 +147,7 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, 
-                        heralding_enable: bool, keep_raw: bool = False):
+    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, keep_raw: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.

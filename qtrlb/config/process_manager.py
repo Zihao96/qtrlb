@@ -1,9 +1,7 @@
 import numpy as np
-from lmfit import Model
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population,\
-                                        autorotate_IQ
+from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, autorotate_IQ
 
 
 class ProcessManager(Config):
@@ -55,7 +53,7 @@ class ProcessManager(Config):
                 self[f'{r}/IQ_means'] = [[i,i] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
-    def process_data(self, measurement: dict, fitmodel: Model):
+    def process_data(self, measurement: dict):
         """
         Process the data by performing rotation, average, GMM, fit, plot, etc.
         Three common routine are hard coded here since we never change them.
@@ -73,7 +71,7 @@ class ProcessManager(Config):
         
         elif self['heralding']:
             # r is 'R3', 'R4', data_dict has key 'Heterodyned_readout', etc.
-            for r, data_dict in self.measurement.items():  
+            for r, data_dict in measurement.items():  
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Heterodyned_heralding'], 
@@ -86,14 +84,14 @@ class ProcessManager(Config):
                                                                   means=self[f'{r}/IQ_means'], 
                                                                   covariances=self[f'{r}/IQ_covariances'])
                 
-            heralding_mask = self.heralding_test()
+            self.heralding_test(measurement=measurement)
             
-            for r, data_dict in self.measurement.items(): 
-                data_dict['Mask_heralding'] = heralding_mask
+            for r, data_dict in measurement.items(): 
+                data_dict['Mask_heralding'] = self.heralding_mask  # So that it can be save to hdf5.
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
                                                                                  n_levels=self[f'{r}/n_readout_levels'],
-                                                                                 mask=data_dict['Mask_heralding'])
+                                                                                 mask=self.heralding_mask)
                 
                 data_dict['PopulationCorrected_readout'] = np.linalg.solve(self[f'{r}/corr_matrix'],
                                                                            data_dict['PopulationNormalized_readout'])
@@ -102,7 +100,7 @@ class ProcessManager(Config):
             
             
         elif self['classification']:
-            for r, data_dict in self.measurement.items():  
+            for r, data_dict in measurement.items():  
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
@@ -120,7 +118,7 @@ class ProcessManager(Config):
 
             
         else:
-            for r, data_dict in self.measurement.items():  
+            for r, data_dict in measurement.items():  
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
     
@@ -132,9 +130,9 @@ class ProcessManager(Config):
                 data_dict['to_fit'] = data_dict['IQaveraged_readout']
         
 
-    def heralding_test(self):
+    def heralding_test(self, measurement: dict):
         """
-        Generate the ndarray heralding_mask with shape (n_reps, x_points).
+        Generate the ndarray self.heralding_mask with shape (n_reps, x_points).
         The entries will be 0 only if all resonators gives 0 in heralding.
         It means for that specific repetition and x_point, all resonators pass heralding test.
         We then truncate data to make sure all x_point has same amount of available repetition.
@@ -144,30 +142,23 @@ class ProcessManager(Config):
         However, ground state has most population and if our experiment need to start from |1>, pi pulse it.
         The code here is ugly and hard to read, please make it better if you know how to do it.
         """
-        resonators = self.measurement.keys()
-        heralding_mask = np.zeros_like(self.measurement[resonators[0]]['GMMpredicted_heralding'])
+        resonators = measurement.keys()
+        self.heralding_mask = np.zeros_like(measurement[resonators[0]]['GMMpredicted_heralding'])
         
         for r in resonators:
-            heralding_mask = heralding_mask | self.measurement[r]['GMMpredicted_heralding']
+            self.heralding_mask = self.heralding_mask | measurement[r]['GMMpredicted_heralding']
             
-        n_pass_min = np.min(np.sum(heralding_mask == 0, axis=0))  
+        self.n_pass_min = np.min(np.sum(self.heralding_mask == 0, axis=0))  
         
-        for i in range(heralding_mask.shape[1]): # Loop over each x_point
+        for i in range(self.heralding_mask.shape[1]): # Loop over each x_point
             j = 0
-            while np.sum(heralding_mask[:, i] == 0) > n_pass_min:
-                n_short = np.sum(heralding_mask[:, i] == 0) - n_pass_min
-                heralding_mask[j : j + n_short, i] = -1
+            while np.sum(self.heralding_mask[:, i] == 0) > self.n_pass_min:
+                n_short = np.sum(self.heralding_mask[:, i] == 0) - self.n_pass_min
+                self.heralding_mask[j : j + n_short, i] = -1
                 j += n_short
                 
-        return heralding_mask 
 
 
-    def fit_data(self): 
-        # TODO: think about how we do fit. Need to consider 2D data and multiple qubit scan.
-        # Maybe it really worth to have the fit and plot outside the process_data.
-        # Especially we actually have multiple level to fit.
-        # Think about which layer to put it will be better.
-        # Think about the two level trick of fit.
-        # data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) for IQ.
-        return
+
+
     
