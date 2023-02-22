@@ -18,11 +18,12 @@ class DACManager(Config):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
-
+        
+        # Connect to instrument. Hardcode name and IP address to accelerate load()
         Cluster.close_all()
-        # self.qblox = Cluster(self['name'], self['address'])  # TODO: Change it back when finish.
-        dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
-        self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
+        self.qblox = Cluster('cluster', '192.168.0.2')  # TODO: Change it back when finish.
+        # dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
+        # self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         self.qblox.reset()
         
         self.load()
@@ -85,7 +86,6 @@ class DACManager(Config):
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
             file_path = os.path.join(jsons_path, f'{q}_sequence.json')
             this_sequencer.sequence(file_path)
-            this_module.arm_sequencer(self.varman[f'{q}/sequencer'])
 
         
         for r in resonators:
@@ -114,7 +114,6 @@ class DACManager(Config):
             this_sequencer.mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
             file_path = os.path.join(jsons_path, f'{r}_sequence.json')
             this_sequencer.sequence(file_path)
-            this_module.arm_sequencer(self.varman[f'{r}/sequencer'])
             
         # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
         # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 
@@ -164,12 +163,13 @@ class DACManager(Config):
         """
         
         for qudit in qubits + resonators:
+            self.module[qudit].arm_sequencer(self.varman[f'{qudit}/sequencer'])
             self.module[qudit].start_sequencer()  # Really start sequencer.
 
         for r in resonators:
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
             seq_num = self.varman[f'{r}/sequencer']
-            
+           
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
             self.module[r].get_acquisition_state(seq_num, timeout)  
 

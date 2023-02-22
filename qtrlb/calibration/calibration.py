@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import pulse_interpreter
+from qtrlb.processing.fitting import fit
 
 
 class Scan:
@@ -52,10 +53,10 @@ class Scan:
         self.x_start = self.make_it_list(x_start)
         self.x_stop = self.make_it_list(x_stop)
         self.x_points = x_points
-        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(drive_qubits)
+        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(self.drive_qubits)
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
-        self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(readout_resonators)
+        self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(self.readout_resonators)
         self.fitmodel = fitmodel
         
         self.n_runs = 0
@@ -90,7 +91,7 @@ class Scan:
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(data_path=self.data_path, measurement=self.measurement)
         self.cfg.process.process_data(measurement=self.measurement)
-        self.fit()
+        self.fit_data()
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
@@ -113,6 +114,7 @@ class Scan:
         assert len(self.x_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
         assert len(self.x_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
+        assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
 
@@ -408,7 +410,7 @@ class Scan:
         self.cfg.save(yamls_path=os.path.join(self.data_path, 'Yamls'))
         self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
         
-        for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplot'))
+        for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
     
     
     def acquire_data(self):
@@ -428,7 +430,7 @@ class Scan:
             print(f'rep {i} finished!')  # TODO: Delete it after test.
             
 
-    def fit(self): 
+    def fit_data(self): 
         """
         Fit data in measurement dictionary and save result back into it.
         The model should be better to pick from qtrlb.processing.fitting.
@@ -437,13 +439,9 @@ class Scan:
         # TODO: Check possible 2D data fit.
         """
         for i, r in enumerate(self.readout_resonators):
-            try: 
-                fitmodel = self.fitmodel()
-                params = fitmodel.guess(data=self.measurement[r]['to_fit'][self.level_to_fit[i]], 
-                                        x=self.x_values)
-                result = fitmodel.fit(data=self.measurement[r]['to_fit'][self.level_to_fit[i]], 
-                                      params=params, 
-                                      x=self.x_values)
+            try:
+                result = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],
+                             x=self.x_values[i], fitmodel=self.fitmodel)
                 self.measurement[r]['fit_result'] = result.best_values  # A dictionary
                 self.measurement[r]['fit_values'] = result.best_fit  # A ndarray
                 self.measurement[r]['fit_model'] = str(result.model)
@@ -463,6 +461,7 @@ class Scan:
 
 
     def plot_main(self):
+        # TODO: protect it when fitting failed.
         for i, r in enumerate(self.readout_resonators):
             xlabel = self.x_label_plot + self.x_unit_plot
             if self.classification_enable or self.heralding_enable:
@@ -472,8 +471,8 @@ class Scan:
             title = f'{self.date}/{self.time},{self.x_name},{r}'
             
             fig, ax = plt.subplots(1,1)
-            ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
-            ax.plot(self.x_values, self.measurement[r]['fit_values'], color='purple')
+            ax.plot(self.x_values[i], self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
+            ax.plot(self.x_values[i], self.measurement[r]['fit_values'], color='purple')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
             
@@ -481,13 +480,17 @@ class Scan:
     def plot_IQ(self):
         for i, r in enumerate(self.readout_resonators):
             for x in range(self.x_points):
-                I = self.measurement[r]['IQrotated_readout'][0]
-                Q = self.measurement[r]['IQrotated_readout'][1]
+                I = self.measurement[r]['IQrotated_readout'][0,:,x]
+                Q = self.measurement[r]['IQrotated_readout'][1,:,x]
                 fig, ax = plt.subplots(1,1)
                 ax.scatter(I, Q)
                 ax.axvline(color='k', ls='dashed')    
                 ax.axhline(color='k', ls='dashed')
                 ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal')
+                ax.set_ylim(bottom=np.min(self.measurement[r]['IQrotated_readout'][1]),
+                            top=np.max(self.measurement[r]['IQrotated_readout'][1]))
+                ax.set_xlim(left=np.min(self.measurement[r]['IQrotated_readout'][0]),
+                            right=np.max(self.measurement[r]['IQrotated_readout'][0]))
                 fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}.png'))
                 plt.close(fig)
 
