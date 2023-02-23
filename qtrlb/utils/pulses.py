@@ -1,6 +1,6 @@
 
 
-def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs):
+def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_kwargs):
     """
     Generate the string sequence program for Qblox sequencer based on a input string.
     
@@ -10,7 +10,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
         pulse_string: The content we need to interpret. 
                       Example: 'X180_12', 'I', 'RO', 'H_23'.
         length: In unit of [ns]. It specifies the length of pulse/program.
-        kwargs: Use to specifiy the acquisition index for readout.
+        pulse_kwargs: Use to specifiy the acquisition index for readout.
     """
     
     if pulse_string == 'I':
@@ -19,11 +19,11 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **kwargs)
         """
         
     elif pulse_string == 'RO':
-        if 'acq_index' not in kwargs:
+        if 'acq_index' not in pulse_kwargs:
             print('No acquisition index specified. Index 0 will be used')
             acq_index = 0
         else:
-            acq_index = kwargs['acq_index']
+            acq_index = pulse_kwargs['acq_index']
         
         freq = round(cfg.variables[f'{qudit}/mod_freq'] * 4)
         gain = round(cfg.variables[f'{qudit}/amp'] * 32768)

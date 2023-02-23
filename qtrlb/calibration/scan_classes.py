@@ -122,7 +122,8 @@ class RabiScan(Scan):
                 pulse_length_ns = round(self.x_values[0][i] * 1e9)
                 if pulse_length_ns == 0: continue
             
-                waveforms[f'{i}'] = {"data" : get_waveform(pulse_length_ns, self.cfg.variables[f'{q}/pulse_shape']),
+                waveforms[f'{i}'] = {"data" : get_waveform(length=pulse_length_ns, 
+                                                           shape=self.cfg.variables[f'{q}/pulse_shape']),
                                      "index": i}
             self.sequences[q]['waveforms'] = waveforms
         
@@ -148,46 +149,53 @@ class RabiScan(Scan):
         """
         Here R0 will be real pulse length, and R1 is the waveform index.
         So qubit play R1 for drive, resonator wait R0 for sync.
-
         """
-        for qudit in self.qudits:
-            start = round(self.x_start[0] * 1e9)
-            initparameter = f"""
+        start = round(self.x_start[0] * 1e9)
+        initparameter = f"""
                     move             {start},R0            
-            """
-            self.sequences[qudit]['program'] += initparameter
+        """
+        
+        if start != 0: 
+            for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
             
-        if start == 0:
-            start = round(self.x_values[0][1] * 1e9)
+        else:  # Qblox doesn't accept zero length waveform (empty list).
+            self.add_zero_start()
+            if self.cfg.variables['common/heralding']: self.add_heralding()
+            self.add_prepulse()
+            self.add_postpulse()
+            self.add_readout()
+            self.add_zero_end()
             
-            for qudit in self.qudits:
-                zero_start = f"""
+
+    def add_zero_start(self):
+        start = round(self.x_values[0][1] * 1e9)  # Set R0 (first pulse length) to second element.
+        zero_start = f"""
                     move             {start},R0
                     wait_sync        8                               
                     reset_ph                                         
                     set_mrk          15                              
                     upd_param        8                               
-            """
-                self.sequences[qudit]['program'] += zero_start
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += zero_start
                 
-            if self.cfg.variables['common/heralding']: self.add_heralding()
-            self.add_prepulse()
-            self.add_postpulse()
-            self.add_readout()
-            
-            for qudit in self.qudits:
-                zero_end = """        
+                
+    def add_zero_end(self):
+        zero_end = """        
                     add              R1,1,R1
                     set_mrk          0                               
                     upd_param        8                                
-            """
-                self.sequences[qudit]['program'] += zero_end
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += zero_end
         
         
     def add_mainpulse(self):
+        """
+        There is 4ns delay after each Rabi pulse before postpulse/readout.
+        It's because the third index of 'play' instruction cannot be register.
+        """
+        step = round(self.x_step[0] * 1e9)
         
         for i, qubit in enumerate(self.drive_qubits):
-            step = round(self.x_step[i] * 1e9)
             subspace = self.subspace[i]
             freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4) 
             gain = round(self.cfg.variables[f'{qubit}/{subspace}/amp_rabi'] * 32768)

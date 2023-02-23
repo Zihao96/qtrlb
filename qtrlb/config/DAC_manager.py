@@ -111,9 +111,7 @@ class DACManager(Config):
             file_path = os.path.join(jsons_path, f'{r}_sequence.json')
             self.sequencer[r].sequence(file_path)
             
-        # Sorry, this is just temporary code. Maybe I should use the replace_vars trick here.
-        # But it's tricky to set those freq/amp based on which qubit, and we may have the previous pulse.yaml problem. 
-        # --Zihao (01/30/2023)
+        # Sorry, this is just temporary code. It's tricky to set those freq/amp based on which qubit. --Zihao (01/30/2023)
     
     
     def disconnect_existed_map(self):
@@ -194,3 +192,13 @@ class DACManager(Config):
                 measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
 
+    def stop_sequencer(self, qudits: list, print_snapshot: bool = False):
+        """
+        Ask the instrument to stop sequencer.
+        Then print snapshot if asked.
+        """
+
+        for qudit in qudits:
+            self.module[qudit].stop_sequencer()  
+            if print_snapshot:
+                self.sequencer[qudit].print_readable_snapshot(update=True)

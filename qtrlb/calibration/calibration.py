@@ -15,6 +15,11 @@ class Scan:
         The framework of how experiment flow will be constructed here.
         It should be used as parent class of specific scan rather than being instantiated directly.
         
+        In __init__(), we shape the input parameter to better structure.
+        We will check those attribute to ensure they have correct shape/values.
+        Then we will create the sequence and save it to working directory.
+        Finally we implement parameters and upload json file to Qblox instrument.
+        
         Attributes:
             cfg: A MetaManager.
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
@@ -69,14 +74,17 @@ class Scan:
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).transpose().tolist()
         self.x_step = [(stop-start)/(self.x_points-1) for start, stop in zip(self.x_start, self.x_stop)]
         self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
+     
+        self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
+        self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
         
-        self.generate_pulse_dataframe()
         self.make_sequence() 
-        jsons_path = self.save_sequence()
+        self.jsons_path = self.save_sequence()
         self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
                                           resonators=self.readout_resonators,
                                           subspace=self.subspace,
-                                          jsons_path=jsons_path)
+                                          jsons_path=self.jsons_path)
         # Configure the Qblox to desired parameters then upload json files.
         # We call implement_parameters methods here instead of during init/load of DACManager,
         # because we want those modules/sequencers not being used to keep their default status.
@@ -84,7 +92,15 @@ class Scan:
         
     def run(self, 
             experiment_suffix: str = '',
-            n_reps: int  = 1000):
+            n_reps: int = 1000):
+        """
+        Run the experiment and acquire data. 
+        User can call it multiple times without instantiate the Scan class again.
+        
+        Attributes:
+            experiment_suffix: User-defined name. It will show up on data directory.
+            n_reps: Number of repetition for running single sequence program. 
+        """
         self.experiment_suffix = experiment_suffix
         self.n_reps = n_reps
         
@@ -111,7 +127,7 @@ class Scan:
             assert qudit.startswith('Q') or qudit.startswith('R'), f'The value of {qudit} is invalid.'
             
         for qubit in self.drive_qubits:
-            if f'R{qubit[1:]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
+            if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
         assert len(self.x_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
         assert len(self.x_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
@@ -119,52 +135,7 @@ class Scan:
         assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
-
-
-    def generate_pulse_dataframe(self):
-        """
-        Generate the Pandas DataFrame of prepulse, postpulse, readout, with padded 'I'.
-        Both subspace and input prepulse will be included into prepulse.
-        All qubits and resonators will become the (row) index of dataframe.
-        An additional interger attribute 'length' in [ns] will be associated with each column.
         
-        Example of full prepulse DataFrame:
-           subspace_0 subspace_1 prepulse_0 prepulse_1
-        Q3    X180_01          I     Y90_01          I
-        Q4    X180_01    X180_12     Y90_01     Z90_12
-        R3          I          I          I          I
-        R4          I          I          I          I
-        """
-        # Generate subspace pulse and readout dict
-        self.subspace_pulse = {}
-        for q, ss in zip(self.drive_qubits, self.subspace):
-            self.subspace_pulse[q] = [f'X180_{l}{l+1}' for l in range(int(ss[0]))]
-
-        self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
-        
-        self.prepulse_df = self.dict_to_DataFrame(self.prepulse, 'prepulse', self.qudits)
-        self.subspace_df = self.dict_to_DataFrame(self.subspace_pulse, 'subspace', self.qudits)
-        self.postpulse_df = self.dict_to_DataFrame(self.postpulse, 'postpulse', self.qudits)
-        self.readout_df = self.dict_to_DataFrame(self.readout_pulse, 'readout', self.qudits)         
-        self.full_prepulse_df = pd.concat([self.subspace_df, self.prepulse_df], axis=1)
-            
-        
-        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
-        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)    
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        
-        # Assign the length attribute to each column.
-        for col_name, column in self.full_prepulse_df.items(): column.length = drive_length_ns
-        for col_name, column in self.postpulse_df.items(): column.length = drive_length_ns
-        for col_name, column in self.readout_df.items(): column.length = tof_ns + readout_length_ns
-        # I agree it's not very general here, since we assume everything in prepulse/postpulse is qubit gate.
-        # Thus we pad the dataframe with Indentity but all with qubit's gate time.
-        # It's will break the sync between sequencers when we have any pulse that is not exactly that time.
-        # I believe we can deal with special pulse when we really meet them.
-        # For example, such experiment should be a child class with redefined add_prepulse, 
-        # Or even add_pulse to whole sequence.
-        # Right now I just want to make things work first, then make them better. --Zihao(02/06/2023)
-
 
     ##################################################
     def make_sequence(self):
@@ -196,7 +167,7 @@ class Scan:
         self.add_mainloop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
-        self.add_prepulse2()
+        self.add_prepulse()
         self.add_mainpulse()
         self.add_postpulse()
         self.add_readout()
@@ -229,6 +200,9 @@ class Scan:
 
         
     def init_program(self):
+        """
+        Create sequence program and initialize all six built-in registers.
+        """
         for qudit in self.qudits:
             program = """
         # R0 is the value of main parameter of 1D Scan, if needed.
@@ -249,12 +223,16 @@ class Scan:
         
     def add_initparameter(self):
         """
+        Set necessary initial value on some of the registers. 
         Suppose to be called by child class.
         """
         print('Scan: The base experiment class has been called. No initial parameter will be set.')
         
         
     def add_mainloop(self):
+        """
+        Add main loop to sequence program.
+        """
         for qudit in self.qudits:
             loop = """        
         main_loop:  wait_sync        8               # Sync at beginning of the loop.
@@ -266,6 +244,10 @@ class Scan:
         
         
     def add_relaxation(self):
+        """
+        Add relaxation 1us loop to sequence program.
+        We cannot call single wait since it can only wait 65us.
+        """
         relaxation_time_s = self.cfg.variables['common/relaxation_time']
         relaxation_time_us = int( np.ceil(relaxation_time_s*1e6) )
         relaxation = f"""
@@ -278,66 +260,60 @@ class Scan:
         
         
     def add_heralding(self, acq_index: int = 1):
-        self.add_readout(acq_index=acq_index)
-        self.add_wait(time=self.cfg.variables['common/heralding_delay'])
+        """
+        Add heralding with short delay(relaxation) to the sequence program.
+        """
+        self.add_readout(name='Heralding', acq_index=acq_index)
+        heralding_delay = round(self.cfg.variables['common/heralding_delay'] * 1e9)
+        self.add_wait(time_ns=heralding_delay, name='HeraldingDelay')
         
-
+                
     def add_prepulse(self):
-        for col_name, column in self.full_prepulse_df.items():
-            for qudit in self.qudits:
-                prepulse = """
-                #-----------Prepulse-----------
-                """
-                init_pulse_str = column[qudit]
-                prepulse += pulse_interpreter(cfg = self.cfg, 
-                                              qudit = qudit, 
-                                              pulse_string = init_pulse_str, 
-                                              length = column.length)
-                self.sequences[qudit]['program'] += prepulse
-                
-                
-    def add_prepulse2(self):
+        """
+        Add subspace prepulse and user-defined prepulse to sequence program.
+        
+        Note from Zihao(02/06/2023):
+        I agree it's not very general here, since we assume everything in prepulse/postpulse is qubit gate.
+        It's will break the sync between sequencers when we have any pulse that is not exactly that time.
+        I believe we can deal with special pulse when we really meet them.
+        For example, such experiment should be a child class with redefined add_prepulse, 
+        Or even add_pulse to whole sequence.
+        Right now I just want to make things work first, then make them better. 
+        """
         drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(pulse=self.subspace_pulse, lengths=drive_length_ns, name='Subspace')
         self.add_pulse(pulse=self.prepulse, lengths=drive_length_ns, name='Prepulse')
         
 
     def add_mainpulse(self):        
         """
+        Add main content of the parameter sweep. 
         Suppose to be called by child class.
         """
         print('Scan: The base experiment class has been called. No main pulse will be added.')
 
         
     def add_postpulse(self):
-        for col_name, column in self.postpulse_df.items():
-            for qudit in self.qudits:
-                postpulse = """
-                #-----------Postpulse-----------
-                """
-                init_pulse_str = column[qudit]
-                postpulse += pulse_interpreter(cfg = self.cfg, 
-                                               qudit = qudit, 
-                                               pulse_string = init_pulse_str, 
-                                               length = column.length)
-                self.sequences[qudit]['program'] += postpulse
+        """
+        Add user-defined postpulse to sequence program.
+        """
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(pulse=self.postpulse, lengths=drive_length_ns, name='Postpulse')
     
     
-    def add_readout(self, acq_index: int = 0):
-        for col_name, column in self.readout_df.items():
-            for qudit in self.qudits:
-                readout = """
-                #-----------Readout-----------
-                """
-                init_pulse_str = column[qudit]
-                readout += pulse_interpreter(cfg = self.cfg, 
-                                             qudit = qudit, 
-                                             pulse_string = init_pulse_str, 
-                                             length = column.length,
-                                             acq_index = acq_index)
-                self.sequences[qudit]['program'] += readout
+    def add_readout(self, name='Readout', acq_index: int = 0):
+        """
+        Add readout/heralding with acquisition to sequence program.
+        """
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
+        self.add_pulse(pulse=self.readout_pulse, lengths=tof_ns+readout_length_ns, name=name, acq_index=acq_index)
             
 
     def add_stop(self):
+        """
+        Add end of loop and stop the sequence program.
+        """
         stop = f"""
                 #-----------Stop-----------
                     add              R1,1,R1
@@ -350,32 +326,37 @@ class Scan:
         for qudit in self.qudits: self.sequences[qudit]['program'] += stop
 
 
-    def add_wait(self, time: float):
+    def add_wait(self, time_ns: int, name='Wait'):
         """
-        The time parameter should be in unit of [sec]
+        Add wait/Identity to sequence program with user-defined length in [ns].
         """
-        time_ns = round(time * 1e9)
-        assert time_ns < 65535 & time_ns >= 4, 'The wait time can only be in [4,65535).'
-        wait = f"""
-        #-----------Wait-----------
-                    wait             {time_ns}                               
-        """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += wait
+        assert time_ns < 65535 and time_ns >= 4, f'The wait time can only be in [4,65535). Now it is {time_ns}.'
+        pulse = {qudit: ['I'] for qudit in self.qudits}
+        self.add_pulse(pulse=pulse, lengths=time_ns, name=name)
     
             
-    def add_pulse(self, pulse: dict, lengths: list, name: str = 'pulse'):
+    def add_pulse(self, pulse: dict, lengths: list, name: str = 'pulse', **pulse_kwargs):
         """
-        The general method for adding pulse to sequence program.
+        The general method for adding pulses to sequence program.
+        We will generate the Pandas DataFrame of prepulse, postpulse, readout, with padded 'I'.
+        All qubits and resonators will become the (row) index of dataframe.
+        An additional interger attribute 'length' in [ns] will be associated with each column.
         If lengths is shorter than number of pulse, it will be padded using the last length.
         
         Attributes:
             pulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
             lengths: The duration of each pulse(column) in [ns].
             name: String in sequence program to improve readability.
+            
+        Example of full prepulse DataFrame:
+           subspace_0 subspace_1 prepulse_0 prepulse_1
+        Q3    X180_01          I     Y90_01          I
+        Q4    X180_01    X180_12     Y90_01     Z90_12
+        R3          I          I          I          I
+        R4          I          I          I          I
         """
         lengths = self.make_it_list(lengths)
         pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
-        # assert len(lengths) == pulse_df.shape[1], 'You need to specify length [ns] for each column!' # TODO: Delete it.
         
         for col_name, column in pulse_df.items():
             name, index = col_name.split('_')
@@ -392,8 +373,12 @@ class Scan:
                 pulse_prog += pulse_interpreter(cfg = self.cfg, 
                                                 qudit = qudit, 
                                                 pulse_string = init_pulse_str, 
-                                                length = column.length)
+                                                length = column.length,
+                                                **pulse_kwargs)
                 self.sequences[qudit]['program'] += pulse_prog
+                
+        self.pulse_df = pd.concat([self.pulse_df, pulse_df], axis=1)
+        # Concatenate a larger dataframe here for user to check it.
         
         
     ##################################################    
