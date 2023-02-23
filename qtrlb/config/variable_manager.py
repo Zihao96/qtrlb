@@ -1,5 +1,4 @@
 from qtrlb.config.config import Config
-import numpy as np
 
 
 class VariableManager(Config):

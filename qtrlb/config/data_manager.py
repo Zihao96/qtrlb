@@ -64,14 +64,18 @@ class DataManager(Config):
         """
         Save the measurement dictionary into a hdf5.
         I keep this layer because we can also pass information of scan here and save it as attrs.
-        # TODO: package attributes in Scan.__init__ from drive_qubits to fit model and pass it here.
         """
         if attrs is None: attrs = {}
         hdf5_path = os.path.join(data_path, 'measurement.hdf5')  
         
         with h5py.File(hdf5_path, 'w') as h5file:
             DataManager.save_dict_to_hdf5(measurement, h5file)
-            for k, v in attrs.items(): h5file.attrs[k] = v
+            for k, v in attrs.items(): 
+                try:
+                    h5file.attrs[k] = v
+                # Some attributes, method for instance, cannot (and shouldn't) be saved.
+                except TypeError:  
+                    pass
         
         
     @staticmethod

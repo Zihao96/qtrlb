@@ -68,6 +68,7 @@ class Scan:
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).transpose().tolist()
         self.x_step = [(stop-start)/(self.x_points-1) for start, stop in zip(self.x_start, self.x_stop)]
+        self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
         
         self.generate_pulse_dataframe()
         self.make_sequence() 
@@ -89,9 +90,10 @@ class Scan:
         
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
-        self.cfg.data.save_measurement(data_path=self.data_path, measurement=self.measurement)
+        self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
         self.cfg.process.process_data(measurement=self.measurement)
         self.fit_data()
+        self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
@@ -427,7 +429,7 @@ class Scan:
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
                                          measurement=self.measurement)
-            print(f'rep {i} finished!')  # TODO: Delete it after test.
+            print(f'Rep {i} finished!')  # TODO: Delete it after test.
             
 
     def fit_data(self): 
