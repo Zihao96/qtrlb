@@ -196,7 +196,7 @@ class Scan:
         self.add_mainloop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
-        self.add_prepulse()
+        self.add_prepulse2()
         self.add_mainpulse()
         self.add_postpulse()
         self.add_readout()
@@ -294,6 +294,11 @@ class Scan:
                                               pulse_string = init_pulse_str, 
                                               length = column.length)
                 self.sequences[qudit]['program'] += prepulse
+                
+                
+    def add_prepulse2(self):
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(pulse=self.prepulse, lengths=drive_length_ns, name='Prepulse')
         
 
     def add_mainpulse(self):        
@@ -359,13 +364,26 @@ class Scan:
     
             
     def add_pulse(self, pulse: dict, lengths: list, name: str = 'pulse'):
+        """
+        The general method for adding pulse to sequence program.
+        If lengths is shorter than number of pulse, it will be padded using the last length.
+        
+        Attributes:
+            pulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
+            lengths: The duration of each pulse(column) in [ns].
+            name: String in sequence program to improve readability.
+        """
         lengths = self.make_it_list(lengths)
         pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
-        assert len(lengths) == pulse_df.shape[1], 'You need to specify length [ns] for each column!'
+        # assert len(lengths) == pulse_df.shape[1], 'You need to specify length [ns] for each column!' # TODO: Delete it.
         
         for col_name, column in pulse_df.items():
             name, index = col_name.split('_')
-            column.length = lengths[index]
+            try:
+                column.length = lengths[int(index)]
+            except IndexError:
+                column.length = lengths[-1]
+                
             for qudit in self.qudits:
                 pulse_prog = f"""
                 #-----------{name}-----------
@@ -404,7 +422,7 @@ class Scan:
         If sequence program has problem, then __init__() will raise Error, rather than run().
         In that case we won't create the junk experiment folder.
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
-        Because we might already get some data and want to save it.
+        Because we may already get some data and want to save it by manually calling save_measurement().
         """
         self.data_path, self.date, self.time = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
                                                                           experiment_suffix=self.experiment_suffix)
@@ -418,6 +436,9 @@ class Scan:
     def acquire_data(self):
         """
         Create measurement dictionary, then start sequencer and save data into this dictionary.
+        self.measurement should only have resonators' name as keys.
+        Inside each resonator should be consistent name of processing or raw data.
+        The 'Heterodyned_readout' usually has shape (2, n_reps, x_points).
         """
         self.measurement = {r: {'raw_readout': [[],[]],  # First element for I, second element for Q.
                                 'raw_heralding': [[],[]],
