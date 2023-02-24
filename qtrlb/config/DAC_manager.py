@@ -46,7 +46,7 @@ class DACManager(Config):
             self.sequencer[qudit] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{qudit}/sequencer']))
              
         
-    def implement_parameters(self, qubits: list, resonators: list, subspace: list, jsons_path: str):
+    def implement_parameters(self, qubits: list, resonators: list, jsons_path: str):
         """
         Implement the setting/parameters onto Qblox.
         This function should be called after we know which specific qubits/resonators will be used.
@@ -60,7 +60,7 @@ class DACManager(Config):
         self.disconnect_existed_map()
         
         # Qubits first, then resonators. Module first, then Sequencer.
-        for i, q in enumerate(qubits):
+        for q in qubits:
             qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
             
             for attribute in self[f'Module{qubit_module}'].keys():

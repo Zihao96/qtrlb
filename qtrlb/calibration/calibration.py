@@ -4,6 +4,7 @@ import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import pulse_interpreter
@@ -25,10 +26,10 @@ class Scan:
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
             readout_resonators: 'R3' or ['R1', 'R5'].
             x_name: 'drive_amplitude', 't1', 'ramsey'.
-            x_start: 0 or [0.5, 1.5], length should be same as drive_qubits.
-            x_stop: 10 or [10.5, 11.5], length should be same as drive_qubits.
+            x_start: 0.
+            x_stop: 320e-9.
             x_points: number of points on x_axis. Start and stop points will be both included.
-            subspace: '12' or ['01', '01'], length should be same as drive_qubits.
+            subspace: '12' or ['01', '12'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
             level_to_fit: 0, 1 or [0,1,0,0], length should be same as readout_resonators.
@@ -41,10 +42,10 @@ class Scan:
                  x_name: str,
                  x_label_plot: str, 
                  x_unit_plot: str, 
-                 x_start: float | list, 
-                 x_stop: float | list, 
+                 x_start: float, 
+                 x_stop: float, 
                  x_points: int, 
-                 subspace: str | list = None,
+                 subspace: str = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  level_to_fit: int | list = None,
@@ -55,10 +56,10 @@ class Scan:
         self.x_name = x_name
         self.x_label_plot = x_label_plot
         self.x_unit_plot = x_unit_plot
-        self.x_start = self.make_it_list(x_start)
-        self.x_stop = self.make_it_list(x_stop)
+        self.x_start = x_start
+        self.x_stop = x_stop
         self.x_points = x_points
-        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(self.drive_qubits)
+        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
         self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(self.readout_resonators)
@@ -71,20 +72,18 @@ class Scan:
         self.heralding_enable = self.cfg.variables['common/heralding']
         
         self.check_attribute()
-        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).transpose().tolist()
-        self.x_step = [(stop-start)/(self.x_points-1) for start, stop in zip(self.x_start, self.x_stop)]
+        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).tolist()
+        self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)
         self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
      
-        self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
+                               for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
         self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
         
         self.make_sequence() 
         self.jsons_path = self.save_sequence()
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                          resonators=self.readout_resonators,
-                                          subspace=self.subspace,
-                                          jsons_path=self.jsons_path)
+        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, resonators=self.readout_resonators, jsons_path=self.jsons_path)
         # Configure the Qblox to desired parameters then upload json files.
         # We call implement_parameters methods here instead of during init/load of DACManager,
         # because we want those modules/sequencers not being used to keep their default status.
@@ -119,7 +118,7 @@ class Scan:
         """
         Check the qubits/resonators are always string with 'Q' or 'R'.
         Warn user if any drive_qubits are not being readout without raising error.
-        Make sure each qubit has a scan_start, scan_stop, subspace.
+        Make sure each qubit has subspace and each resonator has level_to_fit.
         Make sure the prepulse/postpulse is indeed in form of dictionary.
         """
         for qudit in self.qudits:
@@ -129,8 +128,6 @@ class Scan:
         for qubit in self.drive_qubits:
             if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
-        assert len(self.x_start) == len(self.drive_qubits), 'Please specify scan_start for each qubit.'
-        assert len(self.x_stop) == len(self.drive_qubits), 'Please specify scan_stop for each qubit.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
@@ -316,7 +313,6 @@ class Scan:
         """
         stop = f"""
                 #-----------Stop-----------
-                    add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
                     upd_param        8               # Update parameters and wait 4ns.
                     jlt              R1,{self.x_points},@main_loop
@@ -449,7 +445,7 @@ class Scan:
         for i, r in enumerate(self.readout_resonators):
             try:
                 result = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],
-                             x=self.x_values[i], fitmodel=self.fitmodel)
+                             x=self.x_values, fitmodel=self.fitmodel)
                 self.measurement[r]['fit_result'] = result.best_values  # A dictionary
                 self.measurement[r]['fit_values'] = result.best_fit  # A ndarray
                 self.measurement[r]['fit_model'] = str(result.model)
@@ -462,14 +458,20 @@ class Scan:
                 
 
     def plot(self):
+        """
+        Plot the experiment result and save them into data directory.
+        """
         self.plot_main()
         self.plot_IQ()
         if self.classification_enable or self.heralding_enable:
             self.plot_all_population()
 
 
-    def plot_main(self):
-        # TODO: protect it when fitting failed.
+    def plot_main(self, text_loc: str = 'lower right'):
+        """
+        Plot the main result along with fitting, if not failed.
+        Figure will be saved to data directory and show up on python console.
+        """
         for i, r in enumerate(self.readout_resonators):
             xlabel = self.x_label_plot + self.x_unit_plot
             if self.classification_enable or self.heralding_enable:
@@ -479,26 +481,41 @@ class Scan:
             title = f'{self.date}/{self.time},{self.x_name},{r}'
             
             fig, ax = plt.subplots(1,1)
-            ax.plot(self.x_values[i], self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
-            ax.plot(self.x_values[i], self.measurement[r]['fit_values'], color='purple')
+            ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
+            
+            if self.measurement[r]['fit_result'] is not None: 
+                ax.plot(self.x_values, self.measurement[r]['fit_values'], color='m')
+                fit_text = '\n'.join([fr'{k} = {v.value:0.4g}$\pm${v.stderr:0.2g}' \
+                                      for k,v in self.measurement[r]['fit_result'].items()])
+                anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
+                ax.add_artist(anchored_text)
+
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
             
             
     def plot_IQ(self):
+        """
+        Plot the IQ point for each element in self.x_values.
+        Figure will be saved to data directory without show up on python console.
+        # TODO: Add color for classification here.
+        """
         for i, r in enumerate(self.readout_resonators):
+            Is, Qs = self.measurement[r]['IQrotated_readout']
+            left=np.min(Is)
+            right=np.max(Is)
+            bottom=np.min(Qs)
+            top=np.max(Qs)
             for x in range(self.x_points):
                 I = self.measurement[r]['IQrotated_readout'][0,:,x]
                 Q = self.measurement[r]['IQrotated_readout'][1,:,x]
-                fig, ax = plt.subplots(1,1)
+                fig, ax = plt.subplots(1, 1)
                 ax.scatter(I, Q)
                 ax.axvline(color='k', ls='dashed')    
                 ax.axhline(color='k', ls='dashed')
-                ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal')
-                ax.set_ylim(bottom=np.min(self.measurement[r]['IQrotated_readout'][1]),
-                            top=np.max(self.measurement[r]['IQrotated_readout'][1]))
-                ax.set_xlim(left=np.min(self.measurement[r]['IQrotated_readout'][0]),
-                            right=np.max(self.measurement[r]['IQrotated_readout'][0]))
+                ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
+                       xlim=(left, right), ylim=(bottom, top))
+
                 fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}.png'))
                 plt.close(fig)
 

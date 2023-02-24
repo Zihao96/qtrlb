@@ -2,7 +2,7 @@ import numpy as np
 from lmfit import Model
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
-from qtrlb.processing.fitting import SinModel, ExpSinModel
+from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
 class DriveAmplitudeScan(Scan):
@@ -10,8 +10,8 @@ class DriveAmplitudeScan(Scan):
                  cfg,  
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 amp_start: float | list, 
-                 amp_stop: float | list, 
+                 amp_start: float, 
+                 amp_stop: float, 
                  x_points: int, 
                  subspace: list = None,
                  prepulse: dict = None,
@@ -39,7 +39,7 @@ class DriveAmplitudeScan(Scan):
         
     def add_initparameter(self):
         for i, qubit in enumerate(self.drive_qubits):
-            start = round(self.x_start[i] * 32768)
+            start = round(self.x_start * 32768)
             initparameter = f"""
                     move             {start},R0            
             """
@@ -50,7 +50,7 @@ class DriveAmplitudeScan(Scan):
         length = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) 
         
         for i, qubit in enumerate(self.drive_qubits):
-            step = round(self.x_step[i] * 32768)
+            step = round(self.x_step * 32768)
             subspace = self.subspace[i]
             freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4)   
                     
@@ -83,9 +83,9 @@ class RabiScan(Scan):
                  cfg,  
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 length_start: float | list, 
-                 length_stop: float | list, 
-                 x_points: int, 
+                 length_start: float = 0, 
+                 length_stop: float = 360e-9, 
+                 x_points: int = 91, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
@@ -119,7 +119,7 @@ class RabiScan(Scan):
         for q in self.drive_qubits:
             waveforms = {}
             for i in range(self.x_points):
-                pulse_length_ns = round(self.x_values[0][i] * 1e9)
+                pulse_length_ns = round(self.x_values[i] * 1e9)
                 if pulse_length_ns == 0: continue
             
                 waveforms[f'{i}'] = {"data" : get_waveform(length=pulse_length_ns, 
@@ -130,18 +130,11 @@ class RabiScan(Scan):
         
     def check_waveform_length(self):
         """
-        Check all qubits use same lengths so that they are properly synced.
         Check the total length of all waveforms since Qblox can only store 16384 samples.
         """
-        # Ref: https://stackoverflow.com/questions/3844801/check-if-all-elements-in-a-list-are-identical
-        assert [self.x_start[0]]*len(self.x_start) == self.x_start, \
-                'All qubits should have length_start'
-        assert [self.x_stop[0]]*len(self.x_stop) == self.x_stop, \
-                'All qubits should have length_stop'
-                
-        total_length_ns = np.ceil(np.sum(self.x_values[0]) * 1e9)
+        total_length_ns = np.ceil(np.sum(self.x_values) * 1e9)
         assert total_length_ns < 16384, f'The total pulse length {total_length_ns}ns is too long! \n'\
-            'Suggestion: np.linspace(0,200,101), np.linspace(0,360,91), '\
+            'Suggestion: np.linspace(0,200,101), np.linspace(0,320,81), np.linspace(0,360,91), '\
             'np.linspace(0,400,81), np.linspace(0,600,51)'
             
 
@@ -150,7 +143,7 @@ class RabiScan(Scan):
         Here R0 will be real pulse length, and R1 is the waveform index.
         So qubit play R1 for drive, resonator wait R0 for sync.
         """
-        start = round(self.x_start[0] * 1e9)
+        start = round(self.x_start * 1e9)
         initparameter = f"""
                     move             {start},R0            
         """
@@ -168,7 +161,7 @@ class RabiScan(Scan):
             
 
     def add_zero_start(self):
-        start = round(self.x_values[0][1] * 1e9)  # Set R0 (first pulse length) to second element.
+        start = round(self.x_value[1] * 1e9)  # Set R0 (first pulse length) to second element.
         zero_start = f"""
                     move             {start},R0
                     wait_sync        8                               
@@ -193,7 +186,7 @@ class RabiScan(Scan):
         There is 4ns delay after each Rabi pulse before postpulse/readout.
         It's because the third index of 'play' instruction cannot be register.
         """
-        step = round(self.x_step[0] * 1e9)
+        step = round(self.x_step * 1e9)
         
         for i, qubit in enumerate(self.drive_qubits):
             subspace = self.subspace[i]
@@ -221,10 +214,55 @@ class RabiScan(Scan):
             self.sequences[resonator]['program'] += main
             
         
+class T1Scan(Scan):
+    def __init__(self, 
+                 cfg,  
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 length_start: float, 
+                 length_stop: float, 
+                 x_points: int, 
+                 subspace: list = None,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = ExpModel):
+        
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         x_name='T1',
+                         x_label_plot='Wait Length', 
+                         x_unit_plot='[ns].', 
+                         x_start=length_start, 
+                         x_stop=length_stop, 
+                         x_points=x_points, 
+                         subspace=subspace,
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
         
         
+    def add_initparameter(self):
+        """
+        Here R0 will be real wait length?
+        """
+        start = round(self.x_start * 1e9)
+        initparameter = f"""
+                    move             {start},R0            
+        """
         
-        
+        if start != 0: 
+            for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
+            
+        else:  # Qblox doesn't accept zero length waveform (empty list).
+            self.add_zero_start()
+            if self.cfg.variables['common/heralding']: self.add_heralding()
+            self.add_prepulse()
+            self.add_postpulse()
+            self.add_readout()
+            self.add_zero_end()
         
         
         
