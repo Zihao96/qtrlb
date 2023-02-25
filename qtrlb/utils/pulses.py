@@ -33,7 +33,6 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
                     set_awg_gain     {gain},{gain}
                     play             0,0,{tof_ns} 
                     acquire          {acq_index},R1,{length - tof_ns}
-                    add              R1,1,R1
         """
         
     elif pulse_string.startswith('X'):

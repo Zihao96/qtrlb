@@ -83,7 +83,9 @@ class Scan:
         
         self.make_sequence() 
         self.jsons_path = self.save_sequence()
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, resonators=self.readout_resonators, jsons_path=self.jsons_path)
+        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
+                                          resonators=self.readout_resonators, 
+                                          jsons_path=self.jsons_path)
         # Configure the Qblox to desired parameters then upload json files.
         # We call implement_parameters methods here instead of during init/load of DACManager,
         # because we want those modules/sequencers not being used to keep their default status.
@@ -313,6 +315,7 @@ class Scan:
         """
         stop = f"""
                 #-----------Stop-----------
+                    add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
                     upd_param        8               # Update parameters and wait 4ns.
                     jlt              R1,{self.x_points},@main_loop
@@ -355,15 +358,16 @@ class Scan:
         pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
         
         for col_name, column in pulse_df.items():
-            name, index = col_name.split('_')
             try:
-                column.length = lengths[int(index)]
+                column.length = lengths[int(col_name.split('_')[1])]  
+                # Use column name as index of lengths list. If list is not long enough, use last index.
             except IndexError:
                 column.length = lengths[-1]
                 
             for qudit in self.qudits:
                 pulse_prog = f"""
-                #-----------{name}-----------
+                # -----------{col_name}-----------
+                {col_name}: 
                 """
                 init_pulse_str = column[qudit]
                 pulse_prog += pulse_interpreter(cfg = self.cfg, 

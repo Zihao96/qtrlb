@@ -226,7 +226,8 @@ class T1Scan(Scan):
                  prepulse: dict = None,
                  postpulse: dict = None,
                  level_to_fit: int | list = None,
-                 fitmodel: Model = ExpModel):
+                 fitmodel: Model = ExpModel,
+                 divisor_ns: int = 60000):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -242,11 +243,12 @@ class T1Scan(Scan):
                          postpulse=postpulse,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        self.divisor_ns = int(divisor_ns)
         
         
     def add_initparameter(self):
         """
-        Here R0 will be real wait length?
+        Here R0 will be real wait length? # TODO: Finish this one. Move zero_start to parent scan.
         """
         start = round(self.x_start * 1e9)
         initparameter = f"""
@@ -265,9 +267,22 @@ class T1Scan(Scan):
             self.add_zero_end()
         
         
+    def add_mainpulse(self):
+        """
+        Because one 'wait' instruction can take no longer than 65534ns,
+        we will separate it into several instruction
+        """
+        pi_pulse = {q: [f'X180_{ss[0]}{ss[1]}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(pi_pulse, drive_length_ns, 'T1PIpulse')
         
-        
-        
+        for time in self.x_values:
+            if time == 0: continue
+            time_ns = round(time * 1e9)
+            multiple = time_ns // self.divisor_ns
+            remainder = time_ns % self.divisor_ns
+            for i in range(multiple): self.add_wait(self.divisor_ns)
+
         
         
         
