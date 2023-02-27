@@ -53,11 +53,12 @@ class ProcessManager(Config):
                 self[f'{r}/IQ_means'] = [[i,i] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
-    def process_data(self, measurement: dict):
+    def process_data(self, measurement: dict, shape: tuple):
         """
-        Process the data by performing rotation, average, GMM, fit, plot, etc.
+        Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         Three common routine are hard coded here since we never change them.
         User can define new routine by adding new key in process.yaml and add code here.
+        The shape is expected to be (2, n_reps, x_points).
         
         Note from Zihao(02/17/2023):
         The new key should better be the first 'if' condition below.
@@ -72,9 +73,12 @@ class ProcessManager(Config):
         elif self['heralding']:
             # r is 'R3', 'R4', data_dict has key 'Heterodyned_readout', etc.
             for r, data_dict in measurement.items():  
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
+                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+                data_dict['Reshaped_heralding'] = np.array(data_dict['Heterodyned_heralding']).reshape(shape)
+                
+                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
-                data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Heterodyned_heralding'], 
+                data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
@@ -101,7 +105,9 @@ class ProcessManager(Config):
             
         elif self['classification']:
             for r, data_dict in measurement.items():  
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
+                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+                
+                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
@@ -119,7 +125,9 @@ class ProcessManager(Config):
             
         else:
             for r, data_dict in measurement.items():  
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Heterodyned_readout'], 
+                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+                
+                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
     
                 data_dict['IQautorotated_readout'] = autorotate_IQ(data_dict['IQrotated_readout'], 

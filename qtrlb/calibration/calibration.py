@@ -32,6 +32,7 @@ class Scan:
             subspace: '12' or ['01', '12'], length should be same as drive_qubits.
             prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
             postpulse: Same requirement as prepulse.
+            n_seqloops: Number of repetition inside sequence program. Total repetition will be n_seqloops * n_pyloops.
             level_to_fit: 0, 1 or [0,1,0,0], length should be same as readout_resonators.
             fitmodel: It should be better to pick from qtrlb.processing.fitting.
     """
@@ -48,6 +49,7 @@ class Scan:
                  subspace: str = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
+                 n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
         self.cfg = cfg
@@ -58,10 +60,11 @@ class Scan:
         self.x_unit_plot = x_unit_plot
         self.x_start = x_start
         self.x_stop = x_stop
-        self.x_points = x_points
+        self.x_points = int(x_points)
         self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
+        self.n_seqloops = int(n_seqloops)
         self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(self.readout_resonators)
         self.fitmodel = fitmodel
         
@@ -93,22 +96,24 @@ class Scan:
         
     def run(self, 
             experiment_suffix: str = '',
-            n_reps: int = 1000):
+            n_pyloops: int = 1):
         """
         Run the experiment and acquire data. 
         User can call it multiple times without instantiate the Scan class again.
         
         Attributes:
             experiment_suffix: User-defined name. It will show up on data directory.
-            n_reps: Number of repetition for running single sequence program. 
+            n_pyloops: Number of repetition for running single sequence program. 
         """
         self.experiment_suffix = experiment_suffix
-        self.n_reps = n_reps
+        self.n_pyloops = n_pyloops
+        self.n_reps = self.n_seqloops * self.n_pyloops
+        self.attrs.update({'experiment_suffix': self.experiment_suffix, 'n_reps': self.n_reps})
         
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.cfg.process.process_data(measurement=self.measurement)
+        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points))
         self.fit_data()
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
         self.plot()
@@ -134,6 +139,7 @@ class Scan:
         assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
+        assert self.x_points * self.n_seqloops <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         
 
     ##################################################
@@ -162,8 +168,8 @@ class Scan:
         self.set_waveforms_acquisitions()
         
         self.init_program()
-        self.add_initparameter()
-        self.add_mainloop()
+        self.add_initvalues()
+        self.add_xloop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
         self.add_prepulse()
@@ -190,8 +196,8 @@ class Scan:
             
             waveforms = {qudit: {'data': waveform, 'index': 0}}
             
-            acquisitions = {'readout':   {'num_bins': self.x_points, 'index': 0},
-                            'heralding': {'num_bins': self.x_points, 'index': 1}}
+            acquisitions = {'readout':   {'num_bins': self.n_seqloops * self.x_points, 'index': 0},
+                            'heralding': {'num_bins': self.n_seqloops * self.x_points, 'index': 1}}
             
             self.sequences[qudit]['waveforms'] = waveforms
             self.sequences[qudit]['weights'] = {}
@@ -201,26 +207,29 @@ class Scan:
     def init_program(self):
         """
         Create sequence program and initialize all six built-in registers.
+        Please do not change the convention here since their function have been hardcoded later.
         """
         for qudit in self.qudits:
-            program = """
-        # R0 is the value of main parameter of 1D Scan, if needed.
-        # R1 is the count of repetition for algorithm or x_points for parameter sweep.
-        # R2 is the relaxation time in microseconds.
-        # Other register for backup.
+            program = f"""
+        # R0 count n_seqloops, descending.
+        # R1 count bin for acquisition, ascending.
+        # R2 qubit relaxation time in microseconds, descending.
+        # R3 count x_points, descending.
+        # R4 is specific x_value.
+        # R5 count y_points, descending.
+        # R6 is specific y_value.
+        # R7 R8 R9 R10 are left for backup.
+        # Other register up to R63 can be used freely.
         
                     wait_sync        8
-                    move             0,R0
+                    move             {self.n_seqloops},R0
                     move             0,R1
-                    move             0,R2
-                    move             0,R3
-                    move             0,R4
-                    move             0,R5
+        seq_loop:   move             {self.x_points},R3
         """
             self.sequences[qudit]['program'] = program
         
         
-    def add_initparameter(self):
+    def add_initvalues(self):
         """
         Set necessary initial value on some of the registers. 
         Suppose to be called by child class.
@@ -228,13 +237,13 @@ class Scan:
         print('Scan: The base experiment class has been called. No initial parameter will be set.')
         
         
-    def add_mainloop(self):
+    def add_xloop(self):
         """
         Add main loop to sequence program.
         """
         for qudit in self.qudits:
-            loop = """        
-        main_loop:  wait_sync        8               # Sync at beginning of the loop.
+            loop = """            
+        xpt_loop:   wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15              # Enable all markers (binary 1111) for switching on output.
                     upd_param        8               # Update parameters and wait 8ns.
@@ -252,8 +261,8 @@ class Scan:
         relaxation = f"""
                 #-----------Relaxation-----------
                     move             {relaxation_time_us},R2
-        relx_loop:  wait             1000
-                    loop             R2,@relx_loop
+        rlx_loop:   wait             1000
+                    loop             R2,@rlx_loop
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += relaxation
         
@@ -313,12 +322,13 @@ class Scan:
         """
         Add end of loop and stop the sequence program.
         """
-        stop = f"""
+        stop = """
                 #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
                     upd_param        8               # Update parameters and wait 4ns.
-                    jlt              R1,{self.x_points},@main_loop
+                    loop             R3,@xpt_loop
+                    loop             R0,@seq_loop
                     
                     stop             
         """
@@ -367,8 +377,7 @@ class Scan:
             for qudit in self.qudits:
                 pulse_prog = f"""
                 # -----------{col_name}-----------
-                {col_name}: 
-                """
+        {col_name}:  """
                 init_pulse_str = column[qudit]
                 pulse_prog += pulse_interpreter(cfg = self.cfg, 
                                                 qudit = qudit, 
@@ -423,7 +432,8 @@ class Scan:
         Create measurement dictionary, then start sequencer and save data into this dictionary.
         self.measurement should only have resonators' name as keys.
         Inside each resonator should be consistent name of processing or raw data.
-        The 'Heterodyned_readout' usually has shape (2, n_reps, x_points).
+        After all loops, the 'Heterodyned_readout' usually has shape (2, n_pyloops, n_seqloops*x_points).
+        We will reshape it to (2, n_reps, x_points) later by ProcessManager, where n_reps = n_seqloops * n_pyloops.
         """
         self.measurement = {r: {'raw_readout': [[],[]],  # First element for I, second element for Q.
                                 'raw_heralding': [[],[]],
@@ -431,11 +441,11 @@ class Scan:
                                 'Heterodyned_heralding':[[],[]]
                                 } for r in self.readout_resonators}
         
-        for i in range(self.n_reps):
+        for i in range(self.n_pyloops):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
                                          measurement=self.measurement)
-            print(f'Rep {i} finished!')  # TODO: Delete it after test.
+            print(f'Python loop {i} finished!')  # TODO: Delete it after test.
             
 
     def fit_data(self): 
