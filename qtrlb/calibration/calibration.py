@@ -60,11 +60,11 @@ class Scan:
         self.x_unit_plot = x_unit_plot
         self.x_start = x_start
         self.x_stop = x_stop
-        self.x_points = int(x_points)
-        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']
+        self.x_points = x_points
+        self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(self.drive_qubits)
         self.prepulse = prepulse if prepulse is not None else {}
         self.postpulse = postpulse if postpulse is not None else {}
-        self.n_seqloops = int(n_seqloops)
+        self.n_seqloops = n_seqloops
         self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(self.readout_resonators)
         self.fitmodel = fitmodel
         
@@ -456,6 +456,8 @@ class Scan:
         
         # TODO: Check possible 2D data fit.
         """
+        if self.fitmodel is None: return
+        
         for i, r in enumerate(self.readout_resonators):
             try:
                 result = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],

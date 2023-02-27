@@ -12,10 +12,11 @@ class DriveAmplitudeScan(Scan):
                  readout_resonators: str | list,
                  amp_start: float, 
                  amp_stop: float, 
-                 x_points: int, 
+                 amp_points: int, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
+                 n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = SinModel,
                  error_amplification_factor: int = 1):
@@ -29,10 +30,11 @@ class DriveAmplitudeScan(Scan):
                          x_unit_plot='[a.u].', 
                          x_start=amp_start, 
                          x_stop=amp_stop, 
-                         x_points=x_points, 
+                         x_points=amp_points, 
                          subspace=subspace,
                          prepulse=prepulse,
                          postpulse=postpulse,
+                         n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
         
@@ -41,7 +43,7 @@ class DriveAmplitudeScan(Scan):
         for i, qubit in enumerate(self.drive_qubits):
             start = round(self.x_start * 32768)
             initparameter = f"""
-                    move             {start},R0            
+                    move             {start},R4            
             """
             self.sequences[qubit]['program'] += initparameter
             
@@ -57,16 +59,14 @@ class DriveAmplitudeScan(Scan):
             main = f"""
                  #-----------Main-----------
                     set_freq         {freq}
-                    set_awg_gain     R0,R0
+                    set_awg_gain     R4,R4
             """  
-            
-            for i in range(self.error_amplification_factor):
-                main += f"""
-                    play             0,0,{length}
-                """
+
+            main += f"""
+                    play             0,0,{length}""" * self.error_amplification_factor
                 
             main += f""" 
-                    add              R0,{step},R0
+                    add              R4,{step},R4
             """
             self.sequences[qubit]['program'] += main
 
@@ -85,7 +85,7 @@ class RabiScan(Scan):
                  readout_resonators: str | list,
                  length_start: float = 0, 
                  length_stop: float = 320e-9, 
-                 x_points: int = 81, 
+                 length_points: int = 81, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
@@ -103,7 +103,7 @@ class RabiScan(Scan):
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
                          x_stop=length_stop, 
-                         x_points=x_points, 
+                         x_points=length_points, 
                          subspace=subspace,
                          prepulse=prepulse,
                          postpulse=postpulse,
@@ -204,13 +204,15 @@ class T1Scan(Scan):
                  readout_resonators: str | list,
                  length_start: float, 
                  length_stop: float, 
-                 x_points: int, 
+                 length_points: int, 
                  subspace: list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
+                 n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 60000):
+        self.divisor_ns = divisor_ns
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -220,60 +222,298 @@ class T1Scan(Scan):
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
                          x_stop=length_stop, 
-                         x_points=x_points, 
+                         x_points=length_points, 
                          subspace=subspace,
                          prepulse=prepulse,
                          postpulse=postpulse,
+                         n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
-        self.divisor_ns = int(divisor_ns)
-        
+
         
     def add_initvalues(self):
-        """
-        Here R0 will be real wait length? # TODO: Finish this one. Move zero_start to parent scan.
-        """
-        start = round(self.x_start * 1e9)
+        start_ns = round(self.x_start * 1e9)
         initparameter = f"""
-                    move             {start},R0            
+                    move             {start_ns},R4            
         """
-        
-        if start != 0: 
-            for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
-            
-        else:  # Qblox doesn't accept zero length waveform (empty list).
-            self.add_zero_start()
-            if self.cfg.variables['common/heralding']: self.add_heralding()
-            self.add_prepulse()
-            self.add_postpulse()
-            self.add_readout()
-            self.add_zero_end()
+        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
         
         
     def add_mainpulse(self):
         """
-        Because one 'wait' instruction can take no longer than 65534ns,
-        we will separate it into several instruction
+        Because one 'wait' instruction can take no longer than 65534ns, we will divide it by 60us.
+        
+        Here I use R11 as a deepcopy of R4 and wait a few multiples of 60us first.
+        After each wait we substract 60000 from R11.
+        Then if R11 is smaller than 60us, we wait the remainder.
         """
-        pi_pulse = {q: [f'X180_{ss[0]}{ss[1]}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
         self.add_pulse(pi_pulse, drive_length_ns, 'T1PIpulse')
         
-        for time in self.x_values:
-            if time == 0: continue
-            time_ns = round(time * 1e9)
-            multiple = time_ns // self.divisor_ns
-            remainder = time_ns % self.divisor_ns
-            for i in range(multiple): self.add_wait(self.divisor_ns)
+        step_ns = round(self.x_step * 1e9)
+        main = f"""
+                #-----------Main-----------
+                    jlt              R4,1,@end_main
+                    move             R4,R11            
+                    
+        mlt_wait:   jlt              R11,{self.divisor_ns},@rmd_wait
+                    wait             {self.divisor_ns}
+                    sub              R11,{self.divisor_ns},R11
+                    jmp              @mlt_wait
+                    
+        rmd_wait:   wait             R11
+                    
+        end_main:   add              R4,{step_ns},R4
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        
+
+class RamseyScan(Scan):
+    def __init__(self, 
+                 cfg,  
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 length_start: float, 
+                 length_stop: float, 
+                 length_points: int, 
+                 subspace: list = None,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = ExpSinModel,
+                 divisor_ns: int = 60000,
+                 artificial_detuning: float = 0.0):
+        self.divisor_ns = divisor_ns
+        self.artificial_detuning = artificial_detuning
+        
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         x_name='Ramsey',
+                         x_label_plot='Wait Length', 
+                         x_unit_plot='[ns].', 
+                         x_start=length_start, 
+                         x_stop=length_stop, 
+                         x_points=length_points, 
+                         subspace=subspace,
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
 
         
+    def add_initvalues(self):
+        """
+        We will use R4 for wait time, R12 for angle of VZ gate.
+        """
+        start_ns = round(self.x_start * 1e9)
+        start_ADphase = round(self.x_start * self.artificial_detuning * 1e9)  
+        initparameter = f"""
+                    move             {start_ns},R4            
+                    move             {start_ADphase},R12
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
         
         
+    def add_mainpulse(self):
+        """
+        Because one 'wait' instruction can take no longer than 65534ns, we will divide it by 60us.
+        
+        Here, all register is 32bit, which can only store integer [-2e31,2e31).
+        If we do Ramsey with more than 2 phase cycle, then it may cause error.
+        Thus we substract 1e9 of R12 when it exceed 1e9, which is one phase cycle of Qblox.
+        The wait trick is similar to T1Scan.
+        """
+        half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'RamseyHalfPIpulse')
+        
+        step_ns = round(self.x_step * 1e9)
+        step_ADphase = round(self.x_step * self.artificial_detuning * 1e9)  
+        # Qblox cut one phase circle into 1e9 pieces.
+        main = f"""
+                #-----------Main-----------
+                    jlt              R4,1,@end_main
+                    move             R4,R11            
+                    
+                    jlt              R12,1000000000,@mlt_wait
+                    sub              R12,1000000000
+                    
+        mlt_wait:   jlt              R11,{self.divisor_ns},@rmd_wait
+                    wait             {self.divisor_ns}
+                    sub              R11,{self.divisor_ns},R11
+                    jmp              @mlt_wait
+                    
+        rmd_wait:   wait             R11
+                    set_ph_delta     R12
+                    
+        end_main:   add              R4,{step_ns},R4
+                    add              R12,{step_ADphase},R12
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'RamseyHalfPIpulse')
         
         
+class EchoScan(Scan):
+    def __init__(self, 
+                 cfg,  
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 length_start: float, 
+                 length_stop: float, 
+                 length_points: int, 
+                 subspace: list = None,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = ExpModel,
+                 divisor_ns: int = 60000,
+                 echo_type: str = 'CP'):
+        self.divisor_ns = divisor_ns
+        self.echo_type = echo_type
+        
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         x_name='Echo',
+                         x_label_plot='Wait Length', 
+                         x_unit_plot='[ns].', 
+                         x_start=length_start, 
+                         x_stop=length_stop, 
+                         x_points=length_points, 
+                         subspace=subspace,
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+
+        
+    def add_initvalues(self):
+        start_half_ns = round(self.x_start / 2 * 1e9)
+        initparameter = f"""
+                    move             {start_half_ns},R4            
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
         
         
+    def add_mainpulse(self):
+        """
+        Here R4 only represent half of the total waiting time.
+        """
+        half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'Echo1stHalfPIpulse')
+        
+        step_half_ns = round(self.x_step / 2 * 1e9)
+        main = f"""
+                #-----------Main1-----------
+                    jlt              R4,1,@end_main1
+                    move             R4,R11            
+                    
+        mlt_wait1:  jlt              R11,{self.divisor_ns},@rmd_wait1
+                    wait             {self.divisor_ns}
+                    sub              R11,{self.divisor_ns},R11
+                    jmp              @mlt_wait1
+                    
+        rmd_wait1:  wait             R11
+                    
+        end_main1:  nop
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        
+        if self.echo_type == 'CP':
+            pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        elif self.echo_type == 'CPMG':
+            pi_pulse = {q: [f'Y180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.add_pulse(pi_pulse, drive_length_ns, 'EchoPIpulse')
+        
+        main = f"""
+                #-----------Main2-----------
+                    jlt              R4,1,@end_main2
+                    move             R4,R11            
+                    
+        mlt_wait2:  jlt              R11,{self.divisor_ns},@rmd_wait2
+                    wait             {self.divisor_ns}
+                    sub              R11,{self.divisor_ns},R11
+                    jmp              @mlt_wait2
+                    
+        rmd_wait2:  wait             R11
+                    
+        end_main2:  add              R4,{step_half_ns},R4
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'Echo2ndHalfPIpulse')
         
         
+class CalibrateClassification(Scan):
+    def __init__(self, 
+                 cfg,  
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: int, 
+                 level_stop: int,  
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 1000):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         x_name='CalibrateClassification',
+                         x_label_plot='Level', 
+                         x_unit_plot='', 
+                         x_start=level_start, 
+                         x_stop=level_stop, 
+                         x_points=level_stop-level_start+1, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops)
+    
+    
+    def add_initvalues(self):
+        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
+                    move             {self.x_start},R4            
+        """
         
+        
+    def add_mainpulse(self):
+        """
+        Here we add all PI pulse to our sequence program based on level_stop.
+        We will use R4 to represent level and jlt instruction to skip later PI pulse.
+        """
+        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)     
+        
+        for qudit in self.qudits:         
+            main = """
+                #-----------Main-----------
+                    jlt              R4,1,@end_main
+            """
+            
+            for level in range(self.x_stop):
+                if qudit.startswith('Q'):
+                    freq = round(self.cfg.variables[f'{qudit}/{level}{level+1}/mod_freq'] * 4)
+                    gain = round(self.cfg.variables[f'{qudit}/{level}{level+1}/amp_180'] * 32768)
+                    main += f"""
+                    set_freq         {freq}
+                    set_awg_gain     {gain},{gain}
+                    play             0,0,{drive_length_ns} 
+                    jlt              R4,{level+2},@end_main
+                    """
+                elif qudit.startswith('R'):
+                    main += f"""
+                    wait             {drive_length_ns} 
+                    jlt              R4,{level+2},@end_main
+                    """
+            
+            main += """
+        end_main:   add              R4,1,R4
+            """
+            self.sequences[qudit]['program'] += main
         

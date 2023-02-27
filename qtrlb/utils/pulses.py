@@ -15,7 +15,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     
     if pulse_string == 'I':
         pulse_program = f"""
-                    wait             {length}            # Identity.
+                    wait             {length}              # Identity.
         """
         
     elif pulse_string == 'RO':
