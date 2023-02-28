@@ -255,7 +255,8 @@ class T1Scan(Scan):
         main = f"""
                 #-----------Main-----------
                     jlt              R4,1,@end_main
-                    move             R4,R11            
+                    move             R4,R11  
+                    nop
                     
         mlt_wait:   jlt              R11,{self.divisor_ns},@rmd_wait
                     wait             {self.divisor_ns}
@@ -329,7 +330,7 @@ class RamseyScan(Scan):
         """
         half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'RamseyHalfPIpulse')
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'Ramsey1stHalfPIpulse')
         
         step_ns = round(self.x_step * 1e9)
         step_ADphase = round(self.x_step * self.artificial_detuning * 1e9)  
@@ -340,7 +341,7 @@ class RamseyScan(Scan):
                     move             R4,R11            
                     
                     jlt              R12,1000000000,@mlt_wait
-                    sub              R12,1000000000
+                    sub              R12,1000000000,R12
                     
         mlt_wait:   jlt              R11,{self.divisor_ns},@rmd_wait
                     wait             {self.divisor_ns}
@@ -355,7 +356,7 @@ class RamseyScan(Scan):
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'RamseyHalfPIpulse')
+        self.add_pulse(half_pi_pulse, drive_length_ns, 'Ramsey2ndHalfPIpulse')
         
         
 class EchoScan(Scan):
@@ -414,7 +415,8 @@ class EchoScan(Scan):
         main = f"""
                 #-----------Main1-----------
                     jlt              R4,1,@end_main1
-                    move             R4,R11            
+                    move             R4,R11  
+                    nop
                     
         mlt_wait1:  jlt              R11,{self.divisor_ns},@rmd_wait1
                     wait             {self.divisor_ns}
@@ -436,7 +438,8 @@ class EchoScan(Scan):
         main = f"""
                 #-----------Main2-----------
                     jlt              R4,1,@end_main2
-                    move             R4,R11            
+                    move             R4,R11 
+                    nop
                     
         mlt_wait2:  jlt              R11,{self.divisor_ns},@rmd_wait2
                     wait             {self.divisor_ns}
