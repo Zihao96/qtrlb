@@ -502,7 +502,9 @@ class Scan:
             
             if self.measurement[r]['fit_result'] is not None: 
                 ax.plot(self.x_values, self.measurement[r]['fit_values'], color='m')
-                fit_text = '\n'.join([fr'{k} = {v.value:0.4g}$\pm${v.stderr:0.2g}' \
+                # fit_text = '\n'.join([fr'{k} = {v.value:0.4g}$\pm${v.stderr:0.2g}' \
+                #                       for k,v in self.measurement[r]['fit_result'].items()])
+                fit_text = '\n'.join([fr'{k} = {v:0.4g}' \
                                       for k,v in self.measurement[r]['fit_result'].items()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)

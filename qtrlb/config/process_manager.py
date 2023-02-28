@@ -131,9 +131,9 @@ class ProcessManager(Config):
                                                            angle=self[f'{r}/IQ_rotation_angle'])
     
                 data_dict['IQautorotated_readout'] = autorotate_IQ(data_dict['IQrotated_readout'], 
-                                                                   n_components=self[f'{r}/n_readout_levels'])
+                                                                    n_components=self[f'{r}/n_readout_levels'])
     
-                data_dict['IQaveraged_readout'] = np.mean(data_dict['IQautorotated_readout'], axis=1)
+                data_dict['IQaveraged_readout'] = np.mean(data_dict['IQrotated_readout'], axis=1)
         
                 data_dict['to_fit'] = data_dict['IQaveraged_readout']
         
