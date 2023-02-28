@@ -527,8 +527,8 @@ class Scan:
             for x in range(self.x_points):
                 I = self.measurement[r]['IQrotated_readout'][0,:,x]
                 Q = self.measurement[r]['IQrotated_readout'][1,:,x]
-                fig, ax = plt.subplots(1, 1)
-                ax.scatter(I, Q)
+                fig, ax = plt.subplots(1, 1, dpi=150)
+                ax.scatter(I, Q, alpha=0.2)
                 ax.axvline(color='k', ls='dashed')    
                 ax.axhline(color='k', ls='dashed')
                 ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 

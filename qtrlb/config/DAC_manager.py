@@ -156,8 +156,10 @@ class DACManager(Config):
         """
         
         for qudit in qubits + resonators:
-            self.module[qudit].arm_sequencer(self.varman[f'{qudit}/sequencer'])
-            self.module[qudit].start_sequencer()  # Really start sequencer.
+            # self.module[qudit].arm_sequencer(self.varman[f'{qudit}/sequencer'])
+            self.sequencer[qudit].arm_sequencer()
+            
+        self.qblox.start_sequencer()  # Really start sequencer.
 
         for r in resonators:
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
@@ -191,14 +193,3 @@ class DACManager(Config):
                 measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
                 measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
-
-    def stop_sequencer(self, qudits: list, print_snapshot: bool = False):
-        """
-        Ask the instrument to stop sequencer.
-        Then print snapshot if asked.
-        """
-
-        for qudit in qudits:
-            self.module[qudit].stop_sequencer()  
-            if print_snapshot:
-                self.sequencer[qudit].print_readable_snapshot(update=True)

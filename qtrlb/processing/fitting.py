@@ -108,7 +108,7 @@ class SinModel(Model):
         sin_params = sin_model.guess(data, x=x)
         
         self.set_param_hint('freq', value=sin_params['frequency'].value/2/PI, min=0)
-        self.set_param_hint('A', value=sin_params['amplitude'].value, min=0)
+        self.set_param_hint('A', value=sin_params['amplitude'].value)
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('phase', value=sin_params['shift'].value, min=-np.pi, max=np.pi)
         return self.make_params()  
