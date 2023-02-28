@@ -57,7 +57,7 @@ class ExpSinModel(Model):
         sin_params = sin_model.guess(data, x=x)
         
         self.set_param_hint('freq', value=sin_params['frequency'].value/2/PI, min=0)
-        self.set_param_hint('A', value=sin_params['amplitude'].value, min=0)
+        self.set_param_hint('A', value=sin_params['amplitude'].value)
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('phase', value=sin_params['shift'].value, min=-np.pi, max=np.pi)
         self.set_param_hint('tau', value=(x[-1] - x[0])/2, min=0)
@@ -71,7 +71,7 @@ class ExpModel(Model):
         super().__init__(func=exp_func, *args, **kwargs)
         
     def guess(self, data, x):
-        self.set_param_hint('A', value=np.max(data) - np.min(data), min=0)
+        self.set_param_hint('A', value=np.max(data) - np.min(data))
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('tau', value=(x[-1] - x[0])/2, min=0)
         return self.make_params()   
