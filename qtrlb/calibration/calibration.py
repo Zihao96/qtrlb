@@ -496,7 +496,7 @@ class Scan:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
             title = f'{self.date}/{self.time},{self.x_name},{r}'
             
-            fig, ax = plt.subplots(1,1)
+            fig, ax = plt.subplots(1, 1, dpi=150)
             ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             

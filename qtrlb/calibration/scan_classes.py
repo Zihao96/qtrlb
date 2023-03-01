@@ -211,7 +211,7 @@ class T1Scan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
-                 divisor_ns: int = 60000):
+                 divisor_ns: int = 65524):
         self.divisor_ns = divisor_ns
         
         super().__init__(cfg=cfg,
@@ -241,11 +241,11 @@ class T1Scan(Scan):
         
     def add_mainpulse(self):
         """
-        Because one 'wait' instruction can take no longer than 65534ns, we will divide it by 60us.
+        Because one 'wait' instruction can take no longer than 65534ns, we will divide it by divisor.
         
-        Here I use R11 as a deepcopy of R4 and wait a few multiples of 60us first.
-        After each wait we substract 60000 from R11.
-        Then if R11 is smaller than 60us, we wait the remainder.
+        Here I use R11 as a deepcopy of R4 and wait a few multiples of divisor first.
+        After each wait we substract divisor from R11.
+        Then if R11 is smaller than divisor, we wait the remainder.
         """
         pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
@@ -284,7 +284,7 @@ class RamseyScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
-                 divisor_ns: int = 60000,
+                 divisor_ns: int = 65524,
                  artificial_detuning: float = 0.0):
         self.divisor_ns = divisor_ns
         self.artificial_detuning = artificial_detuning
@@ -320,10 +320,8 @@ class RamseyScan(Scan):
         
         
     def add_mainpulse(self):
-        """
-        Because one 'wait' instruction can take no longer than 65534ns, we will divide it by 60us.
-        
-        Here, all register is 32bit, which can only store integer [-2e31,2e31).
+        """   
+        All register in sequencer is 32bit, which can only store integer [-2e31,2e31).
         If we do Ramsey with more than 2 phase cycle, then it may cause error.
         Thus we substract 1e9 of R12 when it exceed 1e9, which is one phase cycle of Qblox.
         The wait trick is similar to T1Scan.
@@ -373,7 +371,7 @@ class EchoScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
-                 divisor_ns: int = 60000,
+                 divisor_ns: int = 65524,
                  echo_type: str = 'CP'):
         self.divisor_ns = divisor_ns
         self.echo_type = echo_type
@@ -478,6 +476,8 @@ class CalibrateClassification(Scan):
                          prepulse=prepulse,
                          postpulse=postpulse,
                          n_seqloops=n_seqloops)
+        
+        assert self.classification_enable, 'Please turn on classification.'
     
     
     def add_initvalues(self):
@@ -520,3 +520,19 @@ class CalibrateClassification(Scan):
             """
             self.sequences[qudit]['program'] += main
         
+        
+    def fit_data(self):
+        """
+        Here we should already have a normal processed data.
+        It will be a reference/comparison of previous classification.
+        And we intercept it from 'IQrotated_readout' to do new gmm_fit.
+        
+        # TODO: Write it.
+        """
+        
+    def plot_main(self):
+        """
+        Now we expect this function to plot previous result.
+        And plot_all_population will give you the new result along with corrected result.
+        So three or maybe four plot in total.
+        """

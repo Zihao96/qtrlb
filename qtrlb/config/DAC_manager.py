@@ -154,12 +154,12 @@ class DACManager(Config):
         Which means for Scan, only the raw trace belong to last point in x_points will be stored.
         So it's barely useful, but I still leave the interface here.
         """
-        
+        # Arm sequencer first. It's necessary. Only armed sequencer will be started next.
         for qudit in qubits + resonators:
-            # self.module[qudit].arm_sequencer(self.varman[f'{qudit}/sequencer'])
             self.sequencer[qudit].arm_sequencer()
             
-        self.qblox.start_sequencer()  # Really start sequencer.
+        # Really start sequencer.
+        self.qblox.start_sequencer()  
 
         for r in resonators:
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
