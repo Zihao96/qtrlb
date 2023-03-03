@@ -12,6 +12,8 @@ from qtrlb.utils.pulses import pulse_interpreter
 from qtrlb.processing.fitting import fit
 
 
+
+
 class Scan:
     """ Base class for all parameter-sweep experiment.
         The framework of how experiment flow will be constructed here.
@@ -77,40 +79,36 @@ class Scan:
         
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
-        self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)
-        self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
-     
+        self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)    
         self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
         self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
-        
-        self.make_sequence() 
-        self.jsons_path = self.save_sequence()
-        self.cfg.DAC.implement_parameters(qubits=self.drive_qubits, 
-                                          resonators=self.readout_resonators, 
-                                          jsons_path=self.jsons_path)
-        # Configure the Qblox to desired parameters then upload json files.
-        # We call implement_parameters methods here instead of during init/load of DACManager,
-        # because we want those modules/sequencers not being used to keep their default status.
-        
+
         
     def run(self, 
             experiment_suffix: str = '',
             n_pyloops: int = 1):
         """
-        Run the experiment and acquire data. 
+        Make sequence, implement parameter, then Run the experiment and acquire data. 
         User can call it multiple times without instantiate the Scan class again.
         
         Attributes:
             experiment_suffix: User-defined name. It will show up on data directory.
             n_pyloops: Number of repetition for running single sequence program. 
+            
+        Note from Zihao(03/03/2023):
+            We call implement_parameters methods here instead of during init/load of DACManager,
+            because we want those modules/sequencers not being used to keep their default status.
         """
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs.update({'experiment_suffix': self.experiment_suffix, 'n_reps': self.n_reps})
+        self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
         
+        self.make_sequence() 
+        self.jsons_path = self.save_sequence()
+        self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
@@ -466,7 +464,8 @@ class Scan:
         
         for i, r in enumerate(self.readout_resonators):
             try:
-                self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],
+                level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
+                self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][level_index],
                                          x=self.x_values, fitmodel=self.fitmodel)
                 self.measurement[r]['fit_result'] = self.fit_result[r].best_values  # A dictionary
                 self.measurement[r]['fit_values'] = self.fit_result[r].best_fit  # A ndarray
@@ -495,6 +494,7 @@ class Scan:
         Figure will be saved to data directory and show up on python console.
         """
         for i, r in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
             title = f'{self.date}/{self.time}, {self.x_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
             if self.classification_enable:
@@ -503,7 +503,7 @@ class Scan:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
-            ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
+            ax.plot(self.x_values, self.measurement[r]['to_fit'][level_index], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
             if self.fit_result[r] is not None: 
@@ -520,7 +520,10 @@ class Scan:
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
             
             
-    def plot_IQ(self):
+    def plot_IQ(self, 
+                IQ_key: str = 'IQrotated_readout', 
+                c_key: str = 'GMMpredicted_readout', 
+                mask_key: str = 'Mask_heralding'):
         """
         Plot the IQ point for each element in self.x_values.
         Figure will be saved to data directory without show up on python console.
@@ -534,18 +537,16 @@ class Scan:
         The heralding enable is protected since we have self.check_attribute().
         """
         for i, r in enumerate(self.readout_resonators):
-            Is, Qs = self.measurement[r]['IQrotated_readout']
-            left=np.min(Is)
-            right=np.max(Is)
-            bottom=np.min(Qs)
-            top=np.max(Qs)
+            Is, Qs = self.measurement[r][IQ_key]
+            left, right = (np.min(Is), np.max(Is))
+            bottom, top = (np.min(Qs), np.max(Qs))
             for x in range(self.x_points):
-                I = self.measurement[r]['IQrotated_readout'][0,:,x]
-                Q = self.measurement[r]['IQrotated_readout'][1,:,x]
+                I = self.measurement[r][IQ_key][0,:,x]
+                Q = self.measurement[r][IQ_key][1,:,x]
                 c, cmap = (None, None)
                                   
                 if self.classification_enable:
-                    c = self.measurement[r]['GMMpredicted_readout'][:,x]
+                    c = self.measurement[r][c_key][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=150)
@@ -558,7 +559,7 @@ class Scan:
                 plt.close(fig)
                 
                 if self.heralding_enable:
-                   mask = self.measurement[r]['Mask_heralding'][:,x] 
+                   mask = self.measurement[r][mask_key][:,x] 
                    I_masked = np.ma.MaskedArray(I, mask=mask)
                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
                    c_masked = np.ma.MaskedArray(c, mask=mask)
@@ -638,10 +639,83 @@ class Scan:
 
 
 
+class Scan2D(Scan):
+    """
+    """
+    def __init__(self, 
+                 cfg, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 x_name: str,
+                 x_label_plot: str, 
+                 x_unit_plot: str, 
+                 x_start: float, 
+                 x_stop: float, 
+                 x_points: int, 
+                 y_name: str,
+                 y_label_plot: str,
+                 y_unit_plot: str,
+                 y_start: float,
+                 y_stop: float,
+                 y_points: int,
+                 subspace: str = None,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         x_name=x_name,
+                         x_label_plot=x_label_plot, 
+                         x_unit_plot=x_unit_plot, 
+                         x_start=x_start, 
+                         x_stop=x_stop, 
+                         x_points=x_points, 
+                         subspace=subspace,
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+        
+        self.y_name = y_name
+        self.y_label_plot = y_label_plot
+        self.y_unit_plot = y_unit_plot
+        self.y_start = y_start
+        self.y_stop = y_stop
+        self.y_points = y_points
+        self.y_values = np.linspace(self.y_start, self.x_stop, self.y_points)
+        self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
 
 
-
-
+    def run(self):
+        pass
+    
+    
+    def check_attribute(self):
+        super().check_attribute()
+        assert self.x_points * self.y_points * self.n_seqloops <= 131072, \
+            'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+            
+            
+    def make_sequence(self):
+        
+        self.sequences = {qudit:{} for qudit in self.qudits}        
+        self.set_waveforms_acquisitions()
+        
+        self.init_program()
+        self.add_initvalues()
+        self.add_xloop()
+        self.add_relaxation()
+        if self.cfg.variables['common/heralding']: self.add_heralding()
+        self.add_prepulse()
+        self.add_mainpulse()
+        self.add_postpulse()
+        self.add_readout()
+        self.add_stop()
 
 
 

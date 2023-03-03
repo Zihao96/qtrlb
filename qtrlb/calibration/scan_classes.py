@@ -23,7 +23,6 @@ class DriveAmplitudeScan(Scan):
                  level_to_fit: int | list = None,
                  fitmodel: Model = SinModel,
                  error_amplification_factor: int = 1):
-        self.error_amplification_factor = error_amplification_factor
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -40,6 +39,8 @@ class DriveAmplitudeScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.error_amplification_factor = error_amplification_factor
         
         
     def add_initvalues(self):
@@ -96,7 +97,6 @@ class RabiScan(Scan):
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
                  init_waveform_idx: int = 11):
-        self.init_waveform_index = init_waveform_idx
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -113,6 +113,8 @@ class RabiScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.init_waveform_index = init_waveform_idx
         
         
     def set_waveforms_acquisitions(self):
@@ -215,7 +217,6 @@ class T1Scan(Scan):
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 65524):
-        self.divisor_ns = divisor_ns
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -232,6 +233,8 @@ class T1Scan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.divisor_ns = divisor_ns
 
         
     def add_initvalues(self):
@@ -289,8 +292,6 @@ class RamseyScan(Scan):
                  fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65524,
                  artificial_detuning: float = 0.0):
-        self.divisor_ns = divisor_ns
-        self.artificial_detuning = artificial_detuning
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -307,6 +308,9 @@ class RamseyScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.divisor_ns = divisor_ns
+        self.artificial_detuning = artificial_detuning
 
         
     def add_initvalues(self):
@@ -376,8 +380,6 @@ class EchoScan(Scan):
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 65524,
                  echo_type: str = 'CP'):
-        self.divisor_ns = divisor_ns
-        self.echo_type = echo_type
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -394,6 +396,9 @@ class EchoScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.divisor_ns = divisor_ns
+        self.echo_type = echo_type
 
         
     def add_initvalues(self):
@@ -467,7 +472,6 @@ class CalibrateClassification(Scan):
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True):
-        self.save_cfg = save_cfg
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -482,8 +486,12 @@ class CalibrateClassification(Scan):
                          postpulse=postpulse,
                          n_seqloops=n_seqloops)
         
-        assert self.classification_enable, 'Please turn on classification.'
+        self.save_cfg = save_cfg
         self.x_values = self.x_values.astype(int)
+        assert self.classification_enable, 'Please turn on classification.'
+        for r in self.readout_resonators: 
+            assert self.cfg[f'variables.{r}/readout_levels'] == self.x_values, \
+                    f'Please check readout levels of {r}!'
     
     
     def add_initvalues(self):
@@ -552,7 +560,6 @@ class CalibrateClassification(Scan):
             data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
             data_dict['PopulationCorrected_new'] = np.linalg.solve(data_dict['confusionmatrix_new'],
                                                                    data_dict['PopulationNormalized_new'])
-
             data_dict['ReadoutFidelity'] = np.sqrt(data_dict['confusionmatrix_new'].diagonal()).mean()
             
             self.cfg[f'process.{r}/IQ_means'] = means
@@ -593,7 +600,8 @@ class CalibrateClassification(Scan):
             plt.close(fig)
         
         
-        
+    def plot_IQ(self):
+        super().plot_IQ(c_key='GMMpredicted_new')
         
         
         
