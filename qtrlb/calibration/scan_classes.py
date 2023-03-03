@@ -1,7 +1,10 @@
+import os
 import numpy as np
+import matplotlib.pyplot as plt
 from lmfit import Model
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
+from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
@@ -462,7 +465,9 @@ class CalibrateClassification(Scan):
                  level_stop: int,  
                  prepulse: dict = None,
                  postpulse: dict = None,
-                 n_seqloops: int = 1000):
+                 n_seqloops: int = 1000,
+                 save_cfg: bool = True):
+        self.save_cfg = save_cfg
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -523,16 +528,101 @@ class CalibrateClassification(Scan):
         
     def fit_data(self):
         """
-        Here we should already have a normal processed data.
+        Here we should already have a normally processed data.
         It will be a reference/comparison of previous classification.
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
-        
-        # TODO: Write it.
         """
+        for r, data_dict in self.measurement.items():
+            means = []
+            covariances = []
+            
+            for i, level in enumerate(self.x_values):
+                mean, covariance = gmm_fit(data_dict['IQrotated_readout'][...,i], n_components=1)
+                means.append(mean[0])
+                covariances.append(covariance[0])  
+                # Because the default form is one more layer nested.
+                
+            data_dict['means_new'] = means
+            data_dict['covariances_new'] = covariances
+            data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                        means=means, covariances=covariances)
+            data_dict['PopulationNormalized_new'] = normalize_population(data_dict['GMMpredicted_new'],
+                                                                         n_levels=self.x_points)
+            data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
+            data_dict['PopulationCorrected_new'] = np.linalg.solve(data_dict['confusionmatrix_new'],
+                                                                   data_dict['PopulationNormalized_new'])
+
+            data_dict['ReadoutFidelity'] = np.sqrt(data_dict['confusionmatrix_new'].diagonal()).mean()
+            
+            self.cfg[f'process.{r}/IQ_means'] = means
+            self.cfg[f'process.{r}/IQ_covariances'] = covariances
+            self.cfg[f'process.{r}/corr_matrix'] = data_dict['PopulationNormalized_new']
+        
+        if self.save_cfg: self.cfg.save()
+        
         
     def plot_main(self):
         """
-        Now we expect this function to plot previous result.
-        And plot_all_population will give you the new result along with corrected result.
-        So three or maybe four plot in total.
+        We expect this function to plot new result with correction.
+        And plot_all_population will give you the previous result along with corrected result.
+        So there will be four plots for each resonator in total.
         """
+        for r in self.readout_resonators:
+            title = f'Uncorrected probability, {self.x_name}, {r}'
+            xlabel = self.x_label_plot + self.x_unit_plot
+            ylabel = 'Probability'
+            
+            fig, ax = plt.subplots(1, 1, dpi=150)
+            for i, level in enumerate(self.x_values):
+                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_new'][i], c=f'C{level}',
+                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
+            plt.legend()
+            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected_new.png'))
+            plt.close(fig)
+            
+            title = f'Corrected probability, {self.x_name}, {r}'
+            fig, ax = plt.subplots(1, 1, dpi=150)
+            for i, level in enumerate(self.x_values):
+                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_new'][i], c=f'C{level}',
+                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
+            plt.legend()
+            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected_new.png'))
+            plt.close(fig)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        

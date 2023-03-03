@@ -4,6 +4,7 @@ import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors.LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
@@ -75,7 +76,7 @@ class Scan:
         self.heralding_enable = self.cfg.variables['common/heralding']
         
         self.check_attribute()
-        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points).tolist()
+        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
         self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)
         self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
      
@@ -127,6 +128,8 @@ class Scan:
         Warn user if any drive_qubits are not being readout without raising error.
         Make sure each qubit has subspace and each resonator has level_to_fit.
         Make sure the prepulse/postpulse is indeed in form of dictionary.
+        Check total acquisition point in sequence program.
+        Make sure classification is on when heralding is on.
         """
         for qudit in self.qudits:
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
@@ -140,6 +143,7 @@ class Scan:
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert self.x_points * self.n_seqloops <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+        assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
         
 
     ##################################################
@@ -451,23 +455,26 @@ class Scan:
     def fit_data(self): 
         """
         Fit data in measurement dictionary and save result back into it.
+        We will also generate a dictionary called self.fit_result for future use.
         The model should be better to pick from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
         # TODO: Check possible 2D data fit.
         """
         if self.fitmodel is None: return
+        self.fit_result = {}
         
         for i, r in enumerate(self.readout_resonators):
             try:
-                result = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],
-                             x=self.x_values, fitmodel=self.fitmodel)
-                self.measurement[r]['fit_result'] = result.best_values  # A dictionary
-                self.measurement[r]['fit_values'] = result.best_fit  # A ndarray
-                self.measurement[r]['fit_model'] = str(result.model)
+                self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][self.level_to_fit[i]],
+                                         x=self.x_values, fitmodel=self.fitmodel)
+                self.measurement[r]['fit_result'] = self.fit_result[r].best_values  # A dictionary
+                self.measurement[r]['fit_values'] = self.fit_result[r].best_fit  # A ndarray
+                self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
             except Exception:
                 traceback_str = traceback.format_exc()
-                print(f'Failed to fit {r} data. ', traceback_str)
+                print(f'Scan: Failed to fit {r} data. ', traceback_str)
+                self.fit_result[r] = None
                 self.measurement[r]['fit_result'] = None
                 self.measurement[r]['fit_values'] = None
                 self.measurement[r]['fit_model'] = str(self.fitmodel)
@@ -479,8 +486,7 @@ class Scan:
         """
         self.plot_main()
         self.plot_IQ()
-        if self.classification_enable or self.heralding_enable:
-            self.plot_all_population()
+        if self.classification_enable: self.plot_populations()
 
 
     def plot_main(self, text_loc: str = 'lower right'):
@@ -489,23 +495,25 @@ class Scan:
         Figure will be saved to data directory and show up on python console.
         """
         for i, r in enumerate(self.readout_resonators):
+            title = f'{self.date}/{self.time}, {self.x_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
-            if self.classification_enable or self.heralding_enable:
+            if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
             else:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
-            title = f'{self.date}/{self.time},{self.x_name},{r}'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
             ax.plot(self.x_values, self.measurement[r]['to_fit'][self.level_to_fit[i]], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
-            if self.measurement[r]['fit_result'] is not None: 
-                ax.plot(self.x_values, self.measurement[r]['fit_values'], color='m')
-                # fit_text = '\n'.join([fr'{k} = {v.value:0.4g}$\pm${v.stderr:0.2g}' \
-                #                       for k,v in self.measurement[r]['fit_result'].items()])
-                fit_text = '\n'.join([fr'{k} = {v:0.4g}' \
-                                      for k,v in self.measurement[r]['fit_result'].items()])
+            if self.fit_result[r] is not None: 
+                # Raise resolution of fit result for smooth plot.
+                x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
+                y = self.fit_result[r].eval(x=x)
+                ax.plot(x, y, color='m-')
+                
+                fit_text = '\n'.join([fr'{k} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
+                                      for k, v in self.fit_result.params.items()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
@@ -516,7 +524,14 @@ class Scan:
         """
         Plot the IQ point for each element in self.x_values.
         Figure will be saved to data directory without show up on python console.
-        # TODO: Add color for classification here.
+        Additionally, if we enable classification, we use GMM predicted result as colors.
+        Furthermore, if we enable heralding, we will also make plot for those data passed heralding test. 
+        
+        Note from Zihao(03/02/2023):
+        The cmap trick is stolen from previous code and assume we have at most 12 levels to plot.
+        Only when somebody really try to write this code do they realize how difficult it is.
+        With for-for-if three layers nested, this is the best I can do.
+        The heralding enable is protected since we have self.check_attribute().
         """
         for i, r in enumerate(self.readout_resonators):
             Is, Qs = self.measurement[r]['IQrotated_readout']
@@ -527,16 +542,65 @@ class Scan:
             for x in range(self.x_points):
                 I = self.measurement[r]['IQrotated_readout'][0,:,x]
                 Q = self.measurement[r]['IQrotated_readout'][1,:,x]
+                c, cmap = (None, None)
+                                  
+                if self.classification_enable:
+                    c = self.measurement[r]['GMMpredicted_readout'][:,x]
+                    cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+
                 fig, ax = plt.subplots(1, 1, dpi=150)
-                ax.scatter(I, Q, alpha=0.2)
+                ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
                 ax.axvline(color='k', ls='dashed')    
                 ax.axhline(color='k', ls='dashed')
                 ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                        xlim=(left, right), ylim=(bottom, top))
-
                 fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}.png'))
                 plt.close(fig)
+                
+                if self.heralding_enable:
+                   mask = self.measurement[r]['Mask_heralding'][:,x] 
+                   I_masked = np.ma.MaskedArray(I, mask=mask)
+                   Q_masked = np.ma.MaskedArray(Q, mask=mask)
+                   c_masked = np.ma.MaskedArray(c, mask=mask)
+                   
+                   fig, ax = plt.subplots(1, 1, dpi=150)
+                   ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
+                   ax.axvline(color='k', ls='dashed')    
+                   ax.axhline(color='k', ls='dashed')
+                   ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
+                          xlim=(left, right), ylim=(bottom, top))
+                   fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}_heralded.png'))
+                   plt.close(fig)
 
+
+    def plot_populations(self):
+        """
+        Plot populations for all levels, both with and without readout correction.
+        """
+        for r in self.readout_resonators:
+            title = f'Uncorrected probability, {self.x_name}, {r}'
+            xlabel = self.x_label_plot + self.x_unit_plot
+            ylabel = 'Probability'
+            
+            fig, ax = plt.subplots(1, 1, dpi=150)
+            for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
+                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_readout'][i], c=f'C{level}',
+                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
+            plt.legend()
+            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected.png'))
+            plt.close(fig)
+            
+            title = f'Corrected probability, {self.x_name}, {r}'
+            fig, ax = plt.subplots(1, 1, dpi=150)
+            for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
+                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_readout'][i], c=f'C{level}',
+                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
+            plt.legend()
+            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected.png'))
+            plt.close(fig)
+        
         
     @staticmethod
     def make_it_list(thing):
