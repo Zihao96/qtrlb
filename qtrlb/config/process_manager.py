@@ -150,7 +150,7 @@ class ProcessManager(Config):
         However, ground state has most population and if our experiment need to start from |1>, pi pulse it.
         The code here is ugly and hard to read, please make it better if you know how to do it.
         """
-        resonators = measurement.keys()
+        resonators = list(measurement.keys())
         self.heralding_mask = np.zeros_like(measurement[resonators[0]]['GMMpredicted_heralding'])
         
         for r in resonators:

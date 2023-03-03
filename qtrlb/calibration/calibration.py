@@ -4,7 +4,7 @@ import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.colors.LinearSegmentedColormap as LSC
+from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
@@ -510,10 +510,10 @@ class Scan:
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
                 y = self.fit_result[r].eval(x=x)
-                ax.plot(x, y, color='m-')
+                ax.plot(x, y, 'm-')
                 
                 fit_text = '\n'.join([fr'{k} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
-                                      for k, v in self.fit_result.params.items()])
+                                      for k, v in self.fit_result[r].params.items()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
@@ -569,7 +569,7 @@ class Scan:
                    ax.axhline(color='k', ls='dashed')
                    ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                           xlim=(left, right), ylim=(bottom, top))
-                   fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}_heralded.png'))
+                   fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'heralded_{x}.png'))
                    plt.close(fig)
 
 

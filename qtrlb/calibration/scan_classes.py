@@ -483,6 +483,7 @@ class CalibrateClassification(Scan):
                          n_seqloops=n_seqloops)
         
         assert self.classification_enable, 'Please turn on classification.'
+        self.x_values = self.x_values.astype(int)
     
     
     def add_initvalues(self):
@@ -533,13 +534,13 @@ class CalibrateClassification(Scan):
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
         """
         for r, data_dict in self.measurement.items():
-            means = []
-            covariances = []
+            means = np.zeros((self.x_points, 2))
+            covariances = np.zeros(self.x_points)
             
             for i, level in enumerate(self.x_values):
                 mean, covariance = gmm_fit(data_dict['IQrotated_readout'][...,i], n_components=1)
-                means.append(mean[0])
-                covariances.append(covariance[0])  
+                means[i] = mean[0]
+                covariances[i] = covariance[0]
                 # Because the default form is one more layer nested.
                 
             data_dict['means_new'] = means
@@ -579,7 +580,7 @@ class CalibrateClassification(Scan):
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected_new.png'))
-            plt.close(fig)
+            
             
             title = f'Corrected probability, {self.x_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
