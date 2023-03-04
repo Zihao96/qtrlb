@@ -27,7 +27,7 @@ class DriveAmplitudeScan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='Drive_Amplitude',
+                         scan_name='Drive_Amplitude',
                          x_label_plot='Drive Amplitude', 
                          x_unit_plot='[a.u].', 
                          x_start=amp_start, 
@@ -43,7 +43,7 @@ class DriveAmplitudeScan(Scan):
         self.error_amplification_factor = error_amplification_factor
         
         
-    def add_initvalues(self):
+    def add_xinit(self):
         for i, qubit in enumerate(self.drive_qubits):
             start = round(self.x_start * 32768)
             initparameter = f"""
@@ -101,7 +101,7 @@ class RabiScan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='Rabi',
+                         scan_name='Rabi',
                          x_label_plot='Pulse Length', 
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
@@ -150,7 +150,7 @@ class RabiScan(Scan):
             'np.linspace(320,480,41), np.linspace(600,840,21)'
             
 
-    def add_initvalues(self):
+    def add_xinit(self):
         """
         Here R4 will be real pulse length, and R11 is the waveform index.
         So qubit play R11 for drive, resonator wait R4 for sync.
@@ -221,7 +221,7 @@ class T1Scan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='T1',
+                         scan_name='T1',
                          x_label_plot='Wait Length', 
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
@@ -237,7 +237,7 @@ class T1Scan(Scan):
         self.divisor_ns = divisor_ns
 
         
-    def add_initvalues(self):
+    def add_xinit(self):
         start_ns = round(self.x_start * 1e9)
         initparameter = f"""
                     move             {start_ns},R4            
@@ -296,7 +296,7 @@ class RamseyScan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='Ramsey',
+                         scan_name='Ramsey',
                          x_label_plot='Wait Length', 
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
@@ -313,7 +313,7 @@ class RamseyScan(Scan):
         self.artificial_detuning = artificial_detuning
 
         
-    def add_initvalues(self):
+    def add_xinit(self):
         """
         We will use R4 for wait time, R12 for angle of VZ gate.
         """
@@ -384,7 +384,7 @@ class EchoScan(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='Echo',
+                         scan_name='Echo',
                          x_label_plot='Wait Length', 
                          x_unit_plot='[ns].', 
                          x_start=length_start, 
@@ -401,7 +401,7 @@ class EchoScan(Scan):
         self.echo_type = echo_type
 
         
-    def add_initvalues(self):
+    def add_xinit(self):
         start_half_ns = round(self.x_start / 2 * 1e9)
         initparameter = f"""
                     move             {start_half_ns},R4            
@@ -476,7 +476,7 @@ class CalibrateClassification(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name='CalibrateClassification',
+                         scan_name='CalibrateClassification',
                          x_label_plot='Level', 
                          x_unit_plot='', 
                          x_start=level_start, 
@@ -494,7 +494,7 @@ class CalibrateClassification(Scan):
                     f'Please check readout levels of {r}!'
     
     
-    def add_initvalues(self):
+    def add_xinit(self):
         for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
                     move             {self.x_start},R4            
         """
@@ -576,7 +576,7 @@ class CalibrateClassification(Scan):
         So there will be four plots for each resonator in total.
         """
         for r in self.readout_resonators:
-            title = f'Uncorrected probability, {self.x_name}, {r}'
+            title = f'Uncorrected probability, {self.scan_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
             ylabel = 'Probability'
             
@@ -589,7 +589,7 @@ class CalibrateClassification(Scan):
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected_new.png'))
             
             
-            title = f'Corrected probability, {self.x_name}, {r}'
+            title = f'Corrected probability, {self.scan_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.x_values):
                 ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_new'][i], c=f'C{level}',

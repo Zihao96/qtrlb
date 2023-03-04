@@ -18,17 +18,14 @@ class Scan:
     """ Base class for all parameter-sweep experiment.
         The framework of how experiment flow will be constructed here.
         It should be used as parent class of specific scan rather than being instantiated directly.
-        
         In __init__(), we shape the input parameter to better structure.
         We will check those attribute to ensure they have correct shape/values.
-        Then we will create the sequence and save it to working directory.
-        Finally we implement parameters and upload json file to Qblox instrument.
         
         Attributes:
             cfg: A MetaManager.
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
             readout_resonators: 'R3' or ['R1', 'R5'].
-            x_name: 'drive_amplitude', 't1', 'ramsey'.
+            scan_name: 'drive_amplitude', 't1', 'ramsey'.
             x_start: 0.
             x_stop: 320e-9.
             x_points: number of points on x_axis. Start and stop points will be both included.
@@ -43,7 +40,7 @@ class Scan:
                  cfg, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 x_name: str,
+                 scan_name: str,
                  x_label_plot: str, 
                  x_unit_plot: str, 
                  x_start: float, 
@@ -58,7 +55,7 @@ class Scan:
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
-        self.x_name = x_name
+        self.scan_name = scan_name
         self.x_label_plot = x_label_plot
         self.x_unit_plot = x_unit_plot
         self.x_start = x_start
@@ -90,7 +87,8 @@ class Scan:
             experiment_suffix: str = '',
             n_pyloops: int = 1):
         """
-        Make sequence, implement parameter, then Run the experiment and acquire data. 
+        Make sequence, implement parameter to qblox instrument.
+        Then Run the experiment and acquire data, process data, fit and plot.
         User can call it multiple times without instantiate the Scan class again.
         
         Attributes:
@@ -112,7 +110,7 @@ class Scan:
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points))
+        self.process_data()
         self.fit_data()
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
         self.plot()
@@ -170,7 +168,7 @@ class Scan:
         self.set_waveforms_acquisitions()
         
         self.init_program()
-        self.add_initvalues()
+        self.add_xinit()
         self.add_xloop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
@@ -208,7 +206,7 @@ class Scan:
         
     def init_program(self):
         """
-        Create sequence program and initialize all six built-in registers.
+        Create sequence program and initialize some built-in registers.
         Please do not change the convention here since their function have been hardcoded later.
         """
         for qudit in self.qudits:
@@ -231,17 +229,17 @@ class Scan:
             self.sequences[qudit]['program'] = program
         
         
-    def add_initvalues(self):
+    def add_xinit(self):
         """
-        Set necessary initial value on some of the registers. 
+        Set necessary initial value of x parameter to the registers. 
         Suppose to be called by child class.
         """
-        print('Scan: The base experiment class has been called. No initial parameter will be set.')
+        print('Scan: The base experiment class has been called. No initial x parameter will be set.')
         
         
     def add_xloop(self):
         """
-        Add main loop to sequence program.
+        Add x_loop to sequence program.
         """
         for qudit in self.qudits:
             loop = """            
@@ -420,7 +418,7 @@ class Scan:
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we may already get some data and want to save it by manually calling save_measurement().
         """
-        self.data_path, self.date, self.time = self.cfg.data.make_exp_dir(experiment_type=self.x_name,
+        self.data_path, self.date, self.time = self.cfg.data.make_exp_dir(experiment_type=self.scan_name,
                                                                           experiment_suffix=self.experiment_suffix)
         
         self.cfg.save(yamls_path=os.path.join(self.data_path, 'Yamls'))
@@ -449,6 +447,15 @@ class Scan:
                                          measurement=self.measurement)
             print(f'Python loop {i} finished!')  # TODO: Delete it after test.
             
+            
+    def process_data(self):
+        """
+        Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
+        We keep this layer here to provide possibility to inject functionality between acquire and fit.
+        For example, in 2D scan, we need to give it another shape.
+        """
+        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points))
+        
 
     def fit_data(self): 
         """
@@ -495,7 +502,7 @@ class Scan:
         """
         for i, r in enumerate(self.readout_resonators):
             level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
-            title = f'{self.date}/{self.time}, {self.x_name}, {r}'
+            title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
@@ -579,7 +586,7 @@ class Scan:
         Plot populations for all levels, both with and without readout correction.
         """
         for r in self.readout_resonators:
-            title = f'Uncorrected probability, {self.x_name}, {r}'
+            title = f'Uncorrected probability, {self.scan_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
             ylabel = 'Probability'
             
@@ -592,7 +599,7 @@ class Scan:
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected.png'))
             plt.close(fig)
             
-            title = f'Corrected probability, {self.x_name}, {r}'
+            title = f'Corrected probability, {self.scan_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
                 ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_readout'][i], c=f'C{level}',
@@ -640,19 +647,21 @@ class Scan:
 
 
 class Scan2D(Scan):
-    """
+    """ Base class for all 2D parameter-sweep experiment.
+        It's a small extension added on the Scan class.
+        In sequence, we will sweep over y value first, then x, then repeat.
+        The framework of process and fit of 1D Scan still work here.
     """
     def __init__(self, 
                  cfg, 
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 x_name: str,
+                 scan_name: str,
                  x_label_plot: str, 
                  x_unit_plot: str, 
                  x_start: float, 
                  x_stop: float, 
                  x_points: int, 
-                 y_name: str,
                  y_label_plot: str,
                  y_unit_plot: str,
                  y_start: float,
@@ -668,7 +677,7 @@ class Scan2D(Scan):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         x_name=x_name,
+                         scan_name=scan_name,
                          x_label_plot=x_label_plot, 
                          x_unit_plot=x_unit_plot, 
                          x_start=x_start, 
@@ -681,7 +690,6 @@ class Scan2D(Scan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
         
-        self.y_name = y_name
         self.y_label_plot = y_label_plot
         self.y_unit_plot = y_unit_plot
         self.y_start = y_start
@@ -689,10 +697,6 @@ class Scan2D(Scan):
         self.y_points = y_points
         self.y_values = np.linspace(self.y_start, self.x_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
-
-
-    def run(self):
-        pass
     
     
     def check_attribute(self):
@@ -701,40 +705,81 @@ class Scan2D(Scan):
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
             
             
-    def make_sequence(self):
-        
-        self.sequences = {qudit:{} for qudit in self.qudits}        
-        self.set_waveforms_acquisitions()
-        
-        self.init_program()
-        self.add_initvalues()
-        self.add_xloop()
-        self.add_relaxation()
-        if self.cfg.variables['common/heralding']: self.add_heralding()
-        self.add_prepulse()
-        self.add_mainpulse()
-        self.add_postpulse()
-        self.add_readout()
-        self.add_stop()
+    def add_xloop(self):
+        """
+        The y_loop is nested inside x_loop, which means we scan over y axis first.
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """            
+        xpt_loop:    """
+            
+        self.add_yinit()
+        self.add_yloop()
 
 
+    def add_yinit(self):
+        """
+        Set necessary initial value of y parameter to the registers. 
+        Suppose to be called by child class.
+        """
+        print('Scan2D: The base experiment class has been called. No initial y parameter will be set.')
 
 
+    def add_yloop(self):
+        """
+        Add y_loop to sequence program.
+        """
+        for qudit in self.qudits:
+            loop = """            
+        ypt_loop:   wait_sync        8               # Sync at beginning of the loop.
+                    reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
+                    set_mrk          15              # Enable all markers (binary 1111) for switching on output.
+                    upd_param        8               # Update parameters and wait 8ns.
+        """
+            self.sequences[qudit]['program'] += loop
 
 
+    def add_stop(self):
+        """
+        Add end of loop and stop the sequence program.
+        """
+        stop = """
+                #-----------Stop-----------
+                    add              R1,1,R1
+                    set_mrk          0               # Disable all markers (binary 0000) for switching off output.
+                    upd_param        8               # Update parameters and wait 4ns.
+                    loop             R5,@ypt_loop    """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += stop
+                    
+        self.add_xvalue()
+                    
+        stop = """
+                    loop             R3,@xpt_loop
+                    loop             R0,@seq_loop
+                    
+                    stop             """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += stop
 
 
+    def add_xvalue(self):
+        """
+        Change value of the register that represent x_value.
+        It need to be outside y_loop, but inside x_loop.
+        """
+        print('Scan2D: The base experiment class has been called. X_value will not change during loop.')
 
 
+    def process_data(self):
+        """
+        Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
+        We keep this layer here to provide possibility to inject functionality between acquire and fit.
+        For example, in 2D scan, we need to give it another shape.
+        """
+        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points, self.y_points))
 
 
-
-
-
-
-
-
-
+    def plot(self):
+        # TODO: write it.
+        pass
 
 
 
