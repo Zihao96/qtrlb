@@ -73,6 +73,7 @@ class Scan:
         self.qudits = self.drive_qubits + self.readout_resonators
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
+        self.num_bins = self.n_seqloops * self.x_points
         
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
@@ -81,7 +82,6 @@ class Scan:
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
         self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
-        self.num_bins = self.n_seqloops * self.x_points
 
         
     def run(self, 
@@ -722,7 +722,7 @@ class Scan2D(Scan):
         self.y_start = y_start
         self.y_stop = y_stop
         self.y_points = y_points
-        self.y_values = np.linspace(self.y_start, self.x_stop, self.y_points)
+        self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
         self.num_bins = self.n_seqloops * self.x_points * self.y_points
         assert self.num_bins <= 131072, \
@@ -823,11 +823,11 @@ class Scan2D(Scan):
             
             fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8))
 
-            for level_idx in range(n_subplots):
-                level = self.cfg[f'variables.{r}/readout_levels'][level_idx]
+            for i in range(n_subplots):
+                level = self.cfg[f'variables.{r}/readout_levels'][i]
                 this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
                 
-                image = ax[i].imshow(data[level_idx], cmap='RdBu_r', interpolation='none', aspect='auto', 
+                image = ax[i].imshow(data[i].transpose(), cmap='RdBu_r', interpolation='none', aspect='auto', 
                                      origin='lower', extent=[np.min(self.x_values), np.max(self.x_values), 
                                                              np.min(self.y_values), np.max(self.x_values)])
                 ax[i].set(title=this_title, xlabel=xlabel, ylabel=ylabel)

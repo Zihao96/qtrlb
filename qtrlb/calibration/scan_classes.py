@@ -115,6 +115,7 @@ class RabiScan(Scan):
                          fitmodel=fitmodel)
         
         self.init_waveform_index = init_waveform_idx
+        self.pulse_lengths = self.x_values
         
         
     def set_waveforms_acquisitions(self):
@@ -129,8 +130,8 @@ class RabiScan(Scan):
         
         for q in self.drive_qubits:
             waveforms = {}
-            for i in range(self.x_points):
-                pulse_length_ns = round(self.x_values[i] * 1e9)
+            for i, pulse_length in enumerate(self.pulse_lengths):
+                pulse_length_ns = round(pulse_length * 1e9)
                 if pulse_length_ns == 0: continue
             
                 index = i + self.init_waveform_index

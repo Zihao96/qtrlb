@@ -46,6 +46,7 @@ class ChevronScan(Scan2D, RabiScan):
                          fitmodel=fitmodel)
         
         self.init_waveform_index = init_waveform_idx
+        self.pulse_lengths = self.y_values
         assert self.x_stop >= self.x_start, 'Please use ascending value for detuning.'
         
         
