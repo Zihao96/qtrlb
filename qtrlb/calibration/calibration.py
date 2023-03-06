@@ -96,8 +96,8 @@ class Scan:
             n_pyloops: Number of repetition for running single sequence program. 
             
         Note from Zihao(03/03/2023):
-            We call implement_parameters methods here instead of during init/load of DACManager,
-            because we want those modules/sequencers not being used to keep their default status.
+        We call implement_parameters methods here instead of during init/load of DACManager,
+        because we want those modules/sequencers not being used to keep their default status.
         """
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
@@ -454,7 +454,8 @@ class Scan:
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         For example, in 2D scan, we need to give it another shape.
         """
-        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points))
+        self.cfg.process.process_data(measurement=self.measurement, 
+                                      shape=(2, self.n_reps, self.x_points))
         
 
     def fit_data(self): 
@@ -466,8 +467,8 @@ class Scan:
         
         # TODO: Check possible 2D data fit.
         """
+        self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
-        self.fit_result = {}
         
         for i, r in enumerate(self.readout_resonators):
             try:
@@ -480,7 +481,6 @@ class Scan:
             except Exception:
                 traceback_str = traceback.format_exc()
                 print(f'Scan: Failed to fit {r} data. ', traceback_str)
-                self.fit_result[r] = None
                 self.measurement[r]['fit_result'] = None
                 self.measurement[r]['fit_values'] = None
                 self.measurement[r]['fit_model'] = str(self.fitmodel)
@@ -519,6 +519,7 @@ class Scan:
                 y = self.fit_result[r].eval(x=x)
                 ax.plot(x, y, 'm-')
                 
+                # AnchoredText stolen from Ray's code.
                 fit_text = '\n'.join([fr'{k} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
                                       for k, v in self.fit_result[r].params.items()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
@@ -651,6 +652,12 @@ class Scan2D(Scan):
         It's a small extension added on the Scan class.
         In sequence, we will sweep over y value first, then x, then repeat.
         The framework of process and fit of 1D Scan still work here.
+        
+        Note from Zihao(03/06/2023):
+        I don't use super().__init__ here since I don't want to allow dependency injection.
+        It is because of the inheritance structure of those child class of Scan2D.
+        For instance, ChevronScan inherit both Scan2D and RabiScan, 
+        but we don't want to run RabiScan.__init__() since it will redefine out x_axis.
     """
     def __init__(self, 
                  cfg, 
@@ -674,21 +681,22 @@ class Scan2D(Scan):
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
         
-        super().__init__(cfg=cfg, 
-                         drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
-                         scan_name=scan_name,
-                         x_label_plot=x_label_plot, 
-                         x_unit_plot=x_unit_plot, 
-                         x_start=x_start, 
-                         x_stop=x_stop, 
-                         x_points=x_points, 
-                         subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
-                         n_seqloops=n_seqloops,
-                         level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)
+        Scan.__init__(self,
+                      cfg=cfg, 
+                      drive_qubits=drive_qubits,
+                      readout_resonators=readout_resonators,
+                      scan_name=scan_name,
+                      x_label_plot=x_label_plot, 
+                      x_unit_plot=x_unit_plot, 
+                      x_start=x_start, 
+                      x_stop=x_stop, 
+                      x_points=x_points, 
+                      subspace=subspace,
+                      prepulse=prepulse,
+                      postpulse=postpulse,
+                      n_seqloops=n_seqloops,
+                      level_to_fit=level_to_fit,
+                      fitmodel=fitmodel)
         
         self.y_label_plot = y_label_plot
         self.y_unit_plot = y_unit_plot
@@ -774,16 +782,42 @@ class Scan2D(Scan):
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         For example, in 2D scan, we need to give it another shape.
         """
-        self.cfg.process.process_data(measurement=self.measurement, shape=(2, self.n_reps, self.x_points, self.y_points))
+        self.cfg.process.process_data(measurement=self.measurement, 
+                                      shape=(2, self.n_reps, self.x_points, self.y_points))
 
 
     def plot(self):
-        # TODO: write it.
-        pass
+        # TODO: Finish it.
+        self.plot_main()
 
 
+    def plot_main(self, text_loc: str = 'upper right'):
+        """
+        Plot population for all levels. 
+        If we disable classification, plot both quadrature.
+        
+        # TODO add fit to the corresponding level, or add connector for adding fit.
+        """
+        for i, r in enumerate(self.readout_resonators):
+            data = self.measurement[r]['to_fit']
+            n_subplots = len(data)
+            xlabel = self.x_label_plot + self.x_unit_plot
+            ylabel = self.y_label_plot + self.y_unit_plot
+            title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
+            
+            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8))
 
-
+            for level_idx in range(n_subplots):
+                level = self.cfg[f'variables.{r}/readout_levels'][level_idx]
+                this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
+                
+                image = ax[i].imshow(data[level_idx], cmap='RdBu_r', interpolation='none', aspect='auto', 
+                                     origin='lower', extent=[np.min(self.x_values), np.max(self.x_values), 
+                                                             np.min(self.y_values), np.max(self.x_values)])
+                ax[i].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
+                fig.colorbar(image, ax=ax[i], label='Probability/Coordinate', location='top')
+                
+            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
 
 
 
