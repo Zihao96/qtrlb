@@ -705,10 +705,6 @@ class Scan2D(Scan):
         self.y_points = y_points
         self.y_values = np.linspace(self.y_start, self.x_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
-    
-    
-    def check_attribute(self):
-        super().check_attribute()
         assert self.x_points * self.y_points * self.n_seqloops <= 131072, \
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
             

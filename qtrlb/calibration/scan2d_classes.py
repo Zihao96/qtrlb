@@ -16,7 +16,7 @@ class ChevronScan(Scan2D, RabiScan):
                  length_start: float = 0,
                  length_stop: float = 320e-9,
                  length_points: int = 81,
-                 subspace: str = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 10,
