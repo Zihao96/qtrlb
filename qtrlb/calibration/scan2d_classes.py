@@ -55,7 +55,7 @@ class ChevronScan(Scan2D, RabiScan):
         """
         for i, qubit in enumerate(self.drive_qubits):
             ssb_freq_start = self.x_start + self.cfg[f'variables.{qubit}/{self.subspace[i]}/mod_freq']
-            ssb_freq_start_4 = round(ssb_freq_start * 4)
+            ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
             
             xinit = f"""
                     move             {ssb_freq_start_4},R4

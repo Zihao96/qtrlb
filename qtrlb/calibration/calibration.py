@@ -81,6 +81,7 @@ class Scan:
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
         self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
+        self.num_bins = self.n_seqloops * self.x_points
 
         
     def run(self, 
@@ -138,7 +139,7 @@ class Scan:
         assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
-        assert self.x_points * self.n_seqloops <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+        assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
         
 
@@ -196,8 +197,8 @@ class Scan:
             
             waveforms = {qudit: {'data': waveform, 'index': 0}}
             
-            acquisitions = {'readout':   {'num_bins': self.n_seqloops * self.x_points, 'index': 0},
-                            'heralding': {'num_bins': self.n_seqloops * self.x_points, 'index': 1}}
+            acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0},
+                            'heralding': {'num_bins': self.num_bins, 'index': 1}}
             
             self.sequences[qudit]['waveforms'] = waveforms
             self.sequences[qudit]['weights'] = {}
@@ -643,6 +644,24 @@ class Scan:
         dataframe = dataframe.rename(columns={i:f'{name}_{i}' for i in range(dataframe.shape[1])})
         dataframe = dataframe.fillna(padding)        
         return dataframe
+    
+    
+    @staticmethod
+    def frequency_translator(freq: float, freq_step: float = 0.25, bit: int = 32):
+        """
+        Because qblox use 32 bit register to help run sequence program,
+        the value we assign to it must be non-negative integer [0, 2**32).
+        This integer will be translated by instrument into binary without consider two's complement.
+        Then it will be interpreted using two's complement to realize negative value.
+        For frequency, where the integer represents multiples of 0.25Hz, 
+        the register can store frequency between [-2**29, 2**29) Hz.
+        This function helps to calculate that non-negative integer based on a input frequency in [Hz].
+        """
+        assert freq <= 500e6 and freq >= -500e6, 'The frequency must between +-500MHz.'
+        freq_4 = round(freq * 4)
+        
+        twos_complement_binary_str = format(freq_4 if freq_4 >= 0 else (1 << bit) + freq_4, f'0{bit}b')
+        return int(twos_complement_binary_str, 2)
 
 
 
@@ -705,7 +724,8 @@ class Scan2D(Scan):
         self.y_points = y_points
         self.y_values = np.linspace(self.y_start, self.x_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
-        assert self.x_points * self.y_points * self.n_seqloops <= 131072, \
+        self.num_bins = self.n_seqloops * self.x_points * self.y_points
+        assert self.num_bins <= 131072, \
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
             
             

@@ -60,7 +60,7 @@ class ExpSinModel(Model):
         self.set_param_hint('A', value=sin_params['amplitude'].value)
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('phase', value=sin_params['shift'].value, min=-np.pi, max=np.pi)
-        self.set_param_hint('tau', value=(x[-1] - x[0])/2, min=0)
+        self.set_param_hint('tau', value=(x[-1] - x[0])/2)
         return self.make_params()      
 
 
