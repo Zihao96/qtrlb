@@ -16,7 +16,7 @@ class DriveAmplitudeScan(Scan):
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -46,10 +46,10 @@ class DriveAmplitudeScan(Scan):
     def add_xinit(self):
         for i, qubit in enumerate(self.drive_qubits):
             start = round(self.x_start * 32768)
-            initparameter = f"""
+            xinit = f"""
                     move             {start},R4            
             """
-            self.sequences[qubit]['program'] += initparameter
+            self.sequences[qubit]['program'] += xinit
             
             
     def add_mainpulse(self):
@@ -90,7 +90,7 @@ class RabiScan(Scan):
                  length_start: float = 0, 
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -156,11 +156,11 @@ class RabiScan(Scan):
         So qubit play R11 for drive, resonator wait R4 for sync.
         """
         start_ns = round(self.x_start * 1e9)
-        initparameter = f"""
+        xinit = f"""
                     move             {start_ns},R4
                     move             {self.init_waveform_index},R11
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
+        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
     def add_mainpulse(self):
@@ -210,7 +210,7 @@ class T1Scan(Scan):
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -239,10 +239,10 @@ class T1Scan(Scan):
         
     def add_xinit(self):
         start_ns = round(self.x_start * 1e9)
-        initparameter = f"""
+        xinit = f"""
                     move             {start_ns},R4            
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
+        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
     def add_mainpulse(self):
@@ -284,7 +284,7 @@ class RamseyScan(Scan):
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -319,11 +319,11 @@ class RamseyScan(Scan):
         """
         start_ns = round(self.x_start * 1e9)
         start_ADphase = round(self.x_start * self.artificial_detuning * 1e9)  
-        initparameter = f"""
+        xinit = f"""
                     move             {start_ns},R4            
                     move             {start_ADphase},R12
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
+        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
     def add_mainpulse(self):
@@ -372,7 +372,7 @@ class EchoScan(Scan):
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: list = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -403,10 +403,10 @@ class EchoScan(Scan):
         
     def add_xinit(self):
         start_half_ns = round(self.x_start / 2 * 1e9)
-        initparameter = f"""
+        xinit = f"""
                     move             {start_half_ns},R4            
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += initparameter
+        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
     def add_mainpulse(self):

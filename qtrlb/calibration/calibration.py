@@ -46,7 +46,7 @@ class Scan:
                  x_start: float, 
                  x_stop: float, 
                  x_points: int, 
-                 subspace: str = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
@@ -674,7 +674,7 @@ class Scan2D(Scan):
                  y_start: float,
                  y_stop: float,
                  y_points: int,
-                 subspace: str = None,
+                 subspace: str | list = None,
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 10,
@@ -717,8 +717,8 @@ class Scan2D(Scan):
         """
         The y_loop is nested inside x_loop, which means we scan over y axis first.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """            
-        xpt_loop:    """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""            
+        xpt_loop:   move             {self.y_points},R5   """
             
         self.add_yinit()
         self.add_yloop()
@@ -737,13 +737,13 @@ class Scan2D(Scan):
         Add y_loop to sequence program.
         """
         for qudit in self.qudits:
-            loop = """            
+            yloop = """            
         ypt_loop:   wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15              # Enable all markers (binary 1111) for switching on output.
                     upd_param        8               # Update parameters and wait 8ns.
         """
-            self.sequences[qudit]['program'] += loop
+            self.sequences[qudit]['program'] += yloop
 
 
     def add_stop(self):
