@@ -1,6 +1,6 @@
 from lmfit import Model
 from qtrlb.calibration.calibration import Scan2D
-from qtrlb.calibration.scan_classes import RabiScan
+from qtrlb.calibration.scan_classes import RabiScan, CalibrateClassification
 
 
 
@@ -29,7 +29,7 @@ class ChevronScan(Scan2D, RabiScan):
                          readout_resonators=readout_resonators,
                          scan_name='Chevron',
                          x_label_plot='Frequency', 
-                         x_unit_plot='[GHz]', 
+                         x_unit_plot='[MHz]', 
                          x_start=detuning_start, 
                          x_stop=detuning_stop, 
                          x_points=detuning_points, 
@@ -122,6 +122,67 @@ class ChevronScan(Scan2D, RabiScan):
                     add              R4,{ssb_freq_step_4},R4
         """
         for q in self.drive_qubits:  self.sequences[q]['program'] += add_x
+        
+        
+        
+        
+class ReadoutFrequencyScan(Scan2D, CalibrateClassification):
+    def __init__(self,
+                 cfg, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: float,
+                 level_stop: float,
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int, 
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='ReadoutFrequency',
+                         x_label_plot='Pulse Length',
+                         x_unit_plot='[ns]',
+                         x_start=level_start,
+                         x_stop=level_stop,
+                         x_points=level_stop-level_start+1,
+                         y_label_plot='Frequency', 
+                         y_unit_plot='[kHz]', 
+                         y_start=detuning_start, 
+                         y_stop=detuning_stop, 
+                         y_points=detuning_points, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)        
+        
+        self.x_values = self.x_values.astype(int)
+        assert not self.classification_enable, 'Please turn off classification.'
+        
+
+    def add_yinit(self):
+        for r in self.readout_resonators:
+            ssb_freq_start = self.y_start + self.cfg[f'variables.{r}/mod_freq']
+            ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
+            
+            xinit = f"""
+                    move             {ssb_freq_start_4},R6
+            """
+            self.sequences[r]['program'] += xinit
+        
+        
+        
+        
+        
+        
+        
+        
         
         
         

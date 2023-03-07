@@ -821,7 +821,7 @@ class Scan2D(Scan):
             ylabel = self.y_label_plot + self.y_unit_plot
             title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
             
-            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8))
+            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=150)
 
             for i in range(n_subplots):
                 level = self.cfg[f'variables.{r}/readout_levels'][i]
