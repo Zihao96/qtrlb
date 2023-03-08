@@ -44,6 +44,8 @@ class DriveAmplitudeScan(Scan):
         
         
     def add_xinit(self):
+        super().add_xinit()
+        
         for i, qubit in enumerate(self.drive_qubits):
             start = round(self.x_start * 32768)
             xinit = f"""
@@ -115,7 +117,6 @@ class RabiScan(Scan):
                          fitmodel=fitmodel)
         
         self.init_waveform_index = init_waveform_idx
-        self.pulse_lengths = self.x_values
         
         
     def set_waveforms_acquisitions(self):
@@ -130,7 +131,7 @@ class RabiScan(Scan):
         
         for q in self.drive_qubits:
             waveforms = {}
-            for i, pulse_length in enumerate(self.pulse_lengths):
+            for i, pulse_length in enumerate(self.x_values):
                 pulse_length_ns = round(pulse_length * 1e9)
                 if pulse_length_ns == 0: continue
             
@@ -156,6 +157,8 @@ class RabiScan(Scan):
         Here R4 will be real pulse length, and R11 is the waveform index.
         So qubit play R11 for drive, resonator wait R4 for sync.
         """
+        super().add_xinit()
+        
         start_ns = round(self.x_start * 1e9)
         xinit = f"""
                     move             {start_ns},R4
@@ -164,19 +167,21 @@ class RabiScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
-    def add_mainpulse(self):
+    def add_mainpulse(self, freq: str = None, gain: str = None):
         """
         Qblox doesn't accept zero length waveform, so we use Label 'end_main' here.
         There is 4ns delay after each Rabi pulse before postpulse/readout.
         It's because the third index of 'play' instruction cannot be register.
         So we cannot set it as a variable, and wait will be separated.
+        The parameters freq and gain are left as connector for multidimensional scan.
+        We can pass a specific name string of register to it to replace the default values.
         """
         step_ns = round(self.x_step * 1e9)
         
         for i, qubit in enumerate(self.drive_qubits):
             subspace = self.subspace[i]
-            freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4) 
-            gain = round(self.cfg.variables[f'{qubit}/{subspace}/amp_rabi'] * 32768)
+            if freq is None: freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4) 
+            if gain is None: gain = round(self.cfg.variables[f'{qubit}/{subspace}/amp_rabi'] * 32768)
                     
             main = f"""
                  #-----------Main-----------
@@ -239,6 +244,8 @@ class T1Scan(Scan):
 
         
     def add_xinit(self):
+        super().add_xinit()
+        
         start_ns = round(self.x_start * 1e9)
         xinit = f"""
                     move             {start_ns},R4            
@@ -318,6 +325,8 @@ class RamseyScan(Scan):
         """
         We will use R4 for wait time, R12 for angle of VZ gate.
         """
+        super().add_xinit()
+        
         start_ns = round(self.x_start * 1e9)
         start_ADphase = round(self.x_start * self.artificial_detuning * 1e9)  
         xinit = f"""
@@ -403,6 +412,8 @@ class EchoScan(Scan):
 
         
     def add_xinit(self):
+        super().add_xinit()
+        
         start_half_ns = round(self.x_start / 2 * 1e9)
         xinit = f"""
                     move             {start_half_ns},R4            
@@ -462,22 +473,28 @@ class EchoScan(Scan):
         self.add_pulse(half_pi_pulse, drive_length_ns, 'Echo2ndHalfPIpulse')
         
         
-class CalibrateClassification(Scan):
+class LevelScan(Scan):
+    """ This class assume all qubits start from ground state and we have calibrated PI pulse.
+        We then excite them to target level based on self.x_values using PI pulse.
+        It's convenient since all Readout-type Scan can inherit this class.
+        One can use it to check classification result without reclassifying it.
+    """
     def __init__(self, 
                  cfg,  
                  drive_qubits: str | list,
                  readout_resonators: str | list,
+                 scan_name: str,
                  level_start: int, 
                  level_stop: int,  
                  prepulse: dict = None,
                  postpulse: dict = None,
                  n_seqloops: int = 1000,
-                 save_cfg: bool = True):
+                 level_to_fit: int | list = None):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         scan_name='CalibrateClassification',
+                         scan_name=scan_name,
                          x_label_plot='Level', 
                          x_unit_plot='', 
                          x_start=level_start, 
@@ -485,17 +502,13 @@ class CalibrateClassification(Scan):
                          x_points=level_stop-level_start+1, 
                          prepulse=prepulse,
                          postpulse=postpulse,
-                         n_seqloops=n_seqloops)
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit)
         
-        self.save_cfg = save_cfg
-        self.x_values = self.x_values.astype(int)
-        assert self.classification_enable, 'Please turn on classification.'
-        for r in self.readout_resonators: 
-            assert self.cfg[f'variables.{r}/readout_levels'] == self.x_values, \
-                    f'Please check readout levels of {r}!'
-    
-    
+        
     def add_xinit(self):
+        super().add_xinit()
+        
         for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
                     move             {self.x_start},R4            
         """
@@ -535,6 +548,36 @@ class CalibrateClassification(Scan):
             """
             self.sequences[qudit]['program'] += main
         
+        
+class CalibrateClassification(LevelScan):
+    def __init__(self, 
+                 cfg,  
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: int, 
+                 level_stop: int,  
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 1000,
+                 save_cfg: bool = True):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='CalibrateClassification',
+                         level_start=level_start, 
+                         level_stop=level_stop, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops)
+        
+        self.save_cfg = save_cfg
+        self.x_values = self.x_values.astype(int)
+        assert self.classification_enable, 'Please turn on classification.'
+        for r in self.readout_resonators: 
+            assert self.cfg[f'variables.{r}/readout_levels'] == self.x_values, \
+                    f'Please check readout levels of {r}!'
+          
         
     def fit_data(self):
         """

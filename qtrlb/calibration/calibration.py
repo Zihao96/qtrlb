@@ -135,6 +135,7 @@ class Scan:
         for qubit in self.drive_qubits:
             if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
+        assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
@@ -169,15 +170,14 @@ class Scan:
         self.set_waveforms_acquisitions()
         
         self.init_program()
-        self.add_xinit()
-        self.add_xloop()
+        self.start_loop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
         self.add_prepulse()
         self.add_mainpulse()
         self.add_postpulse()
         self.add_readout()
-        self.add_stop()
+        self.end_loop()
     
         
     def set_waveforms_acquisitions(self):
@@ -225,17 +225,32 @@ class Scan:
                     wait_sync        8
                     move             {self.n_seqloops},R0
                     move             0,R1
-        seq_loop:   move             {self.x_points},R3
         """
             self.sequences[qudit]['program'] = program
+            
+            
+    def start_loop(self):
+        """
+        Add the head of loop structure to sequence program.
+        We assume sequence loop is always the outermost loop.
+        For each inner loop, either x loop or y loop in future, 
+        we need to assign initial value before entering the loop.
+        """
+        for qudit in self.qudits:  self.sequences[qudit]['program'] += """
+        seq_loop:   
+        """
+        self.add_xinit(self)
+        self.add_xloop(self)
         
         
     def add_xinit(self):
         """
-        Set necessary initial value of x parameter to the registers. 
-        Suppose to be called by child class.
+        Set necessary initial value of x parameter to the registers, especially R3 & R4. 
+        Child class can super this method to add more initial values.
         """
-        print('Scan: The base experiment class has been called. No initial x parameter will be set.')
+        for qudit in self.qudits:  self.sequences[qudit]['program'] += f"""
+                    move             {self.x_points},R3    
+        """
         
         
     def add_xloop(self):
@@ -243,13 +258,13 @@ class Scan:
         Add x_loop to sequence program.
         """
         for qudit in self.qudits:
-            loop = """            
+            xloop = """            
         xpt_loop:   wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15              # Enable all markers (binary 1111) for switching on output.
                     upd_param        8               # Update parameters and wait 8ns.
         """
-            self.sequences[qudit]['program'] += loop
+            self.sequences[qudit]['program'] += xloop
         
         
     def add_relaxation(self):
@@ -317,23 +332,47 @@ class Scan:
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
         readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
         self.add_pulse(pulse=self.readout_pulse, lengths=tof_ns+readout_length_ns, name=name, acq_index=acq_index)
+        
+        
+    def end_loop(self):
+        """
+        End all loops and add stop to sequence program.
+        
+        Note from Zihao(03/07/2023):
+        In principle, we need to add x_step to the register that store x_value before ending x loop.
+        Here I absorb that part into add_mainpulse for continuity and readability.
+        For multidimensional scan, it only works when x loop is the innermost loop.
+        Fortunately, this is indeed the most efficient way to reuse code of 1D scan onto 2D scan.
+        If we make it separate, all child class need to modify it and become not elegant.
+        """
+        self.end_xloop()
+        self.end_seqloop()
             
 
-    def add_stop(self):
+    def end_xloop(self):
         """
-        Add end of loop and stop the sequence program.
+        Count next acquisition bin (R1) and add end of x loop.
         """
-        stop = """
+        x_end = """
                 #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
                     upd_param        8               # Update parameters and wait 4ns.
-                    loop             R3,@xpt_loop
+                    loop             R3,@xpt_loop         
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += x_end
+        
+        
+    def end_seqloop(self):
+        """
+        End sequence loop and stop the sequence program.
+        """
+        seq_end = """
                     loop             R0,@seq_loop
                     
                     stop             
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += stop
+        for qudit in self.qudits: self.sequences[qudit]['program'] += seq_end
 
 
     def add_wait(self, time_ns: int, name='Wait'):
@@ -413,7 +452,7 @@ class Scan:
         Create an experiment directory under cfg.data.base_directory.
         Then save a copy of jsons and yamls to experiment directory.
         
-        Note from Zihao(02/14/2023)
+        Note from Zihao(02/14/2023):
         If sequence program has problem, then __init__() will raise Error, rather than run().
         In that case we won't create the junk experiment folder.
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
@@ -442,11 +481,12 @@ class Scan:
                                 'Heterodyned_heralding':[[],[]]
                                 } for r in self.readout_resonators}
         
+        print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
             self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
                                          resonators=self.readout_resonators,
                                          measurement=self.measurement)
-            print(f'Python loop {i} finished!')  # TODO: Delete it after test.
+            print(f'Scan: Pyloop {i} finished!')
             
             
     def process_data(self):
@@ -466,7 +506,7 @@ class Scan:
         The model should be better to pick from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
-        # TODO: Check possible 2D data fit.
+        # TODO: make 2D data fitting possible.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
@@ -725,81 +765,76 @@ class Scan2D(Scan):
         self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
         self.num_bins = self.n_seqloops * self.x_points * self.y_points
+        assert self.y_stop >= self.y_start, 'Please use ascending value for y_values.'
         assert self.num_bins <= 131072, \
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
             
             
-    def add_xloop(self):
+    def start_loop(self):
         """
-        The y_loop is nested inside x_loop, which means we scan over y axis first.
+        Sequence loop is the outermost loop, then y loop, and x loop is innermost.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""            
-        xpt_loop:   move             {self.y_points},R5   """
-            
-        self.add_yinit()
-        self.add_yloop()
+        for qudit in self.qudits:  self.sequences[qudit]['program'] += """
+        seq_loop:   
+        """
+        self.add_yinit(self)
+        self.add_yloop(self)
+        self.add_xinit(self)
+        self.add_xloop(self)
 
 
     def add_yinit(self):
         """
-        Set necessary initial value of y parameter to the registers. 
-        Suppose to be called by child class.
+        Set necessary initial value of y parameter to the registers, especially R5 & R6. 
+        Child class can super this method to add more initial values.
         """
-        print('Scan2D: The base experiment class has been called. No initial y parameter will be set.')
+        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""            
+                    move             {self.y_points},R5    """
 
 
     def add_yloop(self):
         """
         Add y_loop to sequence program.
         """
-        for qudit in self.qudits:
-            yloop = """            
-        ypt_loop:   wait_sync        8               # Sync at beginning of the loop.
-                    reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
-                    set_mrk          15              # Enable all markers (binary 1111) for switching on output.
-                    upd_param        8               # Update parameters and wait 8ns.
-        """
-            self.sequences[qudit]['program'] += yloop
+        for qudit in self.qudits:  self.sequences[qudit]['program'] += """            
+        ypt_loop:   """
 
 
-    def add_stop(self):
+    def end_loop(self):
         """
-        Add end of loop and stop the sequence program.
+        End all loops and add stop to sequence program. 
+        See parent class for notes of this method.
         """
-        stop = """
-                #-----------Stop-----------
-                    add              R1,1,R1
-                    set_mrk          0               # Disable all markers (binary 0000) for switching off output.
-                    upd_param        8               # Update parameters and wait 4ns.
+        self.end_xloop()
+        self.add_yvalue()
+        self.end_yloop()
+        self.end_seqloop()
+
+
+    def add_yvalue(self):
+        """
+        Change value of the register that represent y_value (R6).
+        It need to be outside x_loop, but inside y_loop.
+        """
+        print('Scan2D: The base experiment class has been called. y_value (R6) will not change during loop.')
+        
+
+    def end_yloop(self):
+        """
+        Add end of x loop.
+        """
+        y_end = """
                     loop             R5,@ypt_loop    """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += stop
-                    
-        self.add_xvalue()
-                    
-        stop = """
-                    loop             R3,@xpt_loop
-                    loop             R0,@seq_loop
-                    
-                    stop             """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += stop
-
-
-    def add_xvalue(self):
-        """
-        Change value of the register that represent x_value.
-        It need to be outside y_loop, but inside x_loop.
-        """
-        print('Scan2D: The base experiment class has been called. X_value will not change during loop.')
+        for qudit in self.qudits: self.sequences[qudit]['program'] += y_end
 
 
     def process_data(self):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
-        For example, in 2D scan, we need to give it another shape.
         """
         self.cfg.process.process_data(measurement=self.measurement, 
-                                      shape=(2, self.n_reps, self.x_points, self.y_points))
+                                      shape=(2, self.n_reps, self.y_points, self.x_points))
 
 
     def plot(self):
@@ -827,7 +862,7 @@ class Scan2D(Scan):
                 level = self.cfg[f'variables.{r}/readout_levels'][i]
                 this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
                 
-                image = ax[i].imshow(data[i].transpose(), cmap='RdBu_r', interpolation='none', aspect='auto', 
+                image = ax[i].imshow(data[i], cmap='RdBu_r', interpolation='none', aspect='auto', 
                                      origin='lower', extent=[np.min(self.x_values), np.max(self.x_values), 
                                                              np.min(self.y_values), np.max(self.x_values)])
                 ax[i].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
