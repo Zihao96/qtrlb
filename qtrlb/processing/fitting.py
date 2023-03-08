@@ -59,8 +59,8 @@ class ExpSinModel(Model):
         self.set_param_hint('freq', value=sin_params['frequency'].value/2/PI, min=0)
         self.set_param_hint('A', value=sin_params['amplitude'].value)
         self.set_param_hint('C', value=np.mean(data))
-        self.set_param_hint('phase', value=sin_params['shift'].value, min=-np.pi, max=np.pi)
-        self.set_param_hint('tau', value=(x[-1] - x[0])/2)
+        self.set_param_hint('phase', value=sin_params['shift'].value, min=0, max=2*PI)
+        self.set_param_hint('tau', value=(x[-1] - x[0])/2, min=0)
         return self.make_params()      
 
 
@@ -110,5 +110,5 @@ class SinModel(Model):
         self.set_param_hint('freq', value=sin_params['frequency'].value/2/PI, min=0)
         self.set_param_hint('A', value=sin_params['amplitude'].value)
         self.set_param_hint('C', value=np.mean(data))
-        self.set_param_hint('phase', value=sin_params['shift'].value, min=-np.pi, max=np.pi)
+        self.set_param_hint('phase', value=sin_params['shift'].value, min=0, max=2*PI)
         return self.make_params()  

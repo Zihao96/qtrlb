@@ -200,9 +200,9 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
             xlabel = self.y_label_plot + self.y_unit_plot
             ylabel = ['IQ-phase [rad]', 'IQ-LogMag [a.u.]']
             
-            fig, ax = plt.subplots(2, 1, dpi=150)
+            fig, ax = plt.subplots(2, 1, figsize=(8,8), dpi=150)
             ax[0].set(xlabel=xlabel, ylabel=ylabel[0], title=title)
-            ax[1].set(xlabel=xlabel, ylabel=ylabel[1], title=title)
+            ax[1].set(xlabel=xlabel, ylabel=ylabel[1])
             
             for level in self.x_values:
                 ax[0].plot(self.y_values, np.angle(data[:, level]), label=f'|{level}>')

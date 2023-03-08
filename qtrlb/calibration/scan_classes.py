@@ -575,7 +575,7 @@ class CalibrateClassification(LevelScan):
         self.x_values = self.x_values.astype(int)
         assert self.classification_enable, 'Please turn on classification.'
         for r in self.readout_resonators: 
-            assert self.cfg[f'variables.{r}/readout_levels'] == self.x_values, \
+            assert all(self.cfg[f'variables.{r}/readout_levels'] == self.x_values), \
                     f'Please check readout levels of {r}!'
           
         

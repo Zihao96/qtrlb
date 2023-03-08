@@ -239,8 +239,8 @@ class Scan:
         for qudit in self.qudits:  self.sequences[qudit]['program'] += """
         seq_loop:   
         """
-        self.add_xinit(self)
-        self.add_xloop(self)
+        self.add_xinit()
+        self.add_xloop()
         
         
     def add_xinit(self):
@@ -777,10 +777,10 @@ class Scan2D(Scan):
         for qudit in self.qudits:  self.sequences[qudit]['program'] += """
         seq_loop:   
         """
-        self.add_yinit(self)
-        self.add_yloop(self)
-        self.add_xinit(self)
-        self.add_xloop(self)
+        self.add_yinit()
+        self.add_yloop()
+        self.add_xinit()
+        self.add_xloop()
 
 
     def add_yinit(self):
