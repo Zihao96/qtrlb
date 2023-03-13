@@ -709,7 +709,7 @@ class Scan:
 class Scan2D(Scan):
     """ Base class for all 2D parameter-sweep experiment.
         It's a small extension added on the Scan class.
-        In sequence, we will sweep over y value first, then x, then repeat.
+        In sequence, we will sweep over x value first, then y, then repeat.
         The framework of process and fit of 1D Scan still work here.
         
         Note from Zihao(03/06/2023):
