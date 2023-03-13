@@ -67,7 +67,7 @@ class Config:
                 Config.compare_dict(dict_raw[k], dict_template[k], suffix=suffix)
             
     
-    def save(self, yamls_path: str = None):
+    def save(self, yamls_path: str = None, verbose: bool = True):
         """
         Save the config_raw dictionary to the yaml file.
         Allow user to pass a path of directory to save config_raw at another place.
@@ -83,7 +83,8 @@ class Config:
         
         with open(file_path, 'w') as f:        
             round_trip_dump(self.config_raw, f)
-        print(f'Config: The config_raw of {self.suffix} Manager has been saved successfully.')
+        
+        if verbose: print(f'Config: The config_raw of {self.suffix} Manager has been saved successfully.')
         
     
     def load(self):

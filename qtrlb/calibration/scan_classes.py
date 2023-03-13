@@ -582,15 +582,24 @@ class CalibrateClassification(LevelScan):
     def fit_data(self):
         """
         Here we should already have a normally processed data.
-        It will be a reference/comparison of previous classification.
+        It will be a reference/comparison from previous classification.
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
         """
         for r, data_dict in self.measurement.items():
             means = np.zeros((self.x_points, 2))
             covariances = np.zeros(self.x_points)
             
-            for i, level in enumerate(self.x_values):
-                mean, covariance = gmm_fit(data_dict['IQrotated_readout'][...,i], n_components=1)
+            for i in range(self.x_points):
+                mask = None
+                data = data_dict['IQrotated_readout'][..., i]
+                
+                if self.heralding_enable:
+                    mask = data_dict['Mask_heralding']
+                    data = data[:, mask[:,i] == 0]
+                    # Here the data_dict['IQrotated_readout'] has shape (2, n_reps, x_points)
+                    # mask has shape (n_reps, x_points)
+                
+                mean, covariance = gmm_fit(data, n_components=1)
                 means[i] = mean[0]
                 covariances[i] = covariance[0]
                 # Because the default form is one more layer nested.
@@ -600,7 +609,8 @@ class CalibrateClassification(LevelScan):
             data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                         means=means, covariances=covariances)
             data_dict['PopulationNormalized_new'] = normalize_population(data_dict['GMMpredicted_new'],
-                                                                         n_levels=self.x_points)
+                                                                         n_levels=self.x_points,
+                                                                         mask=mask)
             data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
             data_dict['PopulationCorrected_new'] = np.linalg.solve(data_dict['confusionmatrix_new'],
                                                                    data_dict['PopulationNormalized_new'])

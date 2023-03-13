@@ -54,14 +54,13 @@ class MetaManager:
         # It's fine we load VariableManager twice. It's fast.
         
         
-    def save(self, yamls_path=None):
+    def save(self, yamls_path: str = None, verbose: bool = True):
         """
         Call all managers' save method.
         Allow user to pass a path of directory to save config_raw at another place.
         """
         for manager in self.manager_dict.values():
-            manager.save(yamls_path=yamls_path)
-        
+            manager.save(yamls_path=yamls_path, verbose=verbose)
     
         
     def get(self, key: str, which: str = 'dict'):

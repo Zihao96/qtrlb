@@ -19,7 +19,7 @@ class DataManager(Config):
     """
     def __init__(self, 
                  yamls_path: str, 
-                 varman: VariableManager):
+                 varman: VariableManager = None):
         super().__init__(yamls_path=yamls_path, 
                          suffix='data',
                          varman=varman)
@@ -38,25 +38,26 @@ class DataManager(Config):
             experiment_type: 'drive_amplitude', 't1', 'ramsey'
             experiment_suffix: 'LLR2_EJEC_Q4_AD+200kHz_happynewyear'
         """
+        _chip_name = self.varman.variable_suffix if self.varman is not None else ''
+        
         self.datetime = time if time is not None else datetime.datetime.now()
+        date = self.datetime.strftime(self['date_fmt'])
+        time = self.datetime.strftime(self['time_fmt'])
         
-        self.date = self.datetime.strftime(self['date_fmt'])
-        self.time = self.datetime.strftime(self['time_fmt'])
-        self.basename = self.time + '_' + experiment_type + '_' + experiment_suffix
+        self.datetime_stamp = '/'.join([date, time])
+        self.basename = time + _chip_name + '_' + experiment_type + '_' + experiment_suffix
         
-        self.data_path = os.path.join(self['base_directory'], self.date, self.basename)
+        self.data_path = os.path.join(self['base_directory'], date, self.basename)
         self.yamls_path = os.path.join(self.data_path, 'Yamls')
         self.jsons_path = os.path.join(self.data_path, 'Jsons')
         
         try:
             os.makedirs(self.yamls_path)
             os.makedirs(self.jsons_path)
-            return self.data_path, self.date, self.time
         except FileExistsError:
             traceback_str = traceback.format_exc()
             print('DataManager: Experiment directory exists. No directory will be created.')
             print(traceback_str)
-            return self.data_path, self.date, self.time
         
         
     @staticmethod

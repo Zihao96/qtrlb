@@ -106,7 +106,7 @@ class Scan:
         self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
         
         self.make_sequence() 
-        self.jsons_path = self.save_sequence()
+        self.save_sequence()
         self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
@@ -137,7 +137,7 @@ class Scan:
         
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
-        assert len(self.level_to_fit) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
+        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify subspace for each resonator.'
         assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
@@ -435,16 +435,21 @@ class Scan:
         """
         Create json file of sequence for each sequencer/qudit and save it.
         Allow user to pass a path of directory to save jsons at another place.
+        A text file of sequence program will also be saved for reading.
         """
         if jsons_path is None:
             jsons_path = os.path.join(self.cfg.working_dir, 'Jsons') 
+        
+        self.jsons_path = jsons_path
 
         for qudit, sequence_dict in self.sequences.items():
-            file_path = os.path.join(jsons_path, f'{qudit}_sequence.json')
+            file_path = os.path.join(self.jsons_path, f'{qudit}_sequence.json')
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(sequence_dict, file, indent=4)
                 
-        return jsons_path
+            txt_file_path = os.path.join(self.jsons_path, f'{qudit}_sequence_program.txt')
+            with open(txt_file_path, 'w', encoding='utf-8') as txt:
+                txt.write(sequence_dict['program'])
             
     
     def make_exp_dir(self):
@@ -453,16 +458,19 @@ class Scan:
         Then save a copy of jsons and yamls to experiment directory.
         
         Note from Zihao(02/14/2023):
-        If sequence program has problem, then __init__() will raise Error, rather than run().
+        If sequence program has problem, then self.cfg.DAC.implement_parameters will raise Error.
         In that case we won't create the junk experiment folder.
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we may already get some data and want to save it by manually calling save_measurement().
         """
-        self.data_path, self.date, self.time = self.cfg.data.make_exp_dir(experiment_type=self.scan_name,
-                                                                          experiment_suffix=self.experiment_suffix)
+        self.cfg.data.make_exp_dir(experiment_type=self.scan_name,
+                                   experiment_suffix=''.join(self.qudits) + '_'  + self.experiment_suffix)
         
-        self.cfg.save(yamls_path=os.path.join(self.data_path, 'Yamls'))
-        self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
+        self.data_path = self.cfg.data.data_path
+        self.datetime_stamp = self.cfg.data.datetime_stamp
+        
+        self.cfg.save(yamls_path=self.cfg.data.yamls_path, verbose=False)
+        self.save_sequence(jsons_path=self.cfg.data.jsons_path)
         
         for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
     
@@ -543,7 +551,7 @@ class Scan:
         """
         for i, r in enumerate(self.readout_resonators):
             level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
-            title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.x_label_plot + self.x_unit_plot
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
@@ -854,7 +862,7 @@ class Scan2D(Scan):
             n_subplots = len(data)
             xlabel = self.x_label_plot + self.x_unit_plot
             ylabel = self.y_label_plot + self.y_unit_plot
-            title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             
             fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=150)
 

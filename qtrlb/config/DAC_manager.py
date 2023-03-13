@@ -14,7 +14,7 @@ class DACManager(Config):
     """
     def __init__(self, 
                  yamls_path: str, 
-                 varman: VariableManager):
+                 varman: VariableManager = None):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
