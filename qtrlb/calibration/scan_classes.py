@@ -28,8 +28,8 @@ class DriveAmplitudeScan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='Drive_Amplitude',
-                         x_label_plot='Drive Amplitude', 
-                         x_unit_plot='[a.u].', 
+                         x_plot_label='Drive Amplitude', 
+                         x_plot_unit='arb', 
                          x_start=amp_start, 
                          x_stop=amp_stop, 
                          x_points=amp_points, 
@@ -104,8 +104,8 @@ class RabiScan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='Rabi',
-                         x_label_plot='Pulse Length', 
-                         x_unit_plot='[ns].', 
+                         x_plot_label='Pulse Length', 
+                         x_plot_unit='ns', 
                          x_start=length_start, 
                          x_stop=length_stop, 
                          x_points=length_points, 
@@ -228,8 +228,8 @@ class T1Scan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='T1',
-                         x_label_plot='Wait Length', 
-                         x_unit_plot='[ns].', 
+                         x_plot_label='Wait Length', 
+                         x_plot_unit='us', 
                          x_start=length_start, 
                          x_stop=length_stop, 
                          x_points=length_points, 
@@ -305,8 +305,8 @@ class RamseyScan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='Ramsey',
-                         x_label_plot='Wait Length', 
-                         x_unit_plot='[ns].', 
+                         x_plot_label='Wait Length', 
+                         x_plot_unit='us', 
                          x_start=length_start, 
                          x_stop=length_stop, 
                          x_points=length_points, 
@@ -395,8 +395,8 @@ class EchoScan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='Echo',
-                         x_label_plot='Wait Length', 
-                         x_unit_plot='[ns].', 
+                         x_plot_label='Wait Length', 
+                         x_plot_unit='us', 
                          x_start=length_start, 
                          x_stop=length_stop, 
                          x_points=length_points, 
@@ -495,8 +495,8 @@ class LevelScan(Scan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name=scan_name,
-                         x_label_plot='Level', 
-                         x_unit_plot='', 
+                         x_plot_label='Level', 
+                         x_plot_unit='arb', 
                          x_start=level_start, 
                          x_stop=level_stop, 
                          x_points=level_stop-level_start+1, 
@@ -631,13 +631,13 @@ class CalibrateClassification(LevelScan):
         """
         for r in self.readout_resonators:
             title = f'Uncorrected probability, {self.scan_name}, {r}'
-            xlabel = self.x_label_plot + self.x_unit_plot
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             ylabel = 'Probability'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.x_values):
-                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_new'][i], c=f'C{level}',
-                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_new'][i], 
+                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected_new.png'))
@@ -646,8 +646,8 @@ class CalibrateClassification(LevelScan):
             title = f'Corrected probability, {self.scan_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.x_values):
-                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_new'][i], c=f'C{level}',
-                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_new'][i], 
+                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected_new.png'))

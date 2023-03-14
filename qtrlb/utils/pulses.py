@@ -1,6 +1,6 @@
 
 
-def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_kwargs):
+def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_kwargs) -> str:
     """
     Generate the string sequence program for Qblox sequencer based on a input string.
     
@@ -83,3 +83,16 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         pulse_program = ''
     
     return pulse_program
+
+
+def calculate_angle_to_gain(angle: str | float) -> float:
+    """
+    Calculate the gain value for rotation angle other than 180 and 90.
+    
+    Note from Zihao(2023/03/14):
+    We assume this relation is linear here, which is not very precise. 
+    It's not only because Bloch sphere is not sphere, 
+    but also coming from the nonlinearity of the instrument.
+    Experiment on Tektronix gives deviation from linearity below 0.5%.
+    """
+    angle = float(angle)

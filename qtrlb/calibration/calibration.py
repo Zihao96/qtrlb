@@ -4,6 +4,7 @@ import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import qtrlb.utils.units as u
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
@@ -41,8 +42,8 @@ class Scan:
                  drive_qubits: str | list,
                  readout_resonators: str | list,
                  scan_name: str,
-                 x_label_plot: str, 
-                 x_unit_plot: str, 
+                 x_plot_label: str, 
+                 x_plot_unit: str, 
                  x_start: float, 
                  x_stop: float, 
                  x_points: int, 
@@ -56,8 +57,8 @@ class Scan:
         self.drive_qubits = self.make_it_list(drive_qubits)
         self.readout_resonators = self.make_it_list(readout_resonators)
         self.scan_name = scan_name
-        self.x_label_plot = x_label_plot
-        self.x_unit_plot = x_unit_plot
+        self.x_plot_label = x_plot_label
+        self.x_plot_unit = x_plot_unit
         self.x_start = x_start
         self.x_stop = x_stop
         self.x_points = x_points
@@ -77,8 +78,10 @@ class Scan:
         self.jsons_path=os.path.join(self.cfg.working_dir, 'Jsons')
         
         self.check_attribute()
+        
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
         self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)    
+        self.x_unit_value = getattr(u, self.x_plot_unit)
         self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
@@ -136,6 +139,7 @@ class Scan:
         for qubit in self.drive_qubits:
             if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
+        assert hasattr(u, self.x_plot_unit), f'The plot unit {self.x_plot_unit} has not been defined.'
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify subspace for each resonator.'
@@ -549,27 +553,27 @@ class Scan:
         https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.add_artist.html
         """
         for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
-            xlabel = self.x_label_plot + self.x_unit_plot
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
             else:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
-            ax.plot(self.x_values, self.measurement[r]['to_fit'][level_index], 'k.')
+            ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][level_index], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
             if self.fit_result[r] is not None: 
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
                 y = self.fit_result[r].eval(x=x)
-                ax.plot(x, y, 'm-')
+                ax.plot(x / self.x_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([fr'{k} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
-                                      for k, v in self.fit_result[r].params.items()])
+                fit_text = '\n'.join([fr'{v.name} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
+                                      for v in self.fit_result[r].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
@@ -635,14 +639,14 @@ class Scan:
         Plot populations for all levels, both with and without readout correction.
         """
         for r in self.readout_resonators:
-            title = f'Uncorrected probability, {self.scan_name}, {r}'
-            xlabel = self.x_label_plot + self.x_unit_plot
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             ylabel = 'Probability'
             
+            title = f'Uncorrected probability, {self.scan_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
-                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_readout'][i], c=f'C{level}',
-                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationNormalized_readout'][i], 
+                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected.png'))
@@ -651,8 +655,8 @@ class Scan:
             title = f'Corrected probability, {self.scan_name}, {r}'
             fig, ax = plt.subplots(1, 1, dpi=150)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
-                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_readout'][i], c=f'C{level}',
-                        ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationCorrected_readout'][i], 
+                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected.png'))
@@ -730,13 +734,13 @@ class Scan2D(Scan):
                  drive_qubits: str | list,
                  readout_resonators: str | list,
                  scan_name: str,
-                 x_label_plot: str, 
-                 x_unit_plot: str, 
+                 x_plot_label: str, 
+                 x_plot_unit: str, 
                  x_start: float, 
                  x_stop: float, 
                  x_points: int, 
-                 y_label_plot: str,
-                 y_unit_plot: str,
+                 y_plot_label: str,
+                 y_plot_unit: str,
                  y_start: float,
                  y_stop: float,
                  y_points: int,
@@ -752,8 +756,8 @@ class Scan2D(Scan):
                       drive_qubits=drive_qubits,
                       readout_resonators=readout_resonators,
                       scan_name=scan_name,
-                      x_label_plot=x_label_plot, 
-                      x_unit_plot=x_unit_plot, 
+                      x_plot_label=x_plot_label, 
+                      x_plot_unit=x_plot_unit, 
                       x_start=x_start, 
                       x_stop=x_stop, 
                       x_points=x_points, 
@@ -764,17 +768,21 @@ class Scan2D(Scan):
                       level_to_fit=level_to_fit,
                       fitmodel=fitmodel)
         
-        self.y_label_plot = y_label_plot
-        self.y_unit_plot = y_unit_plot
+        self.y_plot_label = y_plot_label
+        self.y_plot_unit = y_plot_unit
         self.y_start = y_start
         self.y_stop = y_stop
         self.y_points = y_points
-        self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
-        self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
         self.num_bins = self.n_seqloops * self.x_points * self.y_points
+        
+        assert hasattr(u, self.y_plot_unit), f'The plot unit {self.y_plot_unit} has not been defined.'
         assert self.y_stop >= self.y_start, 'Please use ascending value for y_values.'
         assert self.num_bins <= 131072, \
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+         
+        self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
+        self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
+        self.y_unit_value = getattr(u, self.y_plot_unit)
             
             
     def start_loop(self):
@@ -858,8 +866,8 @@ class Scan2D(Scan):
         for i, r in enumerate(self.readout_resonators):
             data = self.measurement[r]['to_fit']
             n_subplots = len(data)
-            xlabel = self.x_label_plot + self.x_unit_plot
-            ylabel = self.y_label_plot + self.y_unit_plot
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
+            ylabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             
             fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=150)
@@ -869,8 +877,10 @@ class Scan2D(Scan):
                 this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
                 
                 image = ax[i].imshow(data[i], cmap='RdBu_r', interpolation='none', aspect='auto', 
-                                     origin='lower', extent=[np.min(self.x_values), np.max(self.x_values), 
-                                                             np.min(self.y_values), np.max(self.x_values)])
+                                     origin='lower', extent=[np.min(self.x_values) / self.x_unit_value, 
+                                                             np.max(self.x_values) / self.x_unit_value, 
+                                                             np.min(self.y_values) / self.y_unit_value, 
+                                                             np.max(self.y_values) / self.y_unit_value])
                 ax[i].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
                 fig.colorbar(image, ax=ax[i], label='Probability/Coordinate', location='top')
                 

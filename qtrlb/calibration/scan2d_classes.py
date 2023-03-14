@@ -31,13 +31,13 @@ class ChevronScan(Scan2D, RabiScan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='Chevron',
-                         x_label_plot='Pulse Length',
-                         x_unit_plot='[ns]',
+                         x_plot_label='Pulse Length',
+                         x_plot_unit='ns',
                          x_start=length_start,
                          x_stop=length_stop,
                          x_points=length_points,
-                         y_label_plot='Frequency', 
-                         y_unit_plot='[MHz]', 
+                         y_plot_label='Frequency', 
+                         y_plot_unit='MHz', 
                          y_start=detuning_start, 
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
@@ -104,13 +104,13 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
                          scan_name='ReadoutFrequency',
-                         x_label_plot='Level',
-                         x_unit_plot='',
+                         x_plot_label='Level',
+                         x_plot_unit='arb',
                          x_start=level_start,
                          x_stop=level_stop,
                          x_points=level_stop-level_start+1,
-                         y_label_plot='Frequency', 
-                         y_unit_plot='[kHz]', 
+                         y_plot_label='Frequency', 
+                         y_plot_unit='kHz', 
                          y_start=detuning_start, 
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
@@ -197,7 +197,7 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
             data = self.measurement[r]['IQEDcompensated_readout']
             
             title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
-            xlabel = self.y_label_plot + self.y_unit_plot
+            xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = ['IQ-phase [rad]', 'IQ-LogMag [a.u.]']
             
             fig, ax = plt.subplots(2, 1, figsize=(8,8), dpi=150)
@@ -205,8 +205,8 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
             ax[1].set(xlabel=xlabel, ylabel=ylabel[1])
             
             for level in self.x_values:
-                ax[0].plot(self.y_values, np.angle(data[:, level]), label=f'|{level}>')
-                ax[1].plot(self.y_values, np.absolute(data[:, level]), label=f'|{level}>')
+                ax[0].plot(self.y_values / self.y_unit_value, np.angle(data[:, level]), label=f'|{level}>')
+                ax[1].plot(self.y_values / self.y_unit_value, np.absolute(data[:, level]), label=f'|{level}>')
 
             ax[0].legend()
             ax[1].legend()
