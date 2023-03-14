@@ -506,7 +506,7 @@ class Scan:
     def fit_data(self): 
         """
         Fit data in measurement dictionary and save result back into it.
-        We will also generate a dictionary called self.fit_result for future use.
+        We will also keep fit result as attribute self.fit_result for future use.
         The model should be better to pick from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
@@ -520,14 +520,14 @@ class Scan:
                 level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
                 self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][level_index],
                                          x=self.x_values, fitmodel=self.fitmodel)
-                self.measurement[r]['fit_result'] = self.fit_result[r].best_values  # A dictionary
-                self.measurement[r]['fit_values'] = self.fit_result[r].best_fit  # A ndarray
+                
+                params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
+                self.measurement[r]['fit_result'] = params
                 self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
             except Exception:
                 traceback_str = traceback.format_exc()
                 print(f'Scan: Failed to fit {r} data. ', traceback_str)
                 self.measurement[r]['fit_result'] = None
-                self.measurement[r]['fit_values'] = None
                 self.measurement[r]['fit_model'] = str(self.fitmodel)
                 
 
@@ -544,6 +544,9 @@ class Scan:
         """
         Plot the main result along with fitting, if not failed.
         Figure will be saved to data directory and show up on python console.
+        
+        Reference about add_artist method of Axes object:
+        https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.add_artist.html
         """
         for i, r in enumerate(self.readout_resonators):
             level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
