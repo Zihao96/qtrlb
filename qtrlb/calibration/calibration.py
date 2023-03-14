@@ -74,6 +74,7 @@ class Scan:
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
         self.num_bins = self.n_seqloops * self.x_points
+        self.jsons_path=os.path.join(self.cfg.working_dir, 'Jsons')
         
         self.check_attribute()
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
@@ -438,16 +439,14 @@ class Scan:
         A text file of sequence program will also be saved for reading.
         """
         if jsons_path is None:
-            jsons_path = os.path.join(self.cfg.working_dir, 'Jsons') 
-        
-        self.jsons_path = jsons_path
+            jsons_path = self.jsons_path 
 
         for qudit, sequence_dict in self.sequences.items():
-            file_path = os.path.join(self.jsons_path, f'{qudit}_sequence.json')
+            file_path = os.path.join(jsons_path, f'{qudit}_sequence.json')
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(sequence_dict, file, indent=4)
                 
-            txt_file_path = os.path.join(self.jsons_path, f'{qudit}_sequence_program.txt')
+            txt_file_path = os.path.join(jsons_path, f'{qudit}_sequence_program.txt')
             with open(txt_file_path, 'w', encoding='utf-8') as txt:
                 txt.write(sequence_dict['program'])
             
@@ -463,8 +462,8 @@ class Scan:
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we may already get some data and want to save it by manually calling save_measurement().
         """
-        self.cfg.data.make_exp_dir(experiment_type=self.scan_name,
-                                   experiment_suffix=''.join(self.qudits) + '_'  + self.experiment_suffix)
+        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.qudits, self.scan_name]),
+                                   experiment_suffix=self.experiment_suffix)
         
         self.data_path = self.cfg.data.data_path
         self.datetime_stamp = self.cfg.data.datetime_stamp
@@ -491,9 +490,7 @@ class Scan:
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(qubits=self.drive_qubits,
-                                         resonators=self.readout_resonators,
-                                         measurement=self.measurement)
+            self.cfg.DAC.start_sequencer(self.drive_qubits, self.readout_resonators, self.measurement)
             print(f'Scan: Pyloop {i} finished!')
             
             
@@ -503,8 +500,7 @@ class Scan:
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         For example, in 2D scan, we need to give it another shape.
         """
-        self.cfg.process.process_data(measurement=self.measurement, 
-                                      shape=(2, self.n_reps, self.x_points))
+        self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.x_points))
         
 
     def fit_data(self): 
@@ -841,8 +837,7 @@ class Scan2D(Scan):
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         """
-        self.cfg.process.process_data(measurement=self.measurement, 
-                                      shape=(2, self.n_reps, self.y_points, self.x_points))
+        self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.y_points, self.x_points))
 
 
     def plot(self):
