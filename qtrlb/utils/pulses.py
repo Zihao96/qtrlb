@@ -38,7 +38,9 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     elif pulse_string.startswith('X'):
         angle, subspace = pulse_string[1:].split('_')
         freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
+        gain = calculate_angle_to_gain(angle, 
+                                       cfg.variables[f'{qudit}/{subspace}/amp_180'], 
+                                       cfg.variables[f'{qudit}/{subspace}/amp_90'])
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
@@ -48,7 +50,9 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     elif pulse_string.startswith('Y'):
         angle, subspace = pulse_string[1:].split('_')
         freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_{angle}'] * 32768)
+        gain = calculate_angle_to_gain(angle, 
+                                       cfg.variables[f'{qudit}/{subspace}/amp_180'], 
+                                       cfg.variables[f'{qudit}/{subspace}/amp_90'])
         pulse_program = f"""
                     set_ph_delta     {round(250e6)}
                     set_freq         {freq}
@@ -85,9 +89,12 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     return pulse_program
 
 
-def calculate_angle_to_gain(angle: str | float) -> float:
+
+
+def calculate_angle_to_gain(angle: str | float, amp_180: float, amp_90: float) -> int:
     """
     Calculate the gain value for rotation angle other than 180 and 90.
+    Support negative angle.
     
     Note from Zihao(2023/03/14):
     We assume this relation is linear here, which is not very precise. 
@@ -96,3 +103,10 @@ def calculate_angle_to_gain(angle: str | float) -> float:
     Experiment on Tektronix gives deviation from linearity below 0.5%.
     """
     angle = float(angle)
+    
+    if abs(angle) <= 90:
+        amp_angle = amp_90 * angle / 90
+    else:
+        amp_angle = amp_180 * angle / 180
+        
+    return round(amp_angle * 32768)

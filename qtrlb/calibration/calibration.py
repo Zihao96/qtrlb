@@ -430,9 +430,14 @@ class Scan:
                                                 length = column.length,
                                                 **pulse_kwargs)
                 self.sequences[qudit]['program'] += pulse_prog
-                
-        self.pulse_df = pd.concat([self.pulse_df, pulse_df], axis=1)
-        # Concatenate a larger dataframe here for user to check it.
+        
+        # Concatenate a larger dataframe while keeping length for user to read/check it.
+        old_df = self.pulse_df
+        self.pulse_df = pd.concat([old_df, pulse_df], axis=1)
+        
+        for col_name, column in self.pulse_df.items():
+            column.length = old_df[col_name].length if col_name in old_df else pulse_df[col_name].length
+            
         
         
     ##################################################    
@@ -707,6 +712,10 @@ class Scan:
         For frequency, where the integer represents multiples of 0.25Hz, 
         the register can store frequency between [-2**29, 2**29) Hz.
         This function helps to calculate that non-negative integer based on a input frequency in [Hz].
+        
+        Note from Zihao(03/14/2023):
+        This is useful when we assign the frequency to register and treat it as a variable.
+        When we call set_freq instruction in Q1ASM program, we can just pass negative frequency * 4.
         """
         assert freq <= 500e6 and freq >= -500e6, 'The frequency must between +-500MHz.'
         freq_4 = round(freq * 4)
