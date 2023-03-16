@@ -121,9 +121,9 @@ class RabiScan(Scan):
         
     def set_waveforms_acquisitions(self):
         """
-        RabiScan need each element/x_point to have different pulse length 
+        RabiScan need each element/x_point to have different pulse length \
         thus different waveforms for Qblox. We will generate them here.
-        In case of confliction between index of Rabi waveform and common waveform,
+        In case of confliction between index of Rabi waveform and common waveform, \
         we set a minimum index of Rabi waveform here.
         """
         self.check_waveform_length()

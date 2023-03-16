@@ -170,7 +170,10 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
             
         
     def process_data(self):
-        
+        """
+        Here we override the parent method since the processing for this Scan \
+        has no similarity to other Scan.
+        """
         shape = (2, self.n_reps, self.y_points, self.x_points)
         electrical_delay = self.cfg['variables.common/electrical_delay']
         phase_offset = np.exp(1j * 2 * np.pi * self.y_values * electrical_delay)
@@ -181,6 +184,8 @@ class ReadoutFrequencyScan(Scan2D, LevelScan):
             data_dict['IQcomplex_readout'] = (data_dict['IQaveraged_readout'][0]
                                              + 1j * data_dict['IQaveraged_readout'][1])
             data_dict['IQEDcompensated_readout'] = (data_dict['IQcomplex_readout'].T * phase_offset).T
+            
+            data_dict['GMMfitted_new'] = {i: {} for i in range(self.y_points)}
 
         
     def plot(self):

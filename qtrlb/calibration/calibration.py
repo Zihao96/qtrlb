@@ -101,7 +101,7 @@ class Scan:
             n_pyloops: Number of repetition for running single sequence program. 
             
         Note from Zihao(03/03/2023):
-        We call implement_parameters methods here instead of during init/load of DACManager,
+        We call implement_parameters methods here instead of during init/load of DACManager, \
         because we want those modules/sequencers not being used to keep their default status.
         """
         self.experiment_suffix = experiment_suffix
@@ -152,8 +152,8 @@ class Scan:
     ##################################################
     def make_sequence(self):
         """
-        Generate the self.sequences, which is a dictionary including all sequence dictionaries
-        that we will dump to json file.
+        Generate the self.sequences, which is a dictionary including all sequence \
+        dictionaries that we will dump to json file.
         
         Example:
         self.sequences = {'Q3': Q3_sequence_dict,
@@ -238,7 +238,7 @@ class Scan:
         """
         Add the head of loop structure to sequence program.
         We assume sequence loop is always the outermost loop.
-        For each inner loop, either x loop or y loop in future, 
+        For each inner loop, either x loop or y loop in future, \
         we need to assign initial value before entering the loop.
         """
         for qudit in self.qudits:  self.sequences[qudit]['program'] += """
@@ -305,8 +305,8 @@ class Scan:
         I agree it's not very general here, since we assume everything in prepulse/postpulse is qubit gate.
         It's will break the sync between sequencers when we have any pulse that is not exactly that time.
         I believe we can deal with special pulse when we really meet them.
-        For example, such experiment should be a child class with redefined add_prepulse, 
-        Or even add_pulse to whole sequence.
+        For example, such experiment should be a child class with redefined add_prepulse \
+        or even add_pulse to whole sequence.
         Right now I just want to make things work first, then make them better. 
         """
         drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
@@ -519,7 +519,7 @@ class Scan:
         The model should be better to pick from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
-        # TODO: make 2D data fitting possible.
+        # TODO: make 2D data fitting possible. Now RFS use 1D-like fitting.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
@@ -706,10 +706,10 @@ class Scan:
     def frequency_translator(freq: float, freq_step: float = 0.25, bit: int = 32):
         """
         Because qblox use 32 bit register to help run sequence program,
-        the value we assign to it must be non-negative integer [0, 2**32).
+        The value we assign to it must be non-negative integer [0, 2**32).
         This integer will be translated by instrument into binary without consider two's complement.
         Then it will be interpreted using two's complement to realize negative value.
-        For frequency, where the integer represents multiples of 0.25Hz, 
+        For frequency, where the integer represents multiples of 0.25Hz, \
         the register can store frequency between [-2**29, 2**29) Hz.
         This function helps to calculate that non-negative integer based on a input frequency in [Hz].
         
@@ -735,7 +735,7 @@ class Scan2D(Scan):
         Note from Zihao(03/06/2023):
         I don't use super().__init__ here since I don't want to allow dependency injection.
         It is because of the inheritance structure of those child class of Scan2D.
-        For instance, ChevronScan inherit both Scan2D and RabiScan, 
+        For instance, ChevronScan inherit both Scan2D and RabiScan, \
         but we don't want to run RabiScan.__init__() since it will redefine out x_axis.
     """
     def __init__(self, 
