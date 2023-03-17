@@ -74,13 +74,13 @@ class Scan:
         self.qudits = self.drive_qubits + self.readout_resonators
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
+        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
+        self.x_step = (self.x_stop - self.x_start) / (self.x_points-1) if self.x_points != 1 else 0 
         self.num_bins = self.n_seqloops * self.x_points
         self.jsons_path=os.path.join(self.cfg.working_dir, 'Jsons')
         
         self.check_attribute()
         
-        self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
-        self.x_step = (self.x_stop - self.x_start) / (self.x_points-1)    
         self.x_unit_value = getattr(u, self.x_plot_unit)
         self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
@@ -519,6 +519,10 @@ class Scan:
         The model should be better to pick from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
+        Note from Zihao(03/17/2023):
+        I leave an interface for x because it's convenient to fit multidimensional scan as 1D scan.
+        In that case we can pass whichever axis as horizontal axis here.
+        The only cost is to process self.measurement[r]['to_fit'] to correct shape.
         # TODO: make 2D data fitting possible. Now RFS use 1D-like fitting.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
@@ -791,7 +795,7 @@ class Scan2D(Scan):
             'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
          
         self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
-        self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) 
+        self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) if self.y_points != 1 else 0
         self.y_unit_value = getattr(u, self.y_plot_unit)
             
             

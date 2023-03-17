@@ -505,6 +505,14 @@ class LevelScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit)
         
+    
+    def check_attribute(self):
+        super().check_attribute()
+        
+        for r in self.readout_resonators: 
+            assert all(self.cfg[f'variables.{r}/readout_levels'] == self.x_values), \
+                    f'Please check readout levels of {r}!'
+
         
     def add_xinit(self):
         super().add_xinit()
@@ -572,11 +580,7 @@ class CalibrateClassification(LevelScan):
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
-        self.x_values = self.x_values.astype(int)
         assert self.classification_enable, 'Please turn on classification.'
-        for r in self.readout_resonators: 
-            assert all(self.cfg[f'variables.{r}/readout_levels'] == self.x_values), \
-                    f'Please check readout levels of {r}!'
           
         
     def fit_data(self):
