@@ -102,7 +102,6 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
     def check_attribute(self):
         super().check_attribute()
         assert not self.classification_enable, 'Please turn off classification.'
-        self.x_values = self.x_values.astype(int)
         
         
     def process_data(self, compensate_ED: bool = False):
@@ -148,7 +147,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                                                                    n_levels=self.x_points)
                 sub_dict['ReadoutFidelity'] = np.sqrt(sub_dict['confusionmatrix'].diagonal()).mean()
                 
-                data_dict['GMMfitted'][y] = sub_dict
+                data_dict['GMMfitted'][f'{y}'] = sub_dict
                 data_dict['to_fit'].append(sub_dict['ReadoutFidelity'])
                 
             data_dict['to_fit'] = np.array(data_dict['to_fit'])
@@ -202,7 +201,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         for r in self.readout_resonators:
             data = self.measurement[r]['IQEDcompensated_readout']
             
-            title = f'{self.date}/{self.time}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = ['IQ-phase [rad]', 'IQ-LogMag [a.u.]']
             
@@ -235,7 +234,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 for x in range(self.x_points):
                     I = self.measurement[r]['IQrotated_readout'][0,:,y,x]
                     Q = self.measurement[r]['IQrotated_readout'][1,:,y,x]
-                    c = self.measurement[r]['GMMfitted'][y]['GMMpredicted'][:,x]
+                    c = self.measurement[r]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
                     
                     ax[x].scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -330,7 +329,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                     add              R6,{ssb_freq_step_4},R6    """
 
 
-
+    def process_data(self):
+        super().process_data(compensate_ED=True)
 
 
 

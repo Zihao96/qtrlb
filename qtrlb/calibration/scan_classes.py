@@ -509,6 +509,7 @@ class LevelScan(Scan):
     def check_attribute(self):
         super().check_attribute()
         
+        self.x_values = self.x_values.astype(int)
         for r in self.readout_resonators: 
             assert all(self.cfg[f'variables.{r}/readout_levels'] == self.x_values), \
                     f'Please check readout levels of {r}!'
