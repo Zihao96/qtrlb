@@ -512,7 +512,7 @@ class Scan:
         self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.x_points))
         
 
-    def fit_data(self): 
+    def fit_data(self, x: list | np.ndarray = None): 
         """
         Fit data in measurement dictionary and save result back into it.
         We will also keep fit result as attribute self.fit_result for future use.
@@ -523,12 +523,13 @@ class Scan:
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
+        if x is None: x = self.x_values
         
         for i, r in enumerate(self.readout_resonators):
             try:
                 level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
                 self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][level_index],
-                                         x=self.x_values, fitmodel=self.fitmodel)
+                                         x=x, fitmodel=self.fitmodel)
                 
                 params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
                 self.measurement[r]['fit_result'] = params
@@ -601,7 +602,7 @@ class Scan:
         With for-for-if three layers nested, this is the best I can do.
         The heralding enable is protected since we have self.check_attribute().
         """
-        for i, r in enumerate(self.readout_resonators):
+        for r in self.readout_resonators:
             Is, Qs = self.measurement[r][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
