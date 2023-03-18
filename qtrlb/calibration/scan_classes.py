@@ -663,7 +663,7 @@ class CalibrateClassification(LevelScan):
         super().plot_IQ(c_key='GMMpredicted_new')
         
         
-        
+
         
         
         
