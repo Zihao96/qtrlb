@@ -1,6 +1,7 @@
 # Things generate by python defaultly
 *.egg-info
 *__pycache__
+*.ipynb_checkpoints
 
 # Things generate by MacOS
 *.DS_Store
