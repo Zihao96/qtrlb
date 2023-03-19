@@ -6,7 +6,8 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
-from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population
+from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
+                                        get_readout_fidelity
 
 
 
@@ -145,7 +146,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                                                        means=means, covariances=covariances)
                 sub_dict['confusionmatrix'] = normalize_population(sub_dict['GMMpredicted'], 
                                                                    n_levels=self.x_points)
-                sub_dict['ReadoutFidelity'] = np.sqrt(sub_dict['confusionmatrix'].diagonal()).mean()
+                sub_dict['ReadoutFidelity'] = get_readout_fidelity(sub_dict['confusionmatrix'])
                 
                 data_dict['GMMfitted'][f'{y}'] = sub_dict
                 data_dict['to_fit'].append(sub_dict['ReadoutFidelity'])

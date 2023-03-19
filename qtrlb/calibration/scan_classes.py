@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from lmfit import Model
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
-from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population
+from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population, \
+                                        get_readout_fidelity
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
@@ -207,7 +208,27 @@ class RabiScan(Scan):
             """            
             self.sequences[resonator]['program'] += main
             
+            
+    @property
+    def pi_amp(self):
+        """
+        This property is not error-protected. It just improves convenience.
+        We assume linear relation between Rabi Frequency and drive amplitude.
+        It should be called only when all qubits are readout.
+        """
+        pi_amp = {}
+        ideal_rabi_freq = 1 / 2 / self.cfg['variables.common/qubit_pulse_length']
         
+        for i, q in enumerate(self.drive_qubits):
+            r = f'R{q[1:]}'
+            fit_rabi_freq = self.fit_result[r].params['freq'].value
+            pi_pulse_amp = (fit_rabi_freq / ideal_rabi_freq 
+                            * self.cfg['variables.{q}/{self.subspace[i]}/amp_rabi'])
+            pi_amp[q] = pi_pulse_amp
+            
+        return pi_amp
+        
+    
 class T1Scan(Scan):
     def __init__(self, 
                  cfg,  
@@ -619,7 +640,7 @@ class CalibrateClassification(LevelScan):
             data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
             data_dict['PopulationCorrected_new'] = np.linalg.solve(data_dict['confusionmatrix_new'],
                                                                    data_dict['PopulationNormalized_new'])
-            data_dict['ReadoutFidelity'] = np.sqrt(data_dict['confusionmatrix_new'].diagonal()).mean()
+            data_dict['ReadoutFidelity'] =  get_readout_fidelity(data_dict['confusionmatrix_new'])
             
             self.cfg[f'process.{r}/IQ_means'] = means
             self.cfg[f'process.{r}/IQ_covariances'] = covariances
