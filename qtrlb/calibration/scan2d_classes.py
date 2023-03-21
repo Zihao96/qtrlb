@@ -6,6 +6,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
+from qtrlb.processing.fitting import QuadModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
 
@@ -262,7 +263,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                  postpulse: dict = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = QuadModel):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -332,6 +333,94 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
 
     def process_data(self):
         super().process_data(compensate_ED=True)
+
+
+class ReadoutAmplitudeScan(ReadoutTemplateScan):
+    def __init__(self,
+                 cfg, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: int,
+                 level_stop: int,
+                 amp_start: float, 
+                 amp_stop: float, 
+                 amp_points: int, 
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='ReadoutAmplitude',
+                         x_plot_label='Level',
+                         x_plot_unit='arb',
+                         x_start=level_start,
+                         x_stop=level_stop,
+                         x_points=level_stop-level_start+1,
+                         y_plot_label='Amplitude', 
+                         y_plot_unit='arb', 
+                         y_start=amp_start, 
+                         y_stop=amp_stop, 
+                         y_points=amp_points, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)  
+        
+
+    def add_yinit(self):
+        super().add_yinit()
+        
+        for r in self.readout_resonators:
+            gain = round(self.y_start * 32768)
+            yinit = f"""
+                    move             {gain},R6
+            """
+            self.sequences[r]['program'] += yinit
+        
+        
+    def add_readout(self):
+        """
+        Instead of using add_pulse method, here we directly access the sequencer instruction.
+        For more details, please check qtrlb.utils.pulses.
+        """
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
+        length = tof_ns + readout_length_ns
+        
+        for qudit in self.qudits:
+            if qudit.startswith('Q'):
+                readout = f"""
+                    wait             {length}
+                """
+            elif qudit.startswith('R'):
+                freq = round(self.cfg[f'variables.{qudit}/mod_freq'] * 4)
+                readout = f"""
+                    set_freq         {freq}
+                    set_awg_gain     R6,R6
+                    play             0,0,{tof_ns} 
+                    acquire          0,R1,{length - tof_ns}
+                """
+
+            self.sequences[qudit]['program'] += readout
+        
+        
+    def add_yvalue(self):
+        gain_step = round(self.y_step * 32768)
+        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+                    add              R6,{gain_step},R6    """
+
+
+
+
+
+
+
+
 
 
 

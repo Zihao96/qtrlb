@@ -212,19 +212,16 @@ class RabiScan(Scan):
     @property
     def pi_amp(self):
         """
-        This is not error-protected. It just improves convenience.
+        This property is not error-protected. It just improves convenience.
         We assume linear relation between Rabi Frequency and drive amplitude.
         It should be called only when all qubits are readout.
-        DO NOT USE @property DECORATOR HERE.
         """
         pi_amp = {}
         ideal_rabi_freq = 1 / 2 / self.cfg['variables.common/qubit_pulse_length']
         
         for i, q in enumerate(self.drive_qubits):
             r = f'R{q[1:]}'
-            fit_rabi_freq = 0
-            if hasattr(self, 'fit_result'): fit_rabi_freq = self.fit_result[r].params['freq'].value
-            
+            fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 0
             pi_pulse_amp = (fit_rabi_freq / ideal_rabi_freq 
                             * self.cfg[f'variables.{q}/{self.subspace[i]}/amp_rabi'])
             pi_amp[q] = pi_pulse_amp

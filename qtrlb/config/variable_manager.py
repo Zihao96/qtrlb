@@ -1,4 +1,6 @@
+import qtrlb.utils.units as u
 from qtrlb.config.config import Config
+from qtrlb.utils.transmon_parameters3 import falpha_to_EJEC, get_bare_frequency
 
 
 class VariableManager(Config):
@@ -94,8 +96,27 @@ class VariableManager(Config):
                     f'{resonatos} and {resonator} are using same output port with different LO frequency!'        
 
 
-
-
+    def transmon_parameter(self, transmon: str, chi_kHz: None):
+        """
+        Calculate transmon property like EJ, EC, g, etc from values in variables.yaml.
+        Notice the full dispersive shift/ac Stark shift is 2 * chi.
+        Notice fr is a little bit tricky, but doesn't influence the result too much.
+        """
+        assert transmon.startswith('Q'), 'Transmon has to be string like "Q3", "Q0".'
+        resonator = f'R{transmon[1:]}'
+        f01_GHz = self[f'{transmon}/01/freq'] / u.GHz
+        alpha_GHz = self[f'{transmon}/12/anharmonicity'] / u.GHz
+        fr_GHz = self[f'{resonator}/freq'] / u.GHz
+        
+        # The return values depends on whether user has run ReadoutFrequencyScan.
+        if chi_kHz is None:
+            EJ, EC = falpha_to_EJEC(f01_GHz, alpha_GHz)
+            return EJ, EC
+        else:
+            chi_GHz = chi_kHz * u.kHz / u.GHz
+            f01_b, alpha_b, fr_b, g01 = get_bare_frequency(f01_GHz, alpha_GHz, fr_GHz, chi_GHz)
+            EJ, EC = falpha_to_EJEC(f01_b, alpha_b)
+            return EJ, EC, g01
 
 
 
