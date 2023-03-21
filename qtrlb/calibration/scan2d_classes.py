@@ -6,6 +6,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
+from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.fitting import QuadModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
@@ -274,7 +275,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                          x_start=level_start,
                          x_stop=level_stop,
                          x_points=level_stop-level_start+1,
-                         y_plot_label='Frequency', 
+                         y_plot_label='Readout Frequency', 
                          y_plot_unit='kHz', 
                          y_start=detuning_start, 
                          y_stop=detuning_stop, 
@@ -360,7 +361,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                          x_start=level_start,
                          x_stop=level_stop,
                          x_points=level_stop-level_start+1,
-                         y_plot_label='Amplitude', 
+                         y_plot_label='Readout Amplitude', 
                          y_plot_unit='arb', 
                          y_start=amp_start, 
                          y_stop=amp_stop, 
@@ -413,6 +414,146 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         gain_step = round(self.y_step * 32768)
         for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
                     add              R6,{gain_step},R6    """
+
+
+class ReadoutLengthScan(ReadoutTemplateScan):
+    def __init__(self,
+                 cfg, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: int,
+                 level_stop: int,
+                 length_start: float, 
+                 length_stop: float, 
+                 length_points: int, 
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None,
+                 init_waveform_idx: int = 11):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='ReadoutLength',
+                         x_plot_label='Level',
+                         x_plot_unit='arb',
+                         x_start=level_start,
+                         x_stop=level_stop,
+                         x_points=level_stop-level_start+1,
+                         y_plot_label='Pulse Length', 
+                         y_plot_unit='ns', 
+                         y_start=length_start, 
+                         y_stop=length_stop, 
+                         y_points=length_points, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel) 
+
+        self.init_waveform_index = init_waveform_idx
+        
+
+    def set_waveforms_acquisitions(self):
+        """
+        This code is similar to RabiScan. 
+        """
+        self.check_waveform_length()
+        super().set_waveforms_acquisitions()
+        
+        for r in self.readout_resonators:
+            waveforms = {}
+            for i, pulse_length in enumerate(self.y_values):
+                pulse_length_ns = round(pulse_length * 1e9)
+                if pulse_length_ns == 0: continue
+            
+                index = i + self.init_waveform_index
+                waveforms[f'{index}'] = {"data" : get_waveform(length=pulse_length_ns, 
+                                                               shape=self.cfg.variables[f'{r}/pulse_shape']),
+                                         "index": index}
+            self.sequences[r]['waveforms'].update(waveforms)
+        
+        
+    def check_waveform_length(self):
+        """
+        Check the total length of all waveforms since Qblox can only store 16384 samples.
+        """
+        total_length_ns = np.ceil(np.sum(self.y_values) * 1e9)
+        assert total_length_ns < 16384, f'The total pulse length {total_length_ns}ns is too long! \n'\
+            'Suggestion: np.linspace(0,4000,8), np.linspace(500,2000,13)'
+
+
+    def add_yinit(self):
+        """
+        Here R6 will be real pulse length, and R11 is the waveform index.
+        So qubit wait R6 for sync, resonator play R11 for readout.
+        """
+        super().add_yinit()
+        
+        for r in self.readout_resonators:
+            start_ns = round(self.y_start * 1e9)
+            yinit = f"""
+                    move             {start_ns},R6
+                    move             {self.init_waveform_index},R11
+            """
+            self.sequences[r]['program'] += yinit
+        
+        
+    def add_readout(self):
+        """
+        Because the third argument of 'acquire' instruction cannot be register, \
+        we will make it wait 16384ns. The more data will be fine since we 
+        """
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+        
+        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
+        length = tof_ns + readout_length_ns
+        
+        for qudit in self.qudits:
+            if qudit.startswith('Q'):
+                readout = f"""
+                    wait             {length}
+                """
+            elif qudit.startswith('R'):
+                gain = round(self.cfg.variables[f'{qudit}/amp'] * 32768)
+                readout = f"""
+                    set_freq         R6
+                    set_awg_gain     {gain},{gain}
+                    play             0,0,{tof_ns} 
+                    acquire          0,R1,{length - tof_ns}
+                """
+
+            self.sequences[qudit]['program'] += readout
+        
+        
+    def add_yvalue(self):
+        step_ns = round(self.y_step * 1e9)
+        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+                    add              R6,{step_ns},R6    
+                    add              R11,1,R11    """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
