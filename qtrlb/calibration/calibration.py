@@ -185,7 +185,7 @@ class Scan:
         self.end_loop()
     
         
-    def set_waveforms_acquisitions(self):
+    def set_waveforms_acquisitions(self, **waveform_kwargs):
         """
         Generate waveforms, weights, acquisitions items in self.sequences[qudit].
         
@@ -195,15 +195,26 @@ class Scan:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/binned_acquisition.html
         """
         for qudit in self.qudits:
-            pulse_type = 'qubit' if qudit.startswith('Q') else 'resonator'
+            if qudit.startswith('Q'):
+                length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
+                shape = self.cfg.variables[f'{qudit}/pulse_shape']
+
+                waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
+                                        'index': 0},
+                             '1qDRAG': {'data': get_waveform(length, shape+'_derivative', **waveform_kwargs), 
+                                        'index': 1}}                
+                acquisitions = {}
             
-            waveform = get_waveform(round(self.cfg.variables[f'common/{pulse_type}_pulse_length'] * 1e9), 
-                                    self.cfg.variables[f'{qudit}/pulse_shape'])
+            elif qudit.startswith('R'):
+                length = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
+                shape = self.cfg.variables[f'{qudit}/pulse_shape']
+
+                waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
+                                    'index': 0}}
+                
+                acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0},
+                                'heralding': {'num_bins': self.num_bins, 'index': 1}}
             
-            waveforms = {qudit: {'data': waveform, 'index': 0}}
-            
-            acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0},
-                            'heralding': {'num_bins': self.num_bins, 'index': 1}}
             
             self.sequences[qudit]['waveforms'] = waveforms
             self.sequences[qudit]['weights'] = {}
