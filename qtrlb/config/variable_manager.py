@@ -96,7 +96,7 @@ class VariableManager(Config):
                     f'{resonatos} and {resonator} are using same output port with different LO frequency!'        
 
 
-    def transmon_parameter(self, transmon: str, chi_kHz: float = None):
+    def transmon_parameters(self, transmon: str, chi_kHz: float = None):
         """
         Calculate transmon property like EJ, EC, g, etc from values in variables.yaml.
         Notice the full dispersive shift/ac Stark shift is 2 * chi.
