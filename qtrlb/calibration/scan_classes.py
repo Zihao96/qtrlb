@@ -70,7 +70,7 @@ class DriveAmplitudeScan(Scan):
             """  
 
             main += f"""
-                    play             0,0,{length}""" * self.error_amplification_factor
+                    play             0,1,{length}""" * self.error_amplification_factor
                 
             main += f""" 
                     add              R4,{step},R4
@@ -126,6 +126,7 @@ class RabiScan(Scan):
         thus different waveforms for Qblox. We will generate them here.
         In case of confliction between index of Rabi waveform and common waveform, \
         we set a minimum index of Rabi waveform here.
+        We won't implement DRAG here since it will further limit our waveform length.
         """
         self.check_waveform_length()
         super().set_waveforms_acquisitions()
@@ -176,19 +177,21 @@ class RabiScan(Scan):
         So we cannot set it as a variable, and wait will be separated.
         The parameters freq and gain are left as connector for multidimensional scan.
         We can pass a specific name string of register to it to replace the default values.
+        We won't implement DRAG here since we don't have derivative waveform.
         """
         step_ns = round(self.x_step * 1e9)
         
         for i, qubit in enumerate(self.drive_qubits):
             subspace = self.subspace[i]
-            if freq is None: freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4) 
-            if gain is None: gain = round(self.cfg.variables[f'{qubit}/{subspace}/amp_rabi'] * 32768)
+            subspace_dict = self.cfg[f'variables.{qubit}/{subspace}']
+            if freq is None: freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+            if gain is None: gain = round(subspace_dict['amp_rabi'] * 32768)
                     
             main = f"""
                  #-----------Main-----------
                     jlt              R4,1,@end_main
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
+                    set_awg_gain     {gain},0
                     play             R11,R11,4
                     wait             R4
         end_main:   add              R4,{step_ns},R4
@@ -559,12 +562,15 @@ class LevelScan(Scan):
             
             for level in range(self.x_stop):
                 if qudit.startswith('Q'):
-                    freq = round(self.cfg.variables[f'{qudit}/{level}{level+1}/mod_freq'] * 4)
-                    gain = round(self.cfg.variables[f'{qudit}/{level}{level+1}/amp_180'] * 32768)
+                    subspace_dict = self.cfg[f'variables.{qudit}/{level}{level+1}']
+                    freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+                    gain = round(subspace_dict['amp_180'] * 32768)
+                    gain_drag = round(gain * subspace_dict['DRAG_weight'])
+                    
                     main += f"""
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
-                    play             0,0,{drive_length_ns} 
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{drive_length_ns} 
                     jlt              R4,{level+2},@end_main
                     """
                 elif qudit.startswith('R'):

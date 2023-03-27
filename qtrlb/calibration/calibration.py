@@ -434,10 +434,9 @@ class Scan:
                 pulse_prog = f"""
                 # -----------{col_name}-----------
         {col_name}:  """
-                init_pulse_str = column[qudit]
                 pulse_prog += pulse_interpreter(cfg = self.cfg, 
                                                 qudit = qudit, 
-                                                pulse_string = init_pulse_str, 
+                                                pulse_string = column[qudit], 
                                                 length = column.length,
                                                 **pulse_kwargs)
                 self.sequences[qudit]['program'] += pulse_prog

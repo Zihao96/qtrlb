@@ -318,7 +318,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                 gain = round(self.cfg.variables[f'{qudit}/amp'] * 32768)
                 readout = f"""
                     set_freq         R6
-                    set_awg_gain     {gain},{gain}
+                    set_awg_gain     {gain},0
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """
@@ -402,7 +402,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                 freq = round(self.cfg[f'variables.{qudit}/mod_freq'] * 4)
                 readout = f"""
                     set_freq         {freq}
-                    set_awg_gain     R6,R6
+                    set_awg_gain     R6,0
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """

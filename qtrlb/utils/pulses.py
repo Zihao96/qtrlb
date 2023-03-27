@@ -28,42 +28,48 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         freq = round(cfg.variables[f'{qudit}/mod_freq'] * 4)
         gain = round(cfg.variables[f'{qudit}/amp'] * 32768)
         tof_ns = round(cfg.variables['common/tof'] * 1e9)
+        
         pulse_program = f"""
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
+                    set_awg_gain     {gain},0
                     play             0,0,{tof_ns} 
                     acquire          {acq_index},R1,{length - tof_ns}
         """
         
     elif pulse_string.startswith('X'):
         angle, subspace = pulse_string[1:].split('_')
-        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = calculate_angle_to_gain(angle, 
-                                       cfg.variables[f'{qudit}/{subspace}/amp_180'], 
-                                       cfg.variables[f'{qudit}/{subspace}/amp_90'])
+        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        
+        freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+        gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
+        gain_drag = round(gain * subspace_dict['DRAG_weight'])
+        
         pulse_program = f"""
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
-                    play             0,0,{length} 
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{length} 
         """
         
     elif pulse_string.startswith('Y'):
         angle, subspace = pulse_string[1:].split('_')
-        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = calculate_angle_to_gain(angle, 
-                                       cfg.variables[f'{qudit}/{subspace}/amp_180'], 
-                                       cfg.variables[f'{qudit}/{subspace}/amp_90'])
+        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        
+        freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+        gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
+        gain_drag = round(gain * subspace_dict['DRAG_weight'])
+        
         pulse_program = f"""
                     set_ph_delta     {round(250e6)}
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
-                    play             0,0,{length} 
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{length} 
                     set_ph_delta     {round(750e6)}
         """
         
     elif pulse_string.startswith('Z'):
         angle, subspace = pulse_string[1:].split('_')
         angle = round(angle/360*1e9)
+        
         pulse_program = f"""
                     set_ph_delta     {angle}
                     wait             {length}
@@ -72,23 +78,23 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     elif pulse_string.startswith('H'):
         # H = Y90 * Z, in operator order, so Z first.
         _, subspace = pulse_string.split('_')
-        freq = round(cfg.variables[f'{qudit}/{subspace}/mod_freq'] * 4)
-        gain = round(cfg.variables[f'{qudit}/{subspace}/amp_90'] * 32768)
+        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+        gain = round(subspace_dict['amp_90'] * 32768)
+        gain_drag = round(gain * subspace_dict['DRAG_weight'])
+        
         pulse_program = f"""
                     set_ph_delta     {round(750e6)}
                     set_freq         {freq}
-                    set_awg_gain     {gain},{gain}
+                    set_awg_gain     {gain},{gain_drag}
                     play             0,0,{length} 
                     set_ph_delta     {round(750e6)}
         """
     
-    # TODO: Write it.
-    elif pulse_string.startswith('CR'):
-        pulse_program = ''
+    else:
+        raise ValueError(f'The pulse "{pulse_string}" cannot be interpreted.')
     
     return pulse_program
-
-
 
 
 def calculate_angle_to_gain(angle: str | float, amp_180: float, amp_90: float) -> int:
