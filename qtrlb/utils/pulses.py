@@ -20,7 +20,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         
     elif pulse_string == 'RO':
         if 'acq_index' not in pulse_kwargs:
-            print('No acquisition index specified. Index 0 will be used')
+            print('Pulses: No acquisition index specified. Index 0 will be used')
             acq_index = 0
         else:
             acq_index = pulse_kwargs['acq_index']
