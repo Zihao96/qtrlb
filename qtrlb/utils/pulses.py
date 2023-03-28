@@ -38,7 +38,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         
     elif pulse_string.startswith('X'):
         angle, subspace = pulse_string[1:].split('_')
-        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        subspace_dict = cfg[f'variables.{qudit}/{subspace}']
         
         freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
         gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
@@ -52,7 +52,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         
     elif pulse_string.startswith('Y'):
         angle, subspace = pulse_string[1:].split('_')
-        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        subspace_dict = cfg[f'variables.{qudit}/{subspace}']
         
         freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
         gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
@@ -78,7 +78,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     elif pulse_string.startswith('H'):
         # H = Y90 * Z, in operator order, so Z first.
         _, subspace = pulse_string.split('_')
-        subspace_dict = cfg['variables.{qudit}/{subspace}']
+        subspace_dict = cfg[f'variables.{qudit}/{subspace}']
         freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
         gain = round(subspace_dict['amp_90'] * 32768)
         gain_drag = round(gain * subspace_dict['DRAG_weight'])
@@ -87,7 +87,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
                     set_ph_delta     {round(750e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
-                    play             0,0,{length} 
+                    play             0,1,{length} 
                     set_ph_delta     {round(750e6)}
         """
     

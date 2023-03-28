@@ -178,9 +178,10 @@ class Scan:
         self.start_loop()
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
-        self.add_prepulse()
+        self.add_pulse(self.subspace_pulse, 'Subspace')
+        self.add_pulse(self.prepulse, 'Prepulse')
         self.add_mainpulse()
-        self.add_postpulse()
+        self.add_pulse(self.postpulse, 'Postpulse')
         self.add_readout()
         self.end_loop()
     
@@ -252,7 +253,7 @@ class Scan:
         For each inner loop, either x loop or y loop in future, \
         we need to assign initial value before entering the loop.
         """
-        for qudit in self.qudits:  self.sequences[qudit]['program'] += """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """
         seq_loop:   
         """
         self.add_xinit()
@@ -264,7 +265,7 @@ class Scan:
         Set necessary initial value of x parameter to the registers, especially R3 & R4. 
         Child class can super this method to add more initial values.
         """
-        for qudit in self.qudits:  self.sequences[qudit]['program'] += f"""
+        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
                     move             {self.x_points},R3    
         """
         
@@ -273,15 +274,13 @@ class Scan:
         """
         Add x_loop to sequence program.
         """
-        for qudit in self.qudits:
-            xloop = """            
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """            
         xpt_loop:   wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15              # Enable all markers (binary 1111) for switching on output.
                     upd_param        8               # Update parameters and wait 8ns.
         """
-            self.sequences[qudit]['program'] += xloop
-        
+            
         
     def add_relaxation(self):
         """
@@ -307,24 +306,7 @@ class Scan:
         heralding_delay = round(self.cfg.variables['common/heralding_delay'] * 1e9)
         self.add_wait(time_ns=heralding_delay, name='HeraldingDelay')
         
-                
-    def add_prepulse(self):
-        """
-        Add subspace prepulse and user-defined prepulse to sequence program.
         
-        Note from Zihao(02/06/2023):
-        I agree it's not very general here, since we assume everything in prepulse/postpulse is qubit gate.
-        It's will break the sync between sequencers when we have any pulse that is not exactly that time.
-        I believe we can deal with special pulse when we really meet them.
-        For example, such experiment should be a child class with redefined add_prepulse \
-        or even add_pulse to whole sequence.
-        Right now I just want to make things work first, then make them better. 
-        """
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(pulse=self.subspace_pulse, lengths=drive_length_ns, name='Subspace')
-        self.add_pulse(pulse=self.prepulse, lengths=drive_length_ns, name='Prepulse')
-        
-
     def add_mainpulse(self):        
         """
         Add main content of the parameter sweep. 
@@ -332,14 +314,6 @@ class Scan:
         """
         print('Scan: The base experiment class has been called. No main pulse will be added.')
 
-        
-    def add_postpulse(self):
-        """
-        Add user-defined postpulse to sequence program.
-        """
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(pulse=self.postpulse, lengths=drive_length_ns, name='Postpulse')
-    
     
     def add_readout(self, name='Readout', acq_index: int = 0):
         """
@@ -391,16 +365,16 @@ class Scan:
         for qudit in self.qudits: self.sequences[qudit]['program'] += seq_end
 
 
-    def add_wait(self, time_ns: int, name='Wait'):
+    def add_wait(self, time_ns: int, name: str):
         """
         Add wait/Identity to sequence program with user-defined length in [ns].
         """
         assert time_ns < 65535 and time_ns >= 4, f'The wait time can only be in [4,65535). Now it is {time_ns}.'
         pulse = {qudit: ['I'] for qudit in self.qudits}
-        self.add_pulse(pulse=pulse, lengths=time_ns, name=name)
+        self.add_pulse(pulse, name, lengths=time_ns)
     
             
-    def add_pulse(self, pulse: dict, lengths: list, name: str = 'pulse', **pulse_kwargs):
+    def add_pulse(self, pulse: dict, name: str, lengths: list = None, **pulse_kwargs):
         """
         The general method for adding pulses to sequence program.
         We will generate the Pandas DataFrame of prepulse, postpulse, readout, with padded 'I'.
@@ -410,7 +384,7 @@ class Scan:
         
         Attributes:
             pulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
-            lengths: The duration of each pulse(column) in [ns].
+            lengths: The duration of each pulse(column) in [ns]. Default is single qubit gate time.
             name: String in sequence program to improve readability.
             
         Example of full prepulse DataFrame:
@@ -420,6 +394,7 @@ class Scan:
         R3          I          I          I          I
         R4          I          I          I          I
         """
+        if lengths is None: lengths = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
         lengths = self.make_it_list(lengths)
         pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
         

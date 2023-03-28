@@ -45,12 +45,18 @@ class DriveAmplitudeScan(Scan):
         
         
     def add_xinit(self):
+        """
+        Since we want to implement DRAG here and DRAG need a different gain value, \
+        we will use register R11 to store the gain for DRAG path.
+        """
         super().add_xinit()
         
-        for i, qubit in enumerate(self.drive_qubits):
+        for i, qubit in enumerate(self.drive_qubits):             
             start = round(self.x_start * 32768)
+            start_DRAG = round(start * self.cfg[f'variables.{qubit}/{self.subspace[i]}/DRAG_weight'])
             xinit = f"""
-                    move             {start},R4            
+                    move             {start},R4     
+                    move             {start_DRAG},R11
             """
             self.sequences[qubit]['program'] += xinit
             
@@ -59,14 +65,16 @@ class DriveAmplitudeScan(Scan):
         length = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) 
         
         for i, qubit in enumerate(self.drive_qubits):
+            subspace_dict = self.cfg[f'variables.{qubit}/{self.subspace[i]}']
+            
             step = round(self.x_step * 32768)
-            subspace = self.subspace[i]
-            freq = round(self.cfg.variables[f'{qubit}/{subspace}/mod_freq'] * 4)   
+            step_DRAG = round(step * subspace_dict['DRAG_weight'])
+            freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)   
                     
             main = f"""
                  #-----------Main-----------
                     set_freq         {freq}
-                    set_awg_gain     R4,R4
+                    set_awg_gain     R4,R11
             """  
 
             main += f"""
@@ -74,6 +82,7 @@ class DriveAmplitudeScan(Scan):
                 
             main += f""" 
                     add              R4,{step},R4
+                    add              R11,{step_DRAG},R11
             """
             self.sequences[qubit]['program'] += main
 
@@ -286,8 +295,7 @@ class T1Scan(Scan):
         Then if R11 is smaller than divisor, we wait the remainder.
         """
         pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(pi_pulse, drive_length_ns, 'T1PIpulse')
+        self.add_pulse(pi_pulse, 'T1PIpulse')
         
         step_ns = round(self.x_step * 1e9)
         main = f"""
@@ -368,8 +376,7 @@ class RamseyScan(Scan):
         The wait trick is similar to T1Scan.
         """
         half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'Ramsey1stHalfPIpulse')
+        self.add_pulse(half_pi_pulse, 'Ramsey1stHalfPIpulse')
         
         step_ns = round(self.x_step * 1e9)
         step_ADphase = round(self.x_step * self.artificial_detuning * 1e9)  
@@ -395,7 +402,7 @@ class RamseyScan(Scan):
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'Ramsey2ndHalfPIpulse')
+        self.add_pulse(half_pi_pulse, 'Ramsey2ndHalfPIpulse')
         
         
 class EchoScan(Scan):
@@ -450,8 +457,7 @@ class EchoScan(Scan):
         Here R4 only represent half of the total waiting time.
         """
         half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'Echo1stHalfPIpulse')
+        self.add_pulse(half_pi_pulse, 'Echo1stHalfPIpulse')
         
         step_half_ns = round(self.x_step / 2 * 1e9)
         main = f"""
@@ -475,7 +481,7 @@ class EchoScan(Scan):
             pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         elif self.echo_type == 'CPMG':
             pi_pulse = {q: [f'Y180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.add_pulse(pi_pulse, drive_length_ns, 'EchoPIpulse')
+        self.add_pulse(pi_pulse, 'EchoPIpulse')
         
         main = f"""
                 #-----------Main2-----------
@@ -494,7 +500,7 @@ class EchoScan(Scan):
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
-        self.add_pulse(half_pi_pulse, drive_length_ns, 'Echo2ndHalfPIpulse')
+        self.add_pulse(half_pi_pulse, 'Echo2ndHalfPIpulse')
         
         
 class LevelScan(Scan):
@@ -533,10 +539,10 @@ class LevelScan(Scan):
     def check_attribute(self):
         super().check_attribute()
         
-        self.x_values = self.x_values.astype(int)
+        self.x_values = self.x_values.astype(int)  # Useful for correct plot label.
         for r in self.readout_resonators: 
-            assert all(self.cfg[f'variables.{r}/readout_levels'] == self.x_values), \
-                    f'Please check readout levels of {r}!'
+            readout_levels = self.cfg[f'variables.{r}/readout_levels'] 
+            assert (readout_levels == self.x_values.tolist()), f'Please check readout levels of {r}!'
 
         
     def add_xinit(self):
@@ -545,44 +551,29 @@ class LevelScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
                     move             {self.x_start},R4            
         """
-        
-        
+
+
     def add_mainpulse(self):
         """
         Here we add all PI pulse to our sequence program based on level_stop.
         We will use R4 to represent level and jlt instruction to skip later PI pulse.
         """
-        drive_length_ns = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)     
-        
-        for qudit in self.qudits:         
-            main = """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """
                 #-----------Main-----------
-                    jlt              R4,1,@end_main
-            """
+                    jlt              R4,1,@end_main    
+        """         
+
+        for level in range(self.x_stop):
+            self.add_pulse(pulse = {q: [f'X180_{level}{level+1}'] for q in self.drive_qubits},
+                           name = f'XPI{level}{level+1}')
             
-            for level in range(self.x_stop):
-                if qudit.startswith('Q'):
-                    subspace_dict = self.cfg[f'variables.{qudit}/{level}{level+1}']
-                    freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
-                    gain = round(subspace_dict['amp_180'] * 32768)
-                    gain_drag = round(gain * subspace_dict['DRAG_weight'])
-                    
-                    main += f"""
-                    set_freq         {freq}
-                    set_awg_gain     {gain},{gain_drag}
-                    play             0,1,{drive_length_ns} 
-                    jlt              R4,{level+2},@end_main
-                    """
-                elif qudit.startswith('R'):
-                    main += f"""
-                    wait             {drive_length_ns} 
-                    jlt              R4,{level+2},@end_main
-                    """
+            for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
+                    jlt              R4,{level+2},@end_main    
+        """
             
-            main += """
-        end_main:   add              R4,1,R4
-            """
-            self.sequences[qudit]['program'] += main
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        end_main:   add              R4,1,R4    
+        """
         
         
 class CalibrateClassification(LevelScan):
