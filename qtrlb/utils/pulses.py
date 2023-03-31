@@ -14,8 +14,8 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     """
     
     if pulse_string == 'I':
-        pulse_program = f"""
-                    wait             {length}              # Identity.
+        pulse_program = '' if length == 0 else f"""
+                    wait             {length}
         """
         
     elif pulse_string == 'RO':
@@ -68,12 +68,15 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         
     elif pulse_string.startswith('Z'):
         angle, subspace = pulse_string[1:].split('_')
-        angle = round(angle/360*1e9)
+        angle = round(float(angle) / 360 * 1e9)
         
         pulse_program = f"""
                     set_ph_delta     {angle}
+        """
+        pulse_program += '' if length == 0 else f""" 
                     wait             {length}
         """
+        
     
     elif pulse_string.startswith('H'):
         # H = Y90 * Z, in operator order, so Z first.

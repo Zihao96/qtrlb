@@ -171,11 +171,11 @@ class Scan:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/basic_sequencing.html
         """
         self.sequences = {qudit:{} for qudit in self.qudits}        
-        
         self.set_waveforms_acquisitions()
         
         self.init_program()
         self.start_loop()
+        
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
         self.add_pulse(self.subspace_pulse, 'Subspace')
@@ -183,6 +183,7 @@ class Scan:
         self.add_mainpulse()
         self.add_pulse(self.postpulse, 'Postpulse')
         self.add_readout()
+        
         self.end_loop()
     
         
@@ -253,13 +254,21 @@ class Scan:
         For each inner loop, either x loop or y loop in future, \
         we need to assign initial value before entering the loop.
         """
+        self.add_seqloop()
+        self.add_xinit()
+        self.add_xloop()
+        self.add_sequence_start()
+        
+     
+    def add_seqloop(self):
+        """
+        Add seq_loop to sequence program.
+        """
         for qudit in self.qudits: self.sequences[qudit]['program'] += """
         seq_loop:   
         """
-        self.add_xinit()
-        self.add_xloop()
         
-        
+     
     def add_xinit(self):
         """
         Set necessary initial value of x parameter to the registers, especially R3 & R4. 
@@ -275,7 +284,17 @@ class Scan:
         Add x_loop to sequence program.
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += """            
-        xpt_loop:   wait_sync        8               # Sync at beginning of the loop.
+        xpt_loop: 
+        """
+        
+        
+    def add_sequence_start(self):
+        """
+        Add sync and phase resetting instruction to sequence program.
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """     
+                #-----------Start-----------
+                    wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
                     set_mrk          15              # Enable all markers (binary 1111) for switching on output.
                     upd_param        8               # Update parameters and wait 8ns.
@@ -284,8 +303,11 @@ class Scan:
         
     def add_relaxation(self):
         """
-        Add relaxation 1us loop to sequence program.
-        We cannot call single wait since it can only wait 65us.
+        Add relaxation to sequence program.
+        
+        Note from Zihao(03/31/2023):
+        Although we can use add_wait to achieve same effect,
+        I don't want add a bunch of nonsense 'I' to my pulse_df.  
         """
         relaxation_time_s = self.cfg.variables['common/relaxation_time']
         relaxation_time_us = int( np.ceil(relaxation_time_s*1e6) )
@@ -298,13 +320,14 @@ class Scan:
         for qudit in self.qudits: self.sequences[qudit]['program'] += relaxation
         
         
-    def add_heralding(self, acq_index: int = 1):
+    def add_heralding(self, name: str = 'Heralding', add_label: bool = True, 
+                      concat_df: bool = True, acq_index: int = 1):
         """
         Add heralding with short delay(relaxation) to the sequence program.
         """
-        self.add_readout(name='Heralding', acq_index=acq_index)
+        self.add_readout(name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
         heralding_delay = round(self.cfg.variables['common/heralding_delay'] * 1e9)
-        self.add_wait(time_ns=heralding_delay, name='HeraldingDelay')
+        self.add_wait(name=name+'Delay', length=heralding_delay, add_label=add_label, concat_df=concat_df)
         
         
     def add_mainpulse(self):        
@@ -315,13 +338,15 @@ class Scan:
         print('Scan: The base experiment class has been called. No main pulse will be added.')
 
     
-    def add_readout(self, name='Readout', acq_index: int = 0):
+    def add_readout(self, name='Readout', add_label: bool = True, 
+                    concat_df: bool = True, acq_index: int = 0):
         """
         Add readout/heralding with acquisition to sequence program.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
         readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
-        self.add_pulse(pulse=self.readout_pulse, lengths=tof_ns+readout_length_ns, name=name, acq_index=acq_index)
+        self.add_pulse(pulse=self.readout_pulse, lengths=[tof_ns+readout_length_ns],
+                       name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
         
         
     def end_loop(self):
@@ -335,22 +360,30 @@ class Scan:
         Fortunately, this is indeed the most efficient way to reuse code of 1D scan onto 2D scan.
         If we make it separate, all child class need to modify it and become not elegant.
         """
+        self.add_sequence_end()
         self.end_xloop()
         self.end_seqloop()
             
-
-    def end_xloop(self):
+        
+    def add_sequence_end(self):
         """
-        Count next acquisition bin (R1) and add end of x loop.
+        Count next acquisition bin (R1) and turn off all output.
         """
-        x_end = """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """
                 #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
-                    upd_param        8               # Update parameters and wait 4ns.
+                    upd_param        8               # Update parameters and wait 4ns.     
+        """
+        
+
+    def end_xloop(self):
+        """
+        Add end of x loop.
+        """
+        for qudit in self.qudits: self.sequences[qudit]['program'] += """
                     loop             R3,@xpt_loop         
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += x_end
         
         
     def end_seqloop(self):
@@ -365,22 +398,33 @@ class Scan:
         for qudit in self.qudits: self.sequences[qudit]['program'] += seq_end
 
 
-    def add_wait(self, time_ns: int, name: str):
+    def add_wait(self, name: str, length: int, add_label: bool = True,
+                 concat_df: bool = True, divisor_ns: int = 65528):
         """
         Add wait/Identity to sequence program with user-defined length in [ns].
+        The maximum time of 'wait' instruction is 65535, so I divide it into multiple of divisor \
+        along with a remainder, and use multiple instruction to achieve it.
+        Here I treat it as a pulse, which means we can add label if we want, \
+        and we can see it in self.pulse_df
         """
-        assert time_ns < 65535 and time_ns >= 4, f'The wait time can only be in [4,65535). Now it is {time_ns}.'
-        pulse = {qudit: ['I'] for qudit in self.qudits}
-        self.add_pulse(pulse, name, lengths=time_ns)
+        assert length >= 4, f'The wait time need to be at least 4ns. Now it is {length}.'
+        multiple = round(length // divisor_ns)
+        remainder = round(length % divisor_ns)
+        
+        pulse = {qudit: ['I' for i in range(multiple+1)] for qudit in self.qudits}
+        lengths = [divisor_ns for i in range(multiple)] + [remainder]
+        self.add_pulse(pulse, name, lengths, add_label=add_label, concat_df=concat_df)
     
             
-    def add_pulse(self, pulse: dict, name: str, lengths: list = None, **pulse_kwargs):
+    def add_pulse(self, pulse: dict, name: str, lengths: list = None,
+                  add_label: bool = True, concat_df: bool = True, **pulse_kwargs):
         """
         The general method for adding pulses to sequence program.
         We will generate the Pandas DataFrame of prepulse, postpulse, readout, with padded 'I'.
         All qubits and resonators will become the (row) index of dataframe.
         An additional interger attribute 'length' in [ns] will be associated with each column.
         If lengths is shorter than number of pulse, it will be padded using the last length.
+        Please remember all labels created in Q1ASM should have different names.
         
         Attributes:
             pulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
@@ -394,7 +438,7 @@ class Scan:
         R3          I          I          I          I
         R4          I          I          I          I
         """
-        if lengths is None: lengths = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)
+        if lengths is None: lengths = [round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)]
         lengths = self.make_it_list(lengths)
         pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
         
@@ -406,9 +450,10 @@ class Scan:
                 column.length = lengths[-1]
                 
             for qudit in self.qudits:
-                pulse_prog = f"""
+                pulse_prog = '' if not add_label else f"""
                 # -----------{col_name}-----------
         {col_name}:  """
+        
                 pulse_prog += pulse_interpreter(cfg = self.cfg, 
                                                 qudit = qudit, 
                                                 pulse_string = column[qudit], 
@@ -417,11 +462,12 @@ class Scan:
                 self.sequences[qudit]['program'] += pulse_prog
         
         # Concatenate a larger dataframe while keeping length for user to read/check it.
-        old_df = self.pulse_df
-        self.pulse_df = pd.concat([old_df, pulse_df], axis=1)
-        
-        for col_name, column in self.pulse_df.items():
-            column.length = old_df[col_name].length if col_name in old_df else pulse_df[col_name].length
+        if concat_df:
+            old_df = self.pulse_df
+            self.pulse_df = pd.concat([old_df, pulse_df], axis=1)
+            
+            for col_name, column in self.pulse_df.items():
+                column.length = old_df[col_name].length if col_name in old_df else pulse_df[col_name].length
             
         
         
@@ -508,7 +554,7 @@ class Scan:
         I leave an interface for x because it's convenient to fit multidimensional scan as 1D scan.
         In that case we can pass whichever axis as horizontal axis here.
         The only cost is to process self.measurement[r]['to_fit'] to correct shape.
-        # TODO: make 2D data fitting possible. Now RFS use 1D-like fitting.
+        # TODO: make 2D data fitting possible. Now RTS use 1D-like fitting.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
@@ -788,13 +834,12 @@ class Scan2D(Scan):
         """
         Sequence loop is the outermost loop, then y loop, and x loop is innermost.
         """
-        for qudit in self.qudits:  self.sequences[qudit]['program'] += """
-        seq_loop:   
-        """
+        self.add_seqloop()
         self.add_yinit()
         self.add_yloop()
         self.add_xinit()
         self.add_xloop()
+        self.add_sequence_start()
 
 
     def add_yinit(self):
@@ -819,6 +864,7 @@ class Scan2D(Scan):
         End all loops and add stop to sequence program. 
         See parent class for notes of this method.
         """
+        self.add_sequence_end()
         self.end_xloop()
         self.add_yvalue()
         self.end_yloop()

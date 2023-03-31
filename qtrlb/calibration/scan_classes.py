@@ -255,7 +255,7 @@ class T1Scan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
-                 divisor_ns: int = 65524):
+                 divisor_ns: int = 65528):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -330,7 +330,7 @@ class RamseyScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
-                 divisor_ns: int = 65524,
+                 divisor_ns: int = 65528,
                  artificial_detuning: float = 0.0):
         
         super().__init__(cfg=cfg,
@@ -419,7 +419,7 @@ class EchoScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
-                 divisor_ns: int = 65524,
+                 divisor_ns: int = 65528,
                  echo_type: str = 'CP'):
         
         super().__init__(cfg=cfg,

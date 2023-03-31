@@ -312,11 +312,13 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         for qudit in self.qudits:
             if qudit.startswith('Q'):
                 readout = f"""
+                # -----------Readout-----------
                     wait             {length}
                 """
             elif qudit.startswith('R'):
                 gain = round(self.cfg.variables[f'{qudit}/amp'] * 32768)
                 readout = f"""
+                # -----------Readout-----------
                     set_freq         R6
                     set_awg_gain     {gain},0
                     play             0,0,{tof_ns} 
@@ -396,11 +398,13 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         for qudit in self.qudits:
             if qudit.startswith('Q'):
                 readout = f"""
+                # -----------Readout-----------
                     wait             {length}
                 """
             elif qudit.startswith('R'):
                 freq = round(self.cfg[f'variables.{qudit}/mod_freq'] * 4)
                 readout = f"""
+                # -----------Readout-----------
                     set_freq         {freq}
                     set_awg_gain     R6,0
                     play             0,0,{tof_ns} 
