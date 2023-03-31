@@ -85,7 +85,7 @@ class Scan:
         self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
-        self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
+        
 
         
     def run(self, 
@@ -170,6 +170,8 @@ class Scan:
         Please check the link below for detail:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/basic_sequencing.html
         """
+        self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
+        
         self.sequences = {qudit:{} for qudit in self.qudits}        
         self.set_waveforms_acquisitions()
         

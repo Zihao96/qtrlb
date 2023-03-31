@@ -69,7 +69,7 @@ class DriveAmplitudeScan(Scan):
             
             step = round(self.x_step * 32768)
             step_DRAG = round(step * subspace_dict['DRAG_weight'])
-            freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)   
+            freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
                     
             main = f"""
                  #-----------Main-----------
@@ -233,8 +233,8 @@ class RabiScan(Scan):
         
         for i, q in enumerate(self.drive_qubits):
             r = f'R{q[1:]}'
-            fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 0
-            pi_pulse_amp = (fit_rabi_freq / ideal_rabi_freq 
+            fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 1
+            pi_pulse_amp = (ideal_rabi_freq / fit_rabi_freq
                             * self.cfg[f'variables.{q}/{self.subspace[i]}/amp_rabi'])
             pi_amp[q] = pi_pulse_amp
             
