@@ -88,8 +88,11 @@ class DataManager(Config):
             if isinstance(v, dict):
                 subgroup = h5.create_group(k)
                 DataManager.save_dict_to_hdf5(v, subgroup)
+            elif v is None:
+                continue
             else:
                 h5.create_dataset(k, data = v)
+
                 
 
     @staticmethod                

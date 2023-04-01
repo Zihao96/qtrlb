@@ -682,13 +682,14 @@ class CalibrateClassification(LevelScan):
         
         
 
-class HalfPiXZY(Scan):
+class JustPulse(Scan):
     """ Just a fun way to figure out direction of the Z rotation.
     """
     def __init__(self,
                  cfg,
-                 drive_qubits,
-                 readout_resonators,
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 just_pulse: list,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -696,7 +697,7 @@ class HalfPiXZY(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         scan_name='HalfPI_XZY',
+                         scan_name='JustPulse',
                          x_plot_label='', 
                          x_plot_unit='arb', 
                          x_start=1, 
@@ -709,9 +710,11 @@ class HalfPiXZY(Scan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
         
+        self.just_pulse = self.make_it_list(just_pulse)
+        
         
     def add_mainpulse(self):
-        mainpulse = {q: ['X90_01', 'Z90_01', 'Y90_01'] for q in self.drive_qubits}
+        mainpulse = {q: self.just_pulse for q in self.drive_qubits}
         self.add_pulse(mainpulse, 'Main')
         
         

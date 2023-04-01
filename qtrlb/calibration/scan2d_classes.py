@@ -153,7 +153,8 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 data_dict['GMMfitted'][f'{y}'] = sub_dict
                 data_dict['to_fit'].append(sub_dict['ReadoutFidelity'])
                 
-            data_dict['to_fit'] = np.array(data_dict['to_fit'])
+            data_dict['to_fit'] = np.array([data_dict['to_fit']])
+            # Do not delete this nested structure.
             
             
     def fit_data(self):
@@ -177,7 +178,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             ylabel = 'Readout Fidelity [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
-            ax.plot(self.y_values / self.y_unit_value, self.measurement[r]['to_fit'], 'k.')
+            ax.plot(self.y_values / self.y_unit_value, self.measurement[r]['to_fit'][0], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
             if self.fit_result[r] is not None: 
@@ -320,7 +321,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                 readout = f"""
                 # -----------Readout-----------
                     set_freq         R6
-                    set_awg_gain     {gain},0
+                    set_awg_gain     {gain},{gain}
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """
@@ -406,7 +407,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                 readout = f"""
                 # -----------Readout-----------
                     set_freq         {freq}
-                    set_awg_gain     R6,0
+                    set_awg_gain     R6,R6
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """

@@ -31,7 +31,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         
         pulse_program = f"""
                     set_freq         {freq}
-                    set_awg_gain     {gain},0
+                    set_awg_gain     {gain},{gain}
                     play             0,0,{tof_ns} 
                     acquire          {acq_index},R1,{length - tof_ns}
         """
@@ -59,11 +59,11 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         gain_drag = round(gain * subspace_dict['DRAG_weight'])
         
         pulse_program = f"""
-                    set_ph_delta     {round(250e6)}
+                    set_ph_delta     {round(750e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
                     play             0,1,{length} 
-                    set_ph_delta     {round(750e6)}
+                    set_ph_delta     {round(250e6)}
         """
         
     elif pulse_string.startswith('Z'):
