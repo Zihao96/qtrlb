@@ -47,6 +47,9 @@ def quad_func(x, x0, A, C):
 def sin_func(x, freq, phase, A, C):
     return C + A * sin(2*PI*freq*x + phase)
 
+def exp_func2(x, r, A, C):
+    return C + A * (r ** x)
+
 
 class ExpSinModel(Model):
     def __init__(self, *args, **kwargs):
@@ -65,7 +68,7 @@ class ExpSinModel(Model):
 
 
 class ExpModel(Model):
-    """Please do not use the built-in ExponentialModel of lmfit, because its guess is terrible.
+    """ Please do not use the built-in ExponentialModel of lmfit, because its guess is terrible.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(func=exp_func, *args, **kwargs)
@@ -78,7 +81,7 @@ class ExpModel(Model):
     
     
 class QuadModel(Model):
-    """x0 is much more convenient than expression in  'a,b,c' form.
+    """ x0 is much more convenient than expression in  'a,b,c' form.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(func=quad_func, *args, **kwargs)
@@ -98,7 +101,7 @@ class QuadModel(Model):
     
     
 class SinModel(Model):
-    """Consider the 2pi problem and add offset, comparing to SineModel.
+    """ Consider the 2pi problem and add offset, comparing to SineModel.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(func=sin_func, *args, **kwargs)
@@ -112,3 +115,16 @@ class SinModel(Model):
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('phase', value=sin_params['shift'].value, min=0, max=2*PI)
         return self.make_params()  
+    
+    
+class ExpModel2(Model):
+    """ A different exponential model where we fit base rather than life time.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(func=exp_func2, *args, **kwargs)
+        
+    def guess(self, data, x):
+        self.set_param_hint('A', value=np.max(data) - np.min(data))
+        self.set_param_hint('C', value=np.mean(data))
+        self.set_param_hint('r', value=1, min=0)
+        return self.make_params()
