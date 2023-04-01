@@ -1,13 +1,13 @@
 import numpy as np
 from lmfit import Model
-from qtrlb.calibration.calibration import Scan2D
+from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.RB1QB_tools import Clifford_gates, Clifford_to_primitive, \
     generate_RB_Clifford_sequences, generate_RB_primitive_sequences
     
     
     
     
-class RB1QB(Scan2D):
+class RB1QB(Scan):
     def __init__(self,
                  cfg,
                  drive_qubits: str,
@@ -15,9 +15,9 @@ class RB1QB(Scan2D):
                  n_gates_start: int,
                  n_gates_stop: int,
                  n_gates_points: int,
-                 n_random: int = 30,
+                 n_random: int = 1,
                  subspace: str = None,
-                 n_seqloops: int = 1,
+                 n_seqloops: int = 1000,
                  level_to_fit: int = 0,
                  fitmodel: Model = None):
         
@@ -30,21 +30,17 @@ class RB1QB(Scan2D):
                          x_start=n_gates_start, 
                          x_stop=n_gates_stop, 
                          x_points=n_gates_points,
-                         y_plot_label='Population',
-                         y_plot_unit='arb',
-                         y_start=0,
-                         y_stop=n_random-1,
-                         y_points=n_random,
                          subspace=subspace,
                          prepulse=None,
                          postpulse=None,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
-
+        
         assert self.x_step.is_integer(), 'All n_gates should be integer.'
         self.x_values = self.x_values.astype(int)
-
+        self.n_random = n_random
+        
 
     def make_sequence(self):
         """
@@ -59,7 +55,7 @@ class RB1QB(Scan2D):
         for i, n_gates in enumerate(self.x_values):
             self.Clifford_sequences.append(generate_RB_Clifford_sequences(Clifford_gates, 
                                                                           n_gates=n_gates, 
-                                                                          n_random=self.y_points))
+                                                                          n_random=self.n_random))
             self.primitive_sequences.append(generate_RB_primitive_sequences(self.Clifford_sequences[i], 
                                                                             Clifford_to_primitive))            
         # =============================================================================
@@ -87,7 +83,7 @@ class RB1QB(Scan2D):
         concat_df = False  # Nothing should go wrong if make it True. But it's very slow.
         heralding = self.cfg.variables['common/heralding']
         
-        for i in range(self.y_points):
+        for i in range(self.n_random):
             for j in range(self.x_points):
                 primitive_sequence = self.primitive_sequences[j][i]
                 
@@ -102,7 +98,7 @@ class RB1QB(Scan2D):
                 self.add_pulse(pulse, name, lengths, add_label, concat_df)
                 self.add_readout(name+'RO', add_label, concat_df)
                 self.add_sequence_end()
-                print(f'i{i}, j{j}')
+                print(f'Random Sequence {i} has been generated!')
                 
             
 
