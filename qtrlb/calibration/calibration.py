@@ -170,6 +170,8 @@ class Scan:
         Please check the link below for detail:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/basic_sequencing.html
         """
+        # Pulse dataframe for user to read/check pulses.
+        # Sequence will be correctly generated even without it.
         self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
         
         self.sequences = {qudit:{} for qudit in self.qudits}        
