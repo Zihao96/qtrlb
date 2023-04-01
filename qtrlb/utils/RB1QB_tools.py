@@ -33,7 +33,7 @@ def unitary(theta: float, axis: tuple, eliminate_float_error: bool = True) -> np
     
     
 def transpile_unitary_to_circuit(U: np.ndarray, 
-                                 basis_gates: tuple = ('x', 'y', 'z', 'rx', 'rz')) -> None:
+                                 basis_gates: tuple = ('x', 'z', 'rx', 'rz')) -> None:
     """
     Using Qiskit transpile function to decompose a unitary into primitive gate.
     It may fail if the primitive gate set is not universal. 
@@ -46,8 +46,7 @@ def transpile_unitary_to_circuit(U: np.ndarray,
     circ = QuantumCircuit(1)
     circ.append(oper, [0])
     circ = transpile(circ, backend, basis_gates=list(basis_gates), optimization_level=3)
-    circ_draw = circ.draw()
-    print(circ_draw)
+    return circ
     
     
 def calculate_combined_unitary(U_list: list | np.ndarray,
@@ -129,17 +128,62 @@ def generate_RB_primitive_sequences(Clifford_sequences: np.ndarray,
         for Clifford in seq:
             sequences[i] += Clifford_to_primitive[Clifford]
             # Iterable unpacking cannot be used in comprehension.
-
+            
+        # A temporary code to simplify circuit for qblox.
+        sequences[i] = optimize_circuit(sequences[i])
+        
     return sequences
     
+
+def optimize_circuit(sequence: list) -> None:
+    """
+    Remove all Identity and combine all adjacent Z gates.
+    I'm sorry. Hopefully this is fast enough.
+    """
+    sequence = [gate for gate in sequence if gate != 'I']
+    optimized_sequence = []
     
+    i = 0
+    while i < len(sequence):
+        if sequence[i].startswith('X'): 
+            optimized_sequence.append(sequence[i])
+            i += 1
+            
+        elif sequence[i].startswith('Z'):
+            
+            for j, sub_gate in enumerate(sequence[i:]):
+                if sub_gate.startswith('X'): break
+            
+            if j <= 1: 
+                optimized_sequence.append(sequence[i])
+                i += 1
+            else:
+                optimized_sequence.append( combine_Z_gates(sequence[i:i+j]) ) 
+                i += j
+            
+    optimized_sequence = [gate for gate in optimized_sequence if gate != 'I']
+    return optimized_sequence
     
+
+def combine_Z_gates(sequence: list) -> str:
+    """
+    Combine a list of Z gates into one single Z gate.
+    """
+    angle = 0
+    for gate in sequence:
+        angle += int(gate.split('_')[0][1:]) 
+        
+    angle = angle % 360
+    return f'Z{angle}_01' if angle != 0 else 'I'
+    
+
+
+
     
 #%% Definition of single qubit Clifford.
 # Notice the definition of 'h' may not be what you expect as Y90.
 
-primitive_gates = ['X180_01', 'X90_01', 'X-180_01', 'X-90_01',
-                   'Y180_01', 'Y90_01', 'Y-180_01', 'Y-90_01',
+primitive_gates = ['X180_01', 'X90_01', 'X-90_01',
                    'Z180_01', 'Z90_01', 'Z270_01', 'I']
 
 Clifford_gates = {'I': {'theta': 0, 'axis': (0, 0, 1)}, 
@@ -173,19 +217,19 @@ Clifford_gates = {'I': {'theta': 0, 'axis': (0, 0, 1)},
 # which actually should be better automated.
 Clifford_to_primitive = {'I': ['I'],
                          'X': ['X180_01'],
-                         'Y': ['Y180_01'],
+                         'Y': ['Z180_01', 'X180_01'],
                          'Z': ['Z180_01'],
                          'V': ['X90_01'],
                          '-V': ['X-90_01'],
-                         'h': ['Y-90_01'],  # :)
-                         '-h': ['Y90_01'],
+                         'h': ['Z90_01', 'X90_01', 'Z270_01'],
+                         '-h': ['Z270_01', 'X90_01', 'Z90_01'],
                          'S': ['Z90_01'],
                          '-S': ['Z270_01'],
-                         'H_xy': ['Z90_01', 'Y180_01'],
-                         'H_xz': ['Z180_01', 'Y90_01'],
+                         'H_xy': ['Z270_01', 'X180_01'],
+                         'H_xz': ['Z90_01', 'X90_01', 'Z90_01'],
                          'H_yz': ['X90_01', 'Z180_01'],
                          'H_-xy': ['Z90_01', 'X180_01'],
-                         'H_x-z': ['Z180_01', 'Y-90_01'],
+                         'H_x-z': ['Z270_01', 'X90_01', 'Z270_01'],
                          'H_-yz': ['Z180_01', 'X90_01'],
                          'C_xyz': ['X90_01', 'Z90_01'],
                          '-C_xyz': ['Z270_01', 'X-90_01'],
@@ -202,7 +246,7 @@ Clifford_to_primitive = {'I': ['I'],
 
 if __name__ == '__main__':
     
-    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=2000, n_random=100)
+    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=2000, n_random=30)
     seq_primitive = generate_RB_primitive_sequences(seq_Clifford, Clifford_to_primitive)
     
     # If you want to check whether the Clifford_sequences is correct.
@@ -219,5 +263,6 @@ if __name__ == '__main__':
     gate = 'H_x-z'
     if 'unitary' not in Clifford_gates[gate]: 
         Clifford_gates[gate]['unitary'] = unitary(**Clifford_gates[gate])
-    transpile_unitary_to_circuit(Clifford_gates[gate]['unitary'])
-    # See what it print.
+    circ = transpile_unitary_to_circuit(Clifford_gates[gate]['unitary'])
+    circ.draw()
+    # See what it print. 

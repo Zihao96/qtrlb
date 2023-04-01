@@ -74,7 +74,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
                     set_ph_delta     {angle}
         """
         pulse_program += '' if length == 0 else f""" 
-                    wait             {length}
+                    upd_param        {length}
         """
         
     
