@@ -107,7 +107,7 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = {attr: getattr(self, attr) for attr in dir(self) if not attr.startswith('_')}
+        self.attrs = self.__dict__
         
         self.make_sequence() 
         self.save_sequence()
@@ -597,6 +597,8 @@ class Scan:
         Reference about add_artist method of Axes object:
         https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.add_artist.html
         """
+        self.figures = {}
+        
         for i, r in enumerate(self.readout_resonators):
             level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
@@ -617,12 +619,12 @@ class Scan:
                 ax.plot(x / self.x_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([fr'{v.name} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
-                                      for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[r].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+            self.figures[r] = fig
             
             
     def plot_IQ(self, 

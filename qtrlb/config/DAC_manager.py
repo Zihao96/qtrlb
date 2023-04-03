@@ -11,19 +11,24 @@ class DACManager(Config):
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
             varman: A VariableManager.
+            test_mode: When true, you can run the whole program without a real instrument.
     """
     def __init__(self, 
                  yamls_path: str, 
-                 varman: VariableManager = None):
+                 varman: VariableManager = None,
+                 test_mode: bool = False):
         super().__init__(yamls_path=yamls_path, 
                          suffix='DAC',
                          varman=varman)
         
         # Connect to instrument. Hardcode name and IP address to accelerate load()
         Cluster.close_all()
-        self.qblox = Cluster('cluster', '192.168.0.2')  # TODO: Change it back when finish.
-        # dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
-        # self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
+        if test_mode:
+            dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
+            self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
+        else:
+            self.qblox = Cluster('cluster', '192.168.0.2') 
+
         self.qblox.reset()
         
         self.load()

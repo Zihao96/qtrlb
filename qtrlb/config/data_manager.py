@@ -74,7 +74,7 @@ class DataManager(Config):
             for k, v in attrs.items(): 
                 try:
                     h5file.attrs[k] = v
-                # Some attributes, method for instance, cannot (and shouldn't) be saved.
+                # Some attributes, cfg for instance, cannot (and shouldn't) be saved.
                 except TypeError:  
                     pass
         

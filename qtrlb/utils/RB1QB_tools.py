@@ -246,7 +246,7 @@ Clifford_to_primitive = {'I': ['I'],
 
 if __name__ == '__main__':
     
-    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=2000, n_random=30)
+    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=1001, n_random=30)
     seq_primitive = generate_RB_primitive_sequences(seq_Clifford, Clifford_to_primitive)
     
     # If you want to check whether the Clifford_sequences is correct.
@@ -264,5 +264,5 @@ if __name__ == '__main__':
     if 'unitary' not in Clifford_gates[gate]: 
         Clifford_gates[gate]['unitary'] = unitary(**Clifford_gates[gate])
     circ = transpile_unitary_to_circuit(Clifford_gates[gate]['unitary'])
-    circ.draw()
+    print(circ.draw())
     # See what it print. 

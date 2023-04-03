@@ -19,8 +19,8 @@ class MixerCorrection:
                  cfg, 
                  qudit: str,
                  subspace: str = '01',
-                 amp: float = 0.8,
-                 waveform_length: int = 120):
+                 amp: float = 0.1,
+                 waveform_length: int = 20):
         self.cfg = cfg
         self.qudit = qudit
         self.subspace = subspace
@@ -65,9 +65,9 @@ class MixerCorrection:
         self.sequencer.gain_awg_path0(self.amp)
         self.sequencer.gain_awg_path1(self.amp)
         self.sequencer.cont_mode_en_awg_path0(True)
-        self.sequencer.cont_mode_en_awg_path1(True)
+        # self.sequencer.cont_mode_en_awg_path1(True)
         self.sequencer.cont_mode_waveform_idx_awg_path0(0)  
-        self.sequencer.cont_mode_waveform_idx_awg_path1(0)
+        # self.sequencer.cont_mode_waveform_idx_awg_path1(0)
 
 
         if self.qudit.startswith('Q'):

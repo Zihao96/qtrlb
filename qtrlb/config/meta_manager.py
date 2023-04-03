@@ -5,7 +5,8 @@ from qtrlb.config.process_manager import ProcessManager
 from qtrlb.config.data_manager import DataManager
 
 
-def begin_measurement_session(working_dir: str, variable_suffix: str = ''):
+def begin_measurement_session(working_dir: str, variable_suffix: str = '',
+                              test_mode: bool = False):
     """
     Instantiate all managers along with MetaManager, then load them.
     Return the instance of MetaManager.
@@ -13,7 +14,7 @@ def begin_measurement_session(working_dir: str, variable_suffix: str = ''):
     yamls_path = os.path.join(working_dir, 'Yamls')
     
     varman = VariableManager(yamls_path, variable_suffix)
-    dacman = DACManager(yamls_path, varman)
+    dacman = DACManager(yamls_path, varman, test_mode)
     processman = ProcessManager(yamls_path, varman)
     dataman = DataManager(yamls_path, varman)
     
