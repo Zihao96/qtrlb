@@ -4,6 +4,10 @@
 Created on Thu Mar 30 10:38:29 2023
 
 @author: Z
+
+I'm very sorry to tell you if you want to implement RB on higher subspace than\
+'01', the best way is to replace all '01' in these page to the target subspace.
+I plan to make it better after I map sequencer to each subspace, which is hard.
 """
 
 import secrets
@@ -99,6 +103,8 @@ def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int,
     for v in Clifford_gates.values():
         if 'unitary' in v: continue
         v['unitary'] = unitary(v['theta'], v['axis'])
+        
+    if n_gates == 0: return np.array([ [] for i in range(n_random) ])
         
     Clifford_sequences = np.zeros(shape=(n_random, n_gates+1), dtype='U7')
     Clifford_sequences_mat = np.zeros(shape=(n_random, n_gates, 2, 2), dtype='complex128')
@@ -246,7 +252,7 @@ Clifford_to_primitive = {'I': ['I'],
 
 if __name__ == '__main__':
     
-    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=1001, n_random=30)
+    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=400, n_random=30)
     seq_primitive = generate_RB_primitive_sequences(seq_Clifford, Clifford_to_primitive)
     
     # If you want to check whether the Clifford_sequences is correct.

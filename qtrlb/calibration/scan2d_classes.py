@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from lmfit import Model
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
+import qtrlb.utils.units as u
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
-from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.fitting import QuadModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
@@ -96,6 +96,8 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Require calibrated PI pulse when scaning more than ground level.
         This Scan has no __init__ and suppose to be a template inherited by child scan \
         and not to be called directly.
+        Since the data in 'to_fit' is readout fidelity, we should always use level_to_fit at the lowest \
+        readout level so that the index is always 0.
         
         Note from Zihao(03/16/2023):
         I'm sorry this code is so long. This type of scans don't fit well into our calibration framework, \
@@ -351,7 +353,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                  amp_points: int, 
                  prepulse: dict = None,
                  postpulse: dict = None,
-                 n_seqloops: int = 10,
+                 n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
         
@@ -422,11 +424,105 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
 
 
 class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
-    pass
+    """ Run ReadoutAmplitudeScan with different readout and integration length.
+        In principle it should be a 3D scan, but we can only change these integration length \
+        in QCoDeS layer, so the easiest way is to make length at the outermost layer. 
+        We achieve it by extending 'run' method.
+        The plot and possible fit result will be saved in last experiment folder.
+        
+        Note from Zihao(04/04/2023):
+        I do so since I believe the readout length and amplitude have a relatively wide range \
+        so that all values within these range can give a reasonable result. 
+        Even if noise change the optimal point, it will not be too much.
+    """
+    def __init__(self,
+                 cfg, 
+                 drive_qubits: str | list,
+                 readout_resonators: str | list,
+                 level_start: int,
+                 level_stop: int,
+                 amp_start: float, 
+                 amp_stop: float, 
+                 amp_points: int, 
+                 length_start: float = 100 * u.ns,
+                 length_stop: float = 5000 * u.ns,
+                 length_points: int = 50,
+                 prepulse: dict = None,
+                 postpulse: dict = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list = None,
+                 fitmodel: Model = None):
+
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         level_start=level_start,
+                         level_stop=level_stop,
+                         amp_start=amp_start, 
+                         amp_stop=amp_stop, 
+                         amp_points=amp_points, 
+                         prepulse=prepulse,
+                         postpulse=postpulse,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+
+        self.length_start = length_start
+        self.length_stop = length_stop
+        self.length_points = length_points
+        self.length_plot_label = 'Readout Length'
+        self.length_plot_unit = 'ns'
+        
+        assert 16384 * u.ns > self.length_stop >= self.length_start > 0, \
+            'Readout length must be ascending values in (0, 16384) ns.'
+        self.length_values = np.linspace(self.length_start, self.length_stop, self.length_points)
+        self.length_unit_value = getattr(u, self.length_plot_unit)
 
 
-
-
-
-
-
+    def run(self, 
+            experiment_suffix: str = '',
+            n_pyloops: int = 1):
+        
+        for length in self.length_values:
+            self.cfg['variables.common/resonator_pulse_length'] = length
+            self.cfg['variables.common/integration_length'] = length
+            
+            super().run(experiment_suffix=f'{experiment_suffix}_{round(length*1e9)}ns',
+                        n_pyloops=n_pyloops)
+            
+            plt.close('all')
+                  
+        # Load back the original yaml files.
+        # Here you see the power of separating save and set, load and get. :)
+        self.cfg.load()
+        self.plot_full_result()
+        
+        
+    def plot_full_result(self):
+        """
+        Combine all data with different length and make the 2D plot.
+        The figure will be saved in the last experiment folder.
+        """
+        self.data_all_lengths = {}
+        self.figures = {}
+        
+        for r in self.readout_resonators:
+            self.data_all_lengths[r] = []
+            
+            for measurement in self.measurements:
+                self.data_all_lengths[r].append(measurement[r]['to_fit'][0])
+                
+             
+            title = f'{self.datetime_stamp}, Readout Length-Amp Scan, {r}'  
+            xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
+            ylabel = self.length_plot_label + f'[{self.length_plot_unit}]'
+            
+            fig, ax = plt.subplots(1, 1, figsize=(8, 8), dpi=300)
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
+            
+            image = ax.imshow(self.data_all_lengths[r], cmap='RdBu_r', interpolation='none', aspect='auto', 
+                              origin='lower', extent=[np.min(self.y_values), np.max(self.y_values), 
+                                                      np.min(self.length_values), np.max(self.length_values)])
+            fig.colorbar(image, ax=ax, label='Fidelity', location='top')
+            fig.savefig(os.path.join(self.data_path, f'{r}_full_result.png'))
+            self.figures[r] = fig

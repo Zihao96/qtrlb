@@ -912,9 +912,9 @@ class Scan2D(Scan):
         Plot population for all levels. 
         If we disable classification, plot both quadrature.
         
-        # TODO add fit to the corresponding level, or add connector for adding fit.
+        # TODO add fit to the corresponding level, or add interface for adding fit.
         """
-        for i, r in enumerate(self.readout_resonators):
+        for r in self.readout_resonators:
             data = self.measurement[r]['to_fit']
             n_subplots = len(data)
             xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
@@ -923,17 +923,17 @@ class Scan2D(Scan):
             
             fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=150)
 
-            for i in range(n_subplots):
-                level = self.cfg[f'variables.{r}/readout_levels'][i]
+            for l in range(n_subplots):
+                level = self.cfg[f'variables.{r}/readout_levels'][l]
                 this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
                 
-                image = ax[i].imshow(data[i], cmap='RdBu_r', interpolation='none', aspect='auto', 
+                image = ax[l].imshow(data[l], cmap='RdBu_r', interpolation='none', aspect='auto', 
                                      origin='lower', extent=[np.min(self.x_values) / self.x_unit_value, 
                                                              np.max(self.x_values) / self.x_unit_value, 
                                                              np.min(self.y_values) / self.y_unit_value, 
                                                              np.max(self.y_values) / self.y_unit_value])
-                ax[i].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
-                fig.colorbar(image, ax=ax[i], label='Probability/Coordinate', location='top')
+                ax[l].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
+                fig.colorbar(image, ax=ax[l], label='Probability/Coordinate', location='top')
                 
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
 

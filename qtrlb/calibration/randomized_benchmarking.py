@@ -143,7 +143,8 @@ class RB1QB(Scan):
             
             self.add_sequence_start()
             self.add_wait(name+'RLX', relaxation_length, add_label, concat_df)
-            if heralding: self.add_heralding(name+'HRD', add_label, concat_df)                
+            if heralding: self.add_heralding(name+'HRD', add_label, concat_df)
+            self.add_pulse(self.subspace_pulse, 'Subspace')                
             self.add_pulse(pulse, name, lengths, add_label, concat_df)
             self.add_readout(name+'RO', add_label, concat_df)
             self.add_sequence_end()

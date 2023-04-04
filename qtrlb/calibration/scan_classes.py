@@ -689,7 +689,7 @@ class JustPulse(Scan):
                  cfg,
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 just_pulse: list,
+                 just_pulse: dict,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -710,12 +710,11 @@ class JustPulse(Scan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
         
-        self.just_pulse = self.make_it_list(just_pulse)
+        self.just_pulse = just_pulse
         
         
     def add_mainpulse(self):
-        mainpulse = {q: self.just_pulse for q in self.drive_qubits}
-        self.add_pulse(mainpulse, 'Main')
+        self.add_pulse(self.just_pulse, 'JustPulse')
         
         
         
