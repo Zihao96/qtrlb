@@ -54,12 +54,12 @@ class RB1QB(Scan):
         The fit and plot will happen after we get all measurements.
         The fitting result and figure file will be saved in the last measurement folder.
         """
-        self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
         self.attrs = self.__dict__
         
         for i in range(self.n_random):
+            self.experiment_suffix = experiment_suffix + f'_Random_{self.n_run}'
             self.make_sequence() 
             self.save_sequence()
             self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
