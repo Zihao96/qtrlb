@@ -180,11 +180,15 @@ class RB1QB(Scan):
         self.plot_main(text_loc='lower left')
         
         # Plot result of each random sequence.
-        for r in self.readout_resonators:
+        for j, r in enumerate(self.readout_resonators):
             ax = self.figures[r].get_axes()[0]
             
             for i in range(self.n_random):
-                ax.plot(self.x_values / self.x_unit_value, self.data_all_randoms[r][i], 'b.')
+                ax.plot(
+                    self.x_values / self.x_unit_value, 
+                    self.data_all_randoms[r][i][self.level_to_fit[j]], 
+                    'b.'
+                )
 
             self.figures[r].canvas.draw()
 

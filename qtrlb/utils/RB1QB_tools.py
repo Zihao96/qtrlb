@@ -12,7 +12,7 @@ I plan to make it better after I map sequencer to each subspace, which is hard.
 
 import secrets
 import numpy as np
-
+from copy import deepcopy
 from qiskit import QuantumCircuit
 from qiskit import BasicAer
 from qiskit.compiler import transpile
@@ -104,7 +104,7 @@ def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int,
         if 'unitary' in v: continue
         v['unitary'] = unitary(v['theta'], v['axis'])
         
-    if n_gates == 0: return np.array([ [] for i in range(n_random) ])
+    if n_gates == 0: return [ [] for i in range(n_random) ]
         
     Clifford_sequences = np.zeros(shape=(n_random, n_gates+1), dtype='U7')
     Clifford_sequences_mat = np.zeros(shape=(n_random, n_gates, 2, 2), dtype='complex128')
@@ -122,13 +122,13 @@ def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int,
     return Clifford_sequences.tolist()
 
 
-def generate_RB_primitive_sequences(Clifford_sequences: np.ndarray,
+def generate_RB_primitive_sequences(Clifford_sequences: list,
                                     Clifford_to_primitive: dict) -> list:
     """
     Transpile all Clifford gate in sequences into primitive_gate.
     Return list since we can't guarantee the length are same for all sequences.
     """
-    sequences = Clifford_sequences.tolist()
+    sequences = deepcopy(Clifford_sequences)
     for i, seq in enumerate(sequences):
         sequences[i] = []
         for Clifford in seq:
