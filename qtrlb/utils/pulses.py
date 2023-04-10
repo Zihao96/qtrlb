@@ -51,6 +51,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         """
         
     elif pulse_string.startswith('Y'):
+        # Y = Z * X
         angle, subspace = pulse_string[1:].split('_')
         subspace_dict = cfg[f'variables.{qudit}/{subspace}']
         
@@ -59,11 +60,10 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
         gain_drag = round(gain * subspace_dict['DRAG_weight'])
         
         pulse_program = f"""
-                    set_ph_delta     {round(750e6)}
+                    set_ph_delta     {round(500e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
-                    play             0,1,{length} 
-                    set_ph_delta     {round(250e6)}
+                    play             0,1,{length}
         """
         
     elif pulse_string.startswith('Z'):

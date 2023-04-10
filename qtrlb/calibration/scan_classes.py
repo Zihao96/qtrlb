@@ -351,19 +351,26 @@ class RamseyScan(Scan):
         
         self.divisor_ns = divisor_ns
         self.artificial_detuning = artificial_detuning
+        self._artificial_detuning = -1 * self.artificial_detuning
+        # It's because the AD is opposite of the natural direction of 'set_ph_delta'.
 
         
     def add_xinit(self):
         """
         We will use R4 for wait time, R12 for angle of VZ gate.
+        We will keep R12 always positive, deepcopy it to R13 if the phase is negative.
+        Then use 1e9(R14) subtract R13 and store it back to R13.
+        It is because the 'set_ph_delta' only take [0, 1e9], not negative values.
         """
         super().add_xinit()
         
         start_ns = round(self.x_start * 1e9)
-        start_ADphase = round(self.x_start * self.artificial_detuning * 1e9)  
+        start_ADphase = abs(round(self.x_start * self._artificial_detuning * 1e9))  
+
         xinit = f"""
                     move             {start_ns},R4            
                     move             {start_ADphase},R12
+                    move             {int(1e9)}, R14
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
@@ -379,7 +386,7 @@ class RamseyScan(Scan):
         self.add_pulse(half_pi_pulse, 'Ramsey1stHalfPIpulse')
         
         step_ns = round(self.x_step * 1e9)
-        step_ADphase = round(self.x_step * self.artificial_detuning * 1e9)  
+        step_ADphase = abs(round(self.x_step * self._artificial_detuning * 1e9))
         # Qblox cut one phase circle into 1e9 pieces.
         main = f"""
                 #-----------Main-----------
@@ -393,13 +400,29 @@ class RamseyScan(Scan):
                     wait             {self.divisor_ns}
                     sub              R11,{self.divisor_ns},R11
                     jmp              @mlt_wait
-                    
+        """
+
+        if self._artificial_detuning >= 0: 
+            main += f"""
         rmd_wait:   wait             R11
                     set_ph_delta     R12
                     
         end_main:   add              R4,{step_ns},R4
                     add              R12,{step_ADphase},R12
         """
+
+        else:
+            main += f"""
+        rmd_wait:   move             R13,R12
+                    nop
+                    sub              R14,R13,R13
+                    wait             R11
+                    set_ph_delta     R13
+                    
+        end_main:   add              R4,{step_ns},R4
+                    add              R12,{step_ADphase},R12
+        """
+
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
         self.add_pulse(half_pi_pulse, 'Ramsey2ndHalfPIpulse')
