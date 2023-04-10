@@ -619,7 +619,7 @@ class Scan:
                 ax.plot(x / self.x_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
