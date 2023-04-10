@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 from lmfit import Model
+from copy import deepcopy
 from qtrlb.calibration.calibration import Scan
 from qtrlb.processing.fitting import ExpModel2
 from qtrlb.utils.RB1QB_tools import Clifford_gates, Clifford_to_primitive, \
@@ -56,10 +57,10 @@ class RB1QB(Scan):
         """
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = self.__dict__
+        self.attrs = deepcopy(self.__dict__)
         
         for i in range(self.n_random):
-            self.experiment_suffix = experiment_suffix + f'_Random_{self.n_run}'
+            self.experiment_suffix = experiment_suffix + f'_Random_{self.n_runs}'
             self.make_sequence() 
             self.save_sequence()
             self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
@@ -142,11 +143,11 @@ class RB1QB(Scan):
                        for gate in primitive_sequence]
             
             self.add_sequence_start()
-            self.add_wait(name+'RLX', relaxation_length, add_label, concat_df)
-            if heralding: self.add_heralding(name+'HRD', add_label, concat_df)
-            self.add_pulse(self.subspace_pulse, 'Subspace')                
-            self.add_pulse(pulse, name, lengths, add_label, concat_df)
-            self.add_readout(name+'RO', add_label, concat_df)
+            self.add_wait(name+'RLX', relaxation_length, add_label=add_label, concat_df=concat_df)
+            if heralding: self.add_heralding(name+'HRD', add_label=add_label, concat_df=concat_df)
+            self.add_pulse(self.subspace_pulse, 'Subspace', add_label=add_label, concat_df=concat_df)
+            self.add_pulse(pulse, name, lengths, add_label=add_label, concat_df=concat_df)
+            self.add_readout(name+'RO', add_label=add_label, concat_df=concat_df)
             self.add_sequence_end()
 
 

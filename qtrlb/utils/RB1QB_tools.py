@@ -94,7 +94,7 @@ def find_Clifford_gate(U: np.ndarray, Clifford_gates: dict) -> str:
     
     
 def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int, 
-                                   n_random: int = 30) -> np.ndarray:
+                                   n_random: int = 30) -> list:
     """
     Generate n_random different RB sequence where each sequence has n_gates Clifford gates.
     Return to a ndarray with shape (n_random, n_gates+1), and each entry is a string.
@@ -119,7 +119,7 @@ def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int,
         inverse = find_Clifford_gate(total_U.T.conj(), Clifford_gates)
         Clifford_sequences[i, -1] = inverse
         
-    return Clifford_sequences
+    return Clifford_sequences.tolist()
 
 
 def generate_RB_primitive_sequences(Clifford_sequences: np.ndarray,

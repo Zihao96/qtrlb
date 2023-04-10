@@ -413,7 +413,7 @@ class RamseyScan(Scan):
 
         else:
             main += f"""
-        rmd_wait:   move             R13,R12
+        rmd_wait:   move             R12,R13
                     nop
                     sub              R14,R13,R13
                     wait             R11
