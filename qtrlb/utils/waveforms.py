@@ -94,9 +94,11 @@ def cos_square_derivative(length: int, ramp_fraction: float = 0.25, **waveform_k
 
 # Note from Zihao(03/24/2023): I don't like it at all, but:
 # https://docs.python.org/3/faq/programming.html#how-do-i-use-strings-to-call-functions-methods
-waveform_dict = {'square': square,
-                 'square_derivative': square_derivative,
-                 'gaussian': gaussian,
-                 'gaussian_derivative': gaussian_derivative,
-                 'cos_square': cos_square,
-                 'cos_square_derivative':cos_square_derivative}    
+waveform_dict = {
+    'square': square,
+    'square_derivative': square_derivative,
+    'gaussian': gaussian,
+    'gaussian_derivative': gaussian_derivative,
+    'cos_square': cos_square,
+    'cos_square_derivative':cos_square_derivative
+}    

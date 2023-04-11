@@ -11,7 +11,7 @@ class Config:
         config_dict, with the additions of load, save, and variables.
         
         Attributes:
-            yamls_path: An absolute path of the directory containing all yamls with a template folder.
+            yamls_path: An absolute path of the directory containing all yamls with optional template folder.
             suffix: 'DAC' or 'ADC' or 'data' or 'variables', etc.
             variable_suffix: '_EJEC' or '_ALGO' or empty string '' for other managers.
             varman: A Variable manager for other manager to load parameters.
@@ -29,11 +29,11 @@ class Config:
         self.raw_file_path = os.path.join(self.yamls_path, self.suffix + self.variable_suffix + '.yaml')  
         self.template_file_path = os.path.join(self.yamls_path, 'Template', self.suffix + '.yaml')  
         
-        self.check_config()
+        self.load_raw()
         # Please do not call self.load() here.
         
         
-    def check_config(self):
+    def load_raw(self, check_config: bool = True):
         """
         Check the structure of the yaml file by comparing with its template.
         Raise error if the structure has inconsistency.
@@ -45,14 +45,17 @@ class Config:
             yaml = YAML(typ='safe', pure=True)
             with open(self.raw_file_path, 'r') as f:
                 self.config_raw = yaml.load(f)
-            with open(self.template_file_path, 'r') as f:
-                self.config_template = yaml.load(f)
+
+            if check_config:
+                with open(self.template_file_path, 'r') as f:
+                    self.config_template = yaml.load(f)
+
+                # Recursively checking each keys
+                self.compare_dict(self.config_raw, self.config_template, suffix=self.suffix+self.variable_suffix)
+
         except FileNotFoundError as e:
             print('Config: Missing Yaml file or its template. Please check your working directory!!!')
             raise e
-            
-        # Recursively checking each keys
-        self.compare_dict(self.config_raw, self.config_template, suffix=self.suffix+self.variable_suffix)
         
         
     @staticmethod
@@ -92,7 +95,7 @@ class Config:
         Reload the yaml file to config_raw, so that changes in file will be updated.
         Then generate the self.config_dict with replaced variables.
         """
-        self.check_config()  # To reload the files and prevent accidentally structure change.
+        self.load_raw()  # To reload the files and prevent accidentally structure change if needed.
         self.config_dict = deepcopy(self.config_raw)
         if self.varman is not None: self.replace_vars(self.config_dict, self.varman)  
         # This is the real difference between config_dict and config_raw

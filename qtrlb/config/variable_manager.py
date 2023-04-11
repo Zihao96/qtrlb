@@ -35,7 +35,7 @@ class VariableManager(Config):
         self.set('resonators', resonators_list, which='dict')
         
         self.set_parameters()
-        self.check_module_sequencer_LO()
+        if self['common/check_module_LO_sequencer']: self.check_module_sequencer_LO()
    
     
     def set_parameters(self):
@@ -73,15 +73,16 @@ class VariableManager(Config):
         """
         For qubits/resonators using same module, check they are using different sequencer.
         Furthermore, if they use same output, check they are using same LO frequency.
+
+        Note from Zihao(04/10/2023):
+        I choose not to check the sequencer conflict here.
+        It's because of the possible demand for flexibility of sequencer mapping.
         """
         for i, qubit in enumerate(self['qubits']):
             for qubjt in self['qubits'][i+1:]:
-                if self[f'{qubjt}/module'] == self[f'{qubit}/module']:
-                    
-                    assert self[f'{qubjt}/sequencer'] != self[f'{qubit}/sequencer'], \
-                    f'{qubit} and {qubjt} are using same sequencer!'
-                    
-                    if self[f'{qubjt}/out'] == self[f'{qubit}/out']:
+                if (self[f'{qubjt}/module'] == self[f'{qubit}/module']
+                    and 
+                    self[f'{qubjt}/out'] == self[f'{qubit}/out']):
                         assert self[f'{qubjt}/qubit_LO'] == self[f'{qubit}/qubit_LO'], \
                         f'{qubit} and {qubjt} are using same output port with different LO frequency!'
 

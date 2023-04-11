@@ -46,11 +46,11 @@ class ProcessManager(Config):
                         == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix']))
             except AssertionError:
                 print(f'ProcessManager: The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
-                      +'New matrices will be generated. Please save it by calling cfg.save()')
+                      +'New matrices has been generated. Please save it by calling cfg.save()')
                 
                 self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels'])
-                self[f'{r}/IQ_covariances'] = [250 for i in range(self[f'{r}/n_readout_levels'])]
-                self[f'{r}/IQ_means'] = [[i*50, i*50] for i in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_covariances'] = [1 for i in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_means'] = [[i*10, i*10] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
     def process_data(self, measurement: dict, shape: tuple):
@@ -79,7 +79,7 @@ class ProcessManager(Config):
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
-                                                           angle=self[f'{r}/IQ_rotation_angle'])
+                                                             angle=self[f'{r}/IQ_rotation_angle'])
                 
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                                 means=self[f'{r}/IQ_means'], 

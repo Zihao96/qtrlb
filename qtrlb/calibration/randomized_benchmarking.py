@@ -184,11 +184,9 @@ class RB1QB(Scan):
             ax = self.figures[r].get_axes()[0]
             
             for i in range(self.n_random):
-                ax.plot(
-                    self.x_values / self.x_unit_value, 
-                    self.data_all_randoms[r][i][self.level_to_fit[j]], 
-                    'b.'
-                )
+                ax.plot(self.x_values / self.x_unit_value, 
+                        self.data_all_randoms[r][i][self.level_to_fit[j]], 
+                        'b.')
 
             self.figures[r].canvas.draw()
 
