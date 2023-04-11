@@ -18,8 +18,8 @@ class DriveAmplitudeScan(Scan):
                  amp_stop: float, 
                  amp_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = SinModel,
@@ -35,8 +35,8 @@ class DriveAmplitudeScan(Scan):
                          x_stop=amp_stop, 
                          x_points=amp_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -61,7 +61,7 @@ class DriveAmplitudeScan(Scan):
             self.sequences[qubit]['program'] += xinit
             
             
-    def add_mainpulse(self):
+    def add_main(self):
         length = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) 
         
         for i, qubit in enumerate(self.drive_qubits):
@@ -103,8 +103,8 @@ class RabiScan(Scan):
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
@@ -120,8 +120,8 @@ class RabiScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -178,10 +178,10 @@ class RabiScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
-    def add_mainpulse(self, freq: str = None, gain: str = None):
+    def add_main(self, freq: str = None, gain: str = None):
         """
         Qblox doesn't accept zero length waveform, so we use Label 'end_main' here.
-        There is 4ns delay after each Rabi pulse before postpulse/readout.
+        There is 4ns delay after each Rabi pulse before postgate/readout.
         It's because the third index of 'play' instruction cannot be register.
         So we cannot set it as a variable, and wait will be separated.
         The parameters freq and gain are left as connector for multidimensional scan.
@@ -250,8 +250,8 @@ class T1Scan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
@@ -267,8 +267,8 @@ class T1Scan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -286,7 +286,7 @@ class T1Scan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
-    def add_mainpulse(self):
+    def add_main(self):
         """
         Because one 'wait' instruction can take no longer than 65534ns, we will divide it by divisor.
         
@@ -294,8 +294,8 @@ class T1Scan(Scan):
         After each wait we substract divisor from R11.
         Then if R11 is smaller than divisor, we wait the remainder.
         """
-        pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.add_pulse(pi_pulse, 'T1PIpulse')
+        pi_gate = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.add_gate(pi_gate, 'T1PIgate')
         
         step_ns = round(self.x_step * 1e9)
         main = f"""
@@ -325,8 +325,8 @@ class RamseyScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
@@ -343,8 +343,8 @@ class RamseyScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -375,15 +375,15 @@ class RamseyScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
-    def add_mainpulse(self):
+    def add_main(self):
         """   
         All register in sequencer is 32bit, which can only store integer [-2e31,2e31).
         If we do Ramsey with more than 2 phase cycle, then it may cause error.
         Thus we substract 1e9 of R12 when it exceed 1e9, which is one phase cycle of Qblox.
         The wait trick is similar to T1Scan.
         """
-        half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.add_pulse(half_pi_pulse, 'Ramsey1stHalfPIpulse')
+        half_pi_gate = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.add_gate(half_pi_gate, 'Ramsey1stHalfPIgate')
         
         step_ns = round(self.x_step * 1e9)
         step_ADphase = abs(round(self.x_step * self._artificial_detuning * 1e9))
@@ -425,7 +425,7 @@ class RamseyScan(Scan):
 
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
-        self.add_pulse(half_pi_pulse, 'Ramsey2ndHalfPIpulse')
+        self.add_gate(half_pi_gate, 'Ramsey2ndHalfPIgate')
         
         
 class EchoScan(Scan):
@@ -437,8 +437,8 @@ class EchoScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
@@ -455,8 +455,8 @@ class EchoScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -475,12 +475,12 @@ class EchoScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
         
         
-    def add_mainpulse(self):
+    def add_main(self):
         """
         Here R4 only represent half of the total waiting time.
         """
-        half_pi_pulse = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.add_pulse(half_pi_pulse, 'Echo1stHalfPIpulse')
+        half_pi_gate = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.add_gate(half_pi_gate, 'Echo1stHalfPIgate')
         
         step_half_ns = round(self.x_step / 2 * 1e9)
         main = f"""
@@ -501,10 +501,10 @@ class EchoScan(Scan):
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
         if self.echo_type == 'CP':
-            pi_pulse = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+            pi_gate = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         elif self.echo_type == 'CPMG':
-            pi_pulse = {q: [f'Y180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.add_pulse(pi_pulse, 'EchoPIpulse')
+            pi_gate = {q: [f'Y180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.add_gate(pi_gate, 'EchoPIgate')
         
         main = f"""
                 #-----------Main2-----------
@@ -523,12 +523,12 @@ class EchoScan(Scan):
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += main
         
-        self.add_pulse(half_pi_pulse, 'Echo2ndHalfPIpulse')
+        self.add_gate(half_pi_gate, 'Echo2ndHalfPIgate')
         
         
 class LevelScan(Scan):
-    """ This class assume all qubits start from ground state and we have calibrated PI pulse.
-        We then excite them to target level based on self.x_values using PI pulse.
+    """ This class assume all qubits start from ground state and we have calibrated PI gate.
+        We then excite them to target level based on self.x_values using PI gate.
         It's convenient since all Readout-type Scan can inherit this class.
         One can use it to check classification result without reclassifying it.
     """
@@ -539,8 +539,8 @@ class LevelScan(Scan):
                  scan_name: str,
                  level_start: int, 
                  level_stop: int,  
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None):
 
@@ -553,8 +553,8 @@ class LevelScan(Scan):
                          x_start=level_start, 
                          x_stop=level_stop, 
                          x_points=level_stop-level_start+1, 
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit)
         
@@ -576,10 +576,10 @@ class LevelScan(Scan):
         """
 
 
-    def add_mainpulse(self):
+    def add_main(self):
         """
-        Here we add all PI pulse to our sequence program based on level_stop.
-        We will use R4 to represent level and jlt instruction to skip later PI pulse.
+        Here we add all PI gate to our sequence program based on level_stop.
+        We will use R4 to represent level and jlt instruction to skip later PI gate.
         """
         for qudit in self.qudits: self.sequences[qudit]['program'] += """
                 #-----------Main-----------
@@ -587,8 +587,8 @@ class LevelScan(Scan):
         """         
 
         for level in range(self.x_stop):
-            self.add_pulse(pulse = {q: [f'X180_{level}{level+1}'] for q in self.drive_qubits},
-                           name = f'XPI{level}{level+1}')
+            self.add_gate(gate = {q: [f'X180_{level}{level+1}'] for q in self.drive_qubits},
+                          name = f'XPI{level}{level+1}')
             
             for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
                     jlt              R4,{level+2},@end_main    
@@ -606,8 +606,8 @@ class CalibrateClassification(LevelScan):
                  readout_resonators: str | list,
                  level_start: int, 
                  level_stop: int,  
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True):
 
@@ -617,8 +617,8 @@ class CalibrateClassification(LevelScan):
                          scan_name='CalibrateClassification',
                          level_start=level_start, 
                          level_stop=level_stop, 
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
@@ -705,14 +705,16 @@ class CalibrateClassification(LevelScan):
         
         
 
-class JustPulse(Scan):
-    """ Just a fun way to figure out direction of the Z rotation.
+class JustGate(Scan):
+    """ Simply run the gate sequence user send to it.
+        It can be a fun way to figure out direction of the Z rotation.
+        Here I treat it as a postgate. User can also use add_main, then add_gate.
     """
     def __init__(self,
                  cfg,
                  drive_qubits: str | list,
                  readout_resonators: str | list,
-                 just_pulse: dict,
+                 just_gate: dict,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -720,24 +722,19 @@ class JustPulse(Scan):
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_resonators=readout_resonators,
-                         scan_name='JustPulse',
+                         scan_name='JustGate',
                          x_plot_label='', 
                          x_plot_unit='arb', 
                          x_start=1, 
                          x_stop=1, 
                          x_points=1, 
                          subspace=None,
-                         prepulse=None,
-                         postpulse=None,
+                         pregate=None,
+                         postgate=just_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
-        
-        self.just_pulse = just_pulse
-        
-        
-    def add_mainpulse(self):
-        self.add_pulse(self.just_pulse, 'JustPulse')
+
         
         
         

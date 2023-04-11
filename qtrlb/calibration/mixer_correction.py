@@ -29,7 +29,7 @@ class MixerCorrection:
         
         # There are pointer to actual object in qblox driver.
         self.module = cfg.DAC.module[qudit]
-        self.sequencer = cfg.DAC.sequencer[qudit]
+        self.sequencer = cfg.DAC.sequencer[f'{qudit}/{subspace}']
         
         
     def run(self):

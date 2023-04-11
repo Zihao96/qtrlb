@@ -32,8 +32,8 @@ class Scan:
             x_stop: 320e-9.
             x_points: number of points on x_axis. Start and stop points will be both included.
             subspace: '12' or ['01', '12'], length should be same as drive_qubits.
-            prepulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
-            postpulse: Same requirement as prepulse.
+            pregate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
+            postgate: Same requirement as pregate.
             n_seqloops: Number of repetition inside sequence program. Total repetition will be n_seqloops * n_pyloops.
             level_to_fit: 0, 1 or [0,1,0,0], length should be same as readout_resonators.
             fitmodel: It should be better to pick from qtrlb.processing.fitting.
@@ -49,8 +49,8 @@ class Scan:
                  x_stop: float, 
                  x_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -64,8 +64,8 @@ class Scan:
         self.x_stop = x_stop
         self.x_points = x_points
         self.subspace = self.make_it_list(subspace) if subspace is not None else ['01']*len(self.drive_qubits)
-        self.prepulse = prepulse if prepulse is not None else {}
-        self.postpulse = postpulse if postpulse is not None else {}
+        self.pregate = pregate if pregate is not None else {}
+        self.postgate = postgate if postgate is not None else {}
         self.n_seqloops = n_seqloops
         self.level_to_fit = self.make_it_list(level_to_fit) if level_to_fit is not None else [0]*len(self.readout_resonators)
         self.fitmodel = fitmodel
@@ -84,9 +84,9 @@ class Scan:
         self.make_tones_list()
         
         self.x_unit_value = getattr(u, self.x_plot_unit)
-        self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
+        self.subspace_gate = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
-        self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
+        self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
 
         
     def run(self, 
@@ -129,7 +129,7 @@ class Scan:
         Check the qubits/resonators are always string with 'Q' or 'R'.
         Warn user if any drive_qubits are not being readout without raising error.
         Make sure each qubit has subspace and each resonator has level_to_fit.
-        Make sure the prepulse/postpulse is indeed in form of dictionary.
+        Make sure the pregate/postgate is indeed in form of dictionary.
         Check total acquisition point in sequence program.
         Make sure classification is on when heralding is on.
         """
@@ -144,8 +144,8 @@ class Scan:
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify subspace for each resonator.'
-        assert isinstance(self.prepulse, dict), 'Prepulse must be dictionary like {"Q0":[pulse1, pulse2,...]}'
-        assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
+        assert isinstance(self.pregate, dict), 'pregate must be dictionary like {"Q0":[gate1, gate2,...]}'
+        assert isinstance(self.postgate, dict), 'postgate must to be dictionary like {"Q0":[gate1, gate2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
 
@@ -197,9 +197,9 @@ class Scan:
         This bring you flexibility on qutrit and qudit experiment, for example qutrit Rz gate.
         Please check the VariableManager and DACManager about varman['tones'] for more details.
         """
-        # Pulse dataframe for user to read/check pulses.
+        # Gate dataframe for user to read/check gates.
         # Sequence will be correctly generated even without it.
-        self.pulse_df = self.dict_to_DataFrame(dic={}, name='', rows=self.tones)
+        self.gate_df = self.dict_to_DataFrame(dic={}, name='', rows=self.qudits)
         self.sequences = {tone: {} for tone in self.tones}        
         self.set_waveforms_acquisitions()
         
@@ -208,10 +208,10 @@ class Scan:
         
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
-        self.add_pulse(self.subspace_pulse, 'Subspace')
-        self.add_pulse(self.prepulse, 'Prepulse')
-        self.add_mainpulse()
-        self.add_pulse(self.postpulse, 'Postpulse')
+        self.add_gate(self.subspace_gate, 'Subspace')
+        self.add_gate(self.pregate, 'Pregate')
+        self.add_main()
+        self.add_gate(self.postgate, 'Postgate')
         self.add_readout()
         
         self.end_loop()
@@ -258,7 +258,7 @@ class Scan:
         Create sequence program and initialize some built-in registers.
         Please do not change the convention here since their function have been hardcoded later.
         """
-        for qudit in self.qudits:
+        for tone in self.tones:
             program = f"""
         # R0 count n_seqloops, descending.
         # R1 count bin for acquisition, ascending.
@@ -274,7 +274,7 @@ class Scan:
                     move             {self.n_seqloops},R0
                     move             0,R1
         """
-            self.sequences[qudit]['program'] = program
+            self.sequences[tone]['program'] = program
             
             
     def start_loop(self):
@@ -294,7 +294,7 @@ class Scan:
         """
         Add seq_loop to sequence program.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        for tone in self.tones: self.sequences[tone]['program'] += """
         seq_loop:   
         """
         
@@ -304,7 +304,7 @@ class Scan:
         Set necessary initial value of x parameter to the registers, especially R3 & R4. 
         Child class can super this method to add more initial values.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
+        for tone in self.tones: self.sequences[tone]['program'] += f"""
                     move             {self.x_points},R3    
         """
         
@@ -313,7 +313,7 @@ class Scan:
         """
         Add x_loop to sequence program.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """            
+        for tone in self.tones: self.sequences[tone]['program'] += """            
         xpt_loop: 
         """
         
@@ -322,7 +322,7 @@ class Scan:
         """
         Add sync and phase resetting instruction to sequence program.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """     
+        for tone in self.tones: self.sequences[tone]['program'] += """     
                 #-----------Start-----------
                     wait_sync        8               # Sync at beginning of the loop.
                     reset_ph                         # Reset phase to eliminate effect of previous VZ gate.
@@ -337,7 +337,7 @@ class Scan:
         
         Note from Zihao(03/31/2023):
         Although we can use add_wait to achieve same effect,
-        I don't want add a bunch of nonsense 'I' to my pulse_df.  
+        I don't want add a bunch of nonsense 'I' to my gate_df.  
         """
         relaxation_time_s = self.cfg.variables['common/relaxation_time']
         relaxation_time_us = int( np.ceil(relaxation_time_s*1e6) )
@@ -347,7 +347,7 @@ class Scan:
         rlx_loop:   wait             1000
                     loop             R2,@rlx_loop
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += relaxation
+        for tone in self.tones: self.sequences[tone]['program'] += relaxation
         
         
     def add_heralding(self, name: str = 'Heralding', add_label: bool = True, 
@@ -360,12 +360,12 @@ class Scan:
         self.add_wait(name=name+'Delay', length=heralding_delay, add_label=add_label, concat_df=concat_df)
         
         
-    def add_mainpulse(self):        
+    def add_main(self):        
         """
         Add main content of the parameter sweep. 
         Suppose to be called by child class.
         """
-        print('Scan: The base experiment class has been called. No main pulse will be added.')
+        print('Scan: The base experiment class has been called. No main sequence will be added.')
 
     
     def add_readout(self, name='Readout', add_label: bool = True, 
@@ -375,8 +375,8 @@ class Scan:
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
         readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
-        self.add_pulse(pulse=self.readout_pulse, lengths=[tof_ns+readout_length_ns],
-                       name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
+        self.add_gate(gate=self.readout_gate, lengths=[tof_ns+readout_length_ns],
+                      name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
         
         
     def end_loop(self):
@@ -385,7 +385,7 @@ class Scan:
         
         Note from Zihao(03/07/2023):
         In principle, we need to add x_step to the register that store x_value before ending x loop.
-        Here I absorb that part into add_mainpulse for continuity and readability.
+        Here I absorb that part into add_main for continuity and readability.
         For multidimensional scan, it only works when x loop is the innermost loop.
         Fortunately, this is indeed the most efficient way to reuse code of 1D scan onto 2D scan.
         If we make it separate, all child class need to modify it and become not elegant.
@@ -399,7 +399,7 @@ class Scan:
         """
         Count next acquisition bin (R1) and turn off all output.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        for tone in self.tones: self.sequences[tone]['program'] += """
                 #-----------Stop-----------
                     add              R1,1,R1
                     set_mrk          0               # Disable all markers (binary 0000) for switching off output.
@@ -411,7 +411,7 @@ class Scan:
         """
         Add end of x loop.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        for tone in self.tones: self.sequences[tone]['program'] += """
                     loop             R3,@xpt_loop         
         """
         
@@ -420,12 +420,11 @@ class Scan:
         """
         End sequence loop and stop the sequence program.
         """
-        seq_end = """
+        for tone in self.tones: self.sequences[tone]['program'] += """
                     loop             R0,@seq_loop
                     
                     stop             
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += seq_end
 
 
     def add_wait(self, name: str, length: int, add_label: bool = True,
@@ -434,43 +433,77 @@ class Scan:
         Add wait/Identity to sequence program with user-defined length in [ns].
         The maximum time of 'wait' instruction is 65535, so I divide it into multiple of divisor \
         along with a remainder, and use multiple instruction to achieve it.
-        Here I treat it as a pulse, which means we can add label if we want, \
-        and we can see it in self.pulse_df
+        Here I treat it as a gate, which means we can add label if we want, \
+        and we can see it in self.gate_df
         """
         assert length >= 4, f'The wait time need to be at least 4ns. Now it is {length}.'
         multiple = round(length // divisor_ns)
         remainder = round(length % divisor_ns)
         
-        pulse = {qudit: ['I' for i in range(multiple+1)] for qudit in self.qudits}
+        gate = {qudit: ['I' for i in range(multiple+1)] for qudit in self.qudits}
         lengths = [divisor_ns for i in range(multiple)] + [remainder]
-        self.add_pulse(pulse, name, lengths, add_label=add_label, concat_df=concat_df)
+        self.add_gate(gate, name, lengths, add_label=add_label, concat_df=concat_df)
     
             
-    def add_pulse(self, pulse: dict, name: str, lengths: list = None,
-                  add_label: bool = True, concat_df: bool = True, **pulse_kwargs):
+    def add_gate(self, gate: dict, name: str, lengths: list = None,
+                 add_label: bool = True, concat_df: bool = True, **pulse_kwargs):
         """
-        The general method for adding pulses to sequence program.
-        We will generate the Pandas DataFrame of prepulse, postpulse, readout, with padded 'I'.
+        The general method for adding gates to sequence.
+        We will generate the Pandas DataFrame of pregate, postgate, readout, with padded 'I'.
         All qubits and resonators will become the (row) index of dataframe.
         An additional interger attribute 'length' in [ns] will be associated with each column.
-        If lengths is shorter than number of pulse, it will be padded using the last length.
+        If lengths is shorter than number of gate, it will be padded using the last length.
         Please remember all labels created in Q1ASM should have different names.
         
         Attributes:
-            pulse: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
-            lengths: The duration of each pulse(column) in [ns]. Default is single qubit gate time.
+            gate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}.
+            lengths: The duration of each gate(column) in [ns]. Default is single qubit gate time.
             name: String in sequence program to improve readability.
             
-        Example of full prepulse DataFrame:
-           subspace_0 subspace_1 prepulse_0 prepulse_1
-        Q3    X180_01          I     Y90_01          I
-        Q4    X180_01    X180_12     Y90_01     Z90_12
-        R3          I          I          I          I
-        R4          I          I          I          I
+        Example of a subspace_gate + pregate DataFrame:
+           subspace_0 subspace_1 pregate_0 pregate_1
+        Q3    X180_01          I    Y90_01         I
+        Q4    X180_01    X180_12    Y90_01    Z90_12
+        R3          I          I         I         I
+        R4          I          I         I         I
+
+        Note from Zihao(04/11/2023):
+        The each gate will then be decomposed to one or more pulses on different sequencer.
+        Then pulse_interpreter will make them into Q1ASM string and add them to sequence program.
+        The core difference between gate and pulse here is gate usually map to qubit/resonator, \
+        whereas pulse has to map to each tone, which is each sequencer on Qblox.
+        For example, a qutrit hadamard need two tones multiplexing which requires two sequencers to do that.
+        In such case, gate_df still have a 'H3' on one qutrit 'Q3' with a gate length.
+        However, pulse_df will have 'H3_01' in 'Q3/01' and 'H3_12' in 'Q3/12'.
+        These two pulses are in same column but different rows, so same moment but different sequencers.
         """
         if lengths is None: lengths = [round(self.cfg.variables['common/qubit_pulse_length'] * 1e9)]
         lengths = self.make_it_list(lengths)
-        pulse_df = self.dict_to_DataFrame(pulse, name, self.qudits)
+        gate_df = self.dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
+        ##################################################
+
+        for col_name, column in gate_df.items():
+            try:
+                column.length = lengths[int(col_name.split('_')[1])]  
+                # Use column name as index of lengths list. If list is not long enough, use last index.
+            except IndexError:
+                column.length = lengths[-1]
+                
+            for qudit in self.qudits:
+                pulse_prog = '' if not add_label else f"""
+                # -----------{col_name}-----------
+        {col_name}:  """
+        
+                pulse_prog += pulse_interpreter(cfg = self.cfg, 
+                                                qudit = qudit, 
+                                                pulse_string = column[qudit], 
+                                                length = column.length,
+                                                **pulse_kwargs)
+                self.sequences[qudit]['program'] += pulse_prog
+
+
+        ##################################################
+        pulse_df = self.dict_to_DataFrame(gate, name, self.tones)  # Each row is a tone.
         
         for col_name, column in pulse_df.items():
             try:
@@ -493,11 +526,11 @@ class Scan:
         
         # Concatenate a larger dataframe while keeping length for user to read/check it.
         if concat_df:
-            old_df = self.pulse_df
-            self.pulse_df = pd.concat([old_df, pulse_df], axis=1)
+            old_df = self.gate_df
+            self.gate_df = pd.concat([old_df, gate_df], axis=1)
             
-            for col_name, column in self.pulse_df.items():
-                column.length = old_df[col_name].length if col_name in old_df else pulse_df[col_name].length
+            for col_name, column in self.gate_df.items():
+                column.length = old_df[col_name].length if col_name in old_df else gate_df[col_name].length
             
         
         
@@ -758,7 +791,7 @@ class Scan:
         
         Example:
             dict: {'Q3':['X180_01', 'X180_12'], 'Q4':['Y90_01']}
-            name: 'prepulse'
+            name: 'pregate'
             rows: ['Q3', 'Q4', 'R3', 'R4']
         """
         for row in rows:
@@ -822,8 +855,8 @@ class Scan2D(Scan):
                  y_stop: float,
                  y_points: int,
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -839,8 +872,8 @@ class Scan2D(Scan):
                       x_stop=x_stop, 
                       x_points=x_points, 
                       subspace=subspace,
-                      prepulse=prepulse,
-                      postpulse=postpulse,
+                      pregate=pregate,
+                      postgate=postgate,
                       n_seqloops=n_seqloops,
                       level_to_fit=level_to_fit,
                       fitmodel=fitmodel)

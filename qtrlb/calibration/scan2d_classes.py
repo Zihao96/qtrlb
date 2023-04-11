@@ -26,8 +26,8 @@ class ChevronScan(Scan2D, RabiScan):
                  detuning_stop: float, 
                  detuning_points: int, 
                  subspace: str | list = None,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None,
@@ -48,8 +48,8 @@ class ChevronScan(Scan2D, RabiScan):
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
                          subspace=subspace,
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -73,14 +73,14 @@ class ChevronScan(Scan2D, RabiScan):
             self.sequences[qubit]['program'] += yinit
 
 
-    def add_mainpulse(self):
+    def add_main(self):
         """
         Qblox doesn't accept zero length waveform, so we use Label 'end_main' here.
-        There is 4ns delay after each Rabi pulse before postpulse/readout.
+        There is 4ns delay after each Rabi pulse before postgate/readout.
         It's because the third index of 'play' instruction cannot be register.
         So we cannot set it as a variable, and wait will be separated.
         """
-        super().add_mainpulse(freq='R6')
+        super().add_main(freq='R6')
 
 
     def add_yvalue(self):
@@ -93,7 +93,7 @@ class ChevronScan(Scan2D, RabiScan):
 class ReadoutTemplateScan(Scan2D, LevelScan):
     """ Sweep a readout parameter (freq/amp/length) with different qubit state.
         Calculate readout fidelity for each parameter value and show the spectrum for all qubit state.
-        Require calibrated PI pulse when scaning more than ground level.
+        Require calibrated PI gate when scaning more than ground level.
         This Scan has no __init__ and suppose to be a template inherited by child scan \
         and not to be called directly.
         Since the data in 'to_fit' is readout fidelity, we should always use level_to_fit at the lowest \
@@ -263,8 +263,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int, 
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
                  fitmodel: Model = QuadModel):
@@ -283,8 +283,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                          y_start=detuning_start, 
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)  
@@ -305,7 +305,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         
     def add_readout(self):
         """
-        Instead of using add_pulse method, here we directly access the sequencer instruction.
+        Instead of using add_gate method, here we directly access the sequencer instruction.
         For more details, please check qtrlb.utils.pulses.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
@@ -351,8 +351,8 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -371,8 +371,8 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                          y_start=amp_start, 
                          y_stop=amp_stop, 
                          y_points=amp_points, 
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)  
@@ -391,7 +391,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         
     def add_readout(self):
         """
-        Instead of using add_pulse method, here we directly access the sequencer instruction.
+        Instead of using add_gate method, here we directly access the sequencer instruction.
         For more details, please check qtrlb.utils.pulses.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
@@ -447,8 +447,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                  length_start: float = 100 * u.ns,
                  length_stop: float = 5000 * u.ns,
                  length_points: int = 50,
-                 prepulse: dict = None,
-                 postpulse: dict = None,
+                 pregate: dict = None,
+                 postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -461,8 +461,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                          amp_start=amp_start, 
                          amp_stop=amp_stop, 
                          amp_points=amp_points, 
-                         prepulse=prepulse,
-                         postpulse=postpulse,
+                         pregate=pregate,
+                         postgate=postgate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
