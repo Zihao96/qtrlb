@@ -4,7 +4,7 @@ def pulse_interpreter(cfg, qudit: str, pulse_string: str, length: int, **pulse_k
     """
     Generate the string sequence program for Qblox sequencer based on a input string.
     
-    Attribute:
+    Parameters:
         cfg: A Metamanager, typically belong to a Scan.
         qudit: String of single qubit or resonator. Example: 'Q3', 'R4'.
         pulse_string: The content we need to interpret. 
