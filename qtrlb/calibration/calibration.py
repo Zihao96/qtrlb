@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import qtrlb.utils.units as u
+from copy import deepcopy
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
@@ -80,12 +81,12 @@ class Scan:
         self.jsons_path=os.path.join(self.cfg.working_dir, 'Jsons')
         
         self.check_attribute()
+        self.make_tones_list()
         
         self.x_unit_value = getattr(u, self.x_plot_unit)
         self.subspace_pulse = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_pulse = {r: ['RO'] for r in self.readout_resonators}
-        
 
         
     def run(self, 
@@ -107,7 +108,7 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = self.__dict__
+        self.attrs = deepcopy(self.__dict__)
         
         self.make_sequence() 
         self.save_sequence()
@@ -134,7 +135,7 @@ class Scan:
         """
         for qudit in self.qudits:
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
-            assert qudit.startswith('Q') or qudit.startswith('R'), f'The value of {qudit} is invalid.'
+            assert qudit.startswith(('Q', 'R')), f'The value of {qudit} is invalid.'
             
         for qubit in self.drive_qubits:
             if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
@@ -147,7 +148,26 @@ class Scan:
         assert isinstance(self.postpulse, dict), 'Postpulse must to be dictionary like {"Q0":[pulse1, pulse2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
-        
+
+
+    def make_tones_list(self):
+        """
+        Generate list attribute self.tones from existing attributes.
+        It will have values like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
+        """
+        self.tones = []
+        self.tones_ = []  # Replace all slash by underscroll.
+
+        for i, qubit in enumerate(self.drive_qubits):
+            highest_level = int(self.subspace[i][-1])
+
+            for level in range(highest_level):
+                self.tones.append(f'{qubit}/{level}{level+1}')
+                self.tones_.append(f'{qubit}_{level}{level+1}')
+
+        self.tones += self.readout_resonators
+        self.tones_ += self.readout_resonators
+
 
     ##################################################
     def make_sequence(self):
@@ -156,8 +176,10 @@ class Scan:
         dictionaries that we will dump to json file.
         
         Example:
-        self.sequences = {'Q3': Q3_sequence_dict,
-                          'Q4': Q4_sequence_dict,
+        self.sequences = {'Q3/01': Q3/01_sequence_dict,
+                          'Q3/12': Q3/12_sequence_dict
+                          'Q4/01': Q4/01_sequence_dict,
+                          'Q4/12': Q4/12_sequence_dict
                           'R3': R3_sequence_dict,
                           'R4': R4_sequence_dict}
         
@@ -169,12 +191,16 @@ class Scan:
         
         Please check the link below for detail:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/basic_sequencing.html
+
+        Note from Zihao (04/11/2023):
+        From today, I decide to map each sequencer to each subspace rather than each qubit as previous code.
+        This bring you flexibility on qutrit and qudit experiment, for example qutrit Rz gate.
+        Please check the VariableManager and DACManager about varman['tones'] for more details.
         """
         # Pulse dataframe for user to read/check pulses.
         # Sequence will be correctly generated even without it.
-        self.pulse_df = self.dict_to_DataFrame({}, '', self.qudits)
-        
-        self.sequences = {qudit:{} for qudit in self.qudits}        
+        self.pulse_df = self.dict_to_DataFrame(dic={}, name='', rows=self.tones)
+        self.sequences = {tone: {} for tone in self.tones}        
         self.set_waveforms_acquisitions()
         
         self.init_program()
@@ -200,10 +226,10 @@ class Scan:
         Please check the link below for detail:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/binned_acquisition.html
         """
-        for qudit in self.qudits:
-            if qudit.startswith('Q'):
+        for tone in self.tones:
+            if tone.startswith('Q'):
                 length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
-                shape = self.cfg.variables[f'{qudit}/pulse_shape']
+                shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                         'index': 0},
@@ -211,9 +237,9 @@ class Scan:
                                         'index': 1}}                
                 acquisitions = {}
             
-            elif qudit.startswith('R'):
+            elif tone.startswith('R'):
                 length = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
-                shape = self.cfg.variables[f'{qudit}/pulse_shape']
+                shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                     'index': 0}}
@@ -222,9 +248,9 @@ class Scan:
                                 'heralding': {'num_bins': self.num_bins, 'index': 1}}
             
             
-            self.sequences[qudit]['waveforms'] = waveforms
-            self.sequences[qudit]['weights'] = {}
-            self.sequences[qudit]['acquisitions'] = acquisitions           
+            self.sequences[tone]['waveforms'] = waveforms
+            self.sequences[tone]['weights'] = {}
+            self.sequences[tone]['acquisitions'] = acquisitions           
 
         
     def init_program(self):

@@ -23,8 +23,8 @@ class VariableManager(Config):
     def load(self):
         """
         Run the parent load, then generate a seires of items in config_dict
-        including qubits, mod_freq for AWG, anharmonicity, n_readout_levels.
-        Additionally, it will check the value inside the dictionary to make
+        including tones, mod_freq for AWG, anharmonicity, n_readout_levels.
+        If asked, it will check the value inside the dictionary to make
         sure they are valid.
         """
         super().load()
@@ -41,10 +41,15 @@ class VariableManager(Config):
     def set_parameters(self):
         """
         Set mod_freq for AWG, anharmonicity, n_readout_levels, etc, into config_dict.
+        Most importantly, it will generate the key 'tones' whose value looks like: 
+        ['Q0/01', 'Q0/12', 'Q1/01', 'Q1/12', 'Q2/01', 'Q2/12', 'R0', 'R1', 'R2'].
         """
+        tones_list = []
+
         for q in self['qubits']:
             for subspace in self[f'{q}']:
                 if not subspace.isdecimal(): continue
+                tones_list.append(f'{q}/{subspace}')
             
                 # Set AWG frequency for each subspace.
                 self.set(f'{q}/{subspace}/mod_freq', 
@@ -58,6 +63,8 @@ class VariableManager(Config):
                          which='dict')  # Yep, I made it. --Zihao(01/25/2023)  
                 
         for r in self['resonators']:
+            tones_list.append(r)
+
             # Set AWG frequency for Resonator.
             self.set(f'{r}/mod_freq', self[f'{r}/freq']-self[f'{r}/resonator_LO'], which='dict')
             
@@ -68,6 +75,8 @@ class VariableManager(Config):
             self.set(f'{r}/highest_readout_levels', self[f'{r}/readout_levels'][-1], which='dict')
             self.set(f'{r}/n_readout_levels', len(self[f'{r}/readout_levels']), which='dict')
         
+        self.set('tones', tones_list, which='dict')
+
 
     def check_module_sequencer_LO(self):
         """

@@ -46,9 +46,10 @@ class DACManager(Config):
         # These dictionary contain pointer to real object in instrument driver.
         self.module = {}
         self.sequencer = {}
-        for qudit in self.varman['qubits'] + self.varman['resonators']:
+        for tone in self.varman['tones']:
+            qudit = self.tone_to_qudit(tone)
             self.module[qudit] = getattr(self.qblox, 'module{}'.format(self.varman[f'{qudit}/module']))
-            self.sequencer[qudit] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{qudit}/sequencer']))
+            self.sequencer[tone] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{tone}/sequencer']))
              
         
     def implement_parameters(self, qubits: list, resonators: list, jsons_path: str):
@@ -198,3 +199,35 @@ class DACManager(Config):
                 measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
                 measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
+
+    @staticmethod
+    def tone_to_qudit(tone: str | list) -> str | list:
+        """
+        Translate the tone to qudit.
+        Accept a string or a list of string.
+        It's because qudit is mapping to module and tone is mapping to sequencer.
+
+        Example:
+        tone_to_qudit('Q2') -> 'Q2'
+        tone_to_qudit('R2') -> 'R2'
+        tone_to_qudit('Q2/12') -> 'Q2'
+        tone_to_qudit(['Q2/01', 'Q2/12', 'R2']) -> ['Q2', 'R2']
+        tone_to_qudit([['Q2/01', 'Q3/12', 'R2'],['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
+        """
+        if isinstance(tone, str):
+            assert tone.startswith(('Q', 'R')), f'DAC: Cannot translate {tone} to qudit.'
+            try:
+                qudit, _ = tone.split('/')
+                return qudit
+            except ValueError:
+                return tone
+            
+        elif isinstance(tone, list):
+            qudit = []
+            for t in tone:
+                q = DACManager.tone_to_qudit(t)
+                if q not in qudit: qudit.append(q)
+            return qudit
+
+        else:
+            raise TypeError(f'DAC: Cannot translate the {tone}. Please check it type.')
