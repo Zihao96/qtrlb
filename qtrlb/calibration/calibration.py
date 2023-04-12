@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.utils.waveforms import get_waveform
-from qtrlb.utils.pulses import pulse_interpreter
+from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
 
 
@@ -112,7 +112,7 @@ class Scan:
         
         self.make_sequence() 
         self.save_sequence()
-        self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
+        self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
@@ -199,7 +199,7 @@ class Scan:
         """
         # Gate dataframe for user to read/check gates.
         # Sequence will be correctly generated even without it.
-        self.gate_df = self.dict_to_DataFrame(dic={}, name='', rows=self.qudits)
+        self.gate_df = dict_to_DataFrame(dic={}, name='', rows=self.qudits)
         self.sequences = {tone: {} for tone in self.tones}        
         self.set_waveforms_acquisitions()
         
@@ -477,66 +477,36 @@ class Scan:
         However, pulse_df will have 'H3_01' in 'Q3/01' and 'H3_12' in 'Q3/12'.
         These two pulses are in same column but different rows, so same moment but different sequencers.
         """
-        gate_df = self.dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
+        gate_df = dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
 
         default_lengths = [round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) for _ in range(gate_df.shape[1])]
         lengths = self.make_it_list(lengths, default_lengths) 
         assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
-        ##################################################
-        # pulse_df, pulse_lengths = compile_gate(gate_df, self.tones, lengths)
-        # self.add_pulse(pulse_df, name, pulse_lengths, add_label=add_label, **pulse_kwargs)
 
-        for col_name in gate_df:
-            column = gate_df[[col_name]]  # Nested bracket keep column still be DataFrame rather than Series.
-            try:
-                column.length = lengths[int(col_name.split('_')[1])]  
-                # Use column name as index of lengths list. If list is not long enough, use last index.
-            except IndexError:
-                column.length = lengths[-1]
-                
-            for qudit in self.qudits:
-                pulse_prog = '' if not add_label else f"""
-                # -----------{col_name}-----------
-        {col_name}:  """
-        
-                pulse_prog += pulse_interpreter(cfg = self.cfg, 
-                                                qudit = qudit, 
-                                                pulse_string = column[qudit], 
-                                                length = column.length,
-                                                **pulse_kwargs)
-                self.sequences[qudit]['program'] += pulse_prog
-
-
-        ##################################################
-        pulse_df = self.dict_to_DataFrame(gate, name, self.tones)  # Each row is a tone.
-        
-        for col_name, column in pulse_df.items():
-            try:
-                column.length = lengths[int(col_name.split('_')[1])]  
-                # Use column name as index of lengths list. If list is not long enough, use last index.
-            except IndexError:
-                column.length = lengths[-1]
-                
-            for qudit in self.qudits:
-                pulse_prog = '' if not add_label else f"""
-                # -----------{col_name}-----------
-        {col_name}:  """
-        
-                pulse_prog += pulse_interpreter(cfg = self.cfg, 
-                                                qudit = qudit, 
-                                                pulse_string = column[qudit], 
-                                                length = column.length,
-                                                **pulse_kwargs)
-                self.sequences[qudit]['program'] += pulse_prog
+        pulse_df = gate_transpiler(gate_df, self.tones)  # Rightnow it gives same number of columns as gate_df.
+        self.add_pulse(pulse_df, pulse_lengths=lengths, add_label=add_label, **pulse_kwargs)
         
         # Concatenate a larger dataframe while keeping length for user to read/check it.
-        if concat_df:
-            old_df = self.gate_df
-            self.gate_df = pd.concat([old_df, gate_df], axis=1)
+        if concat_df: self.gate_df = pd.concat([self.gate_df, gate_df], axis=1)
             
-            for col_name, column in self.gate_df.items():
-                column.length = old_df[col_name].length if col_name in old_df else gate_df[col_name].length
             
+    def add_pulse(self, pulse_df: pd.DataFrame, pulse_lengths: list, add_label: bool = True, **pulse_kwargs):
+        """
+        Interpret the pulse dataframe to string and add it to the sequence program of each sequencer.
+        Here we assume user has specified length of each column.
+        """
+        for i, col_name in enumerate(pulse_df):
+            column = pulse_df[col_name]
+            length = pulse_lengths[i]
+                
+            for tone in self.tones:
+                pulse_prog = '' if not add_label else f"""
+                # -----------{col_name}-----------
+        {col_name}:  """
+        
+                pulse_prog += pulse_interpreter(cfg=self.cfg, tone=tone, pulse_string=column[tone], 
+                                                length=length, **pulse_kwargs)
+                self.sequences[tone]['program'] += pulse_prog
         
         
     ##################################################    
@@ -549,12 +519,13 @@ class Scan:
         if jsons_path is None:
             jsons_path = self.jsons_path 
 
-        for qudit, sequence_dict in self.sequences.items():
-            file_path = os.path.join(jsons_path, f'{qudit}_sequence.json')
+        for tone, sequence_dict in self.sequences.items():
+            tone_ = tone.replace('/', '_')
+            file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(sequence_dict, file, indent=4)
                 
-            txt_file_path = os.path.join(jsons_path, f'{qudit}_sequence_program.txt')
+            txt_file_path = os.path.join(jsons_path, f'{tone_}_sequence_program.txt')
             with open(txt_file_path, 'w', encoding='utf-8') as txt:
                 txt.write(sequence_dict['program'])
             
@@ -570,7 +541,7 @@ class Scan:
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we may already get some data and want to save it by manually calling save_measurement().
         """
-        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.qudits, self.scan_name]),
+        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.drive_qubits, self.scan_name]),
                                    experiment_suffix=self.experiment_suffix)
         
         self.data_path = self.cfg.data.data_path
@@ -598,7 +569,7 @@ class Scan:
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(self.drive_qubits, self.readout_resonators, self.measurement)
+            self.cfg.DAC.start_sequencer(self.tones, self.measurement)
             print(f'Scan: Pyloop {i} finished!')
             
             
@@ -785,27 +756,6 @@ class Scan:
             return [] if default is None else default
         else:
             return [thing]
-
-
-    @staticmethod
-    def dict_to_DataFrame(dic: dict, name: str, rows: list, padding: object = 'I'):
-        """
-        Turn a dictionary into a Pandas DataFrame with padding.
-        Each key in dic or element in rows will become index (row) of the DataFrame.
-        Each column will be renamed as 'name_0', 'name_1'.
-        
-        Example:
-            dict: {'Q3':['X180_01', 'X180_12'], 'Q4':['Y90_01']}
-            name: 'pregate'
-            rows: ['Q3', 'Q4', 'R3', 'R4']
-        """
-        for row in rows:
-            if row not in dic: dic[row] = []
-            
-        dataframe = pd.DataFrame.from_dict(dic, orient='index')
-        dataframe = dataframe.rename(columns={i:f'{name}_{i}' for i in range(dataframe.shape[1])})
-        dataframe = dataframe.fillna(padding)        
-        return dataframe
     
     
     @staticmethod
@@ -917,7 +867,7 @@ class Scan2D(Scan):
         Set necessary initial value of y parameter to the registers, especially R5 & R6. 
         Child class can super this method to add more initial values.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""            
+        for tone in self.tones: self.sequences[tone]['program'] += f"""            
                     move             {self.y_points},R5    """
 
 
@@ -925,7 +875,7 @@ class Scan2D(Scan):
         """
         Add y_loop to sequence program.
         """
-        for qudit in self.qudits:  self.sequences[qudit]['program'] += """            
+        for tone in self.tones: self.sequences[tone]['program'] += """            
         ypt_loop:   """
 
 
@@ -955,7 +905,7 @@ class Scan2D(Scan):
         """
         y_end = """
                     loop             R5,@ypt_loop    """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += y_end
+        for tone in self.tones: self.sequences[tone]['program'] += y_end
 
 
     def process_data(self):

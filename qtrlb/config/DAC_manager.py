@@ -52,72 +52,113 @@ class DACManager(Config):
             self.sequencer[tone] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{tone}/sequencer']))
              
         
-    def implement_parameters(self, qubits: list, resonators: list, jsons_path: str):
+    def implement_parameters(self, tones: list, jsons_path: str):
         """
         Implement the setting/parameters onto Qblox.
-        This function should be called after we know which specific qubits/resonators will be used.
-        The qubits/resonators should be list of string: ['Q2', 'Q4'], ['R1', 'R3'], etc.
+        This function should be called after we know which specific tones will be used.
+        The tones should be list of string like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
         
         Right now it's just a temporary way to null the mixer.
-        We suppose the parameters are independent of both LO and AWG frequency.
-        In future we should have frequency-dependent mixer nulling. --Zihao(01/29/2023)
+        We need to manually get each parameter and save it to DAC.yaml file.
+        In future we should have automatic mixer nulling from Spectral Analyzer feedback. --Zihao(04/12/2023)
         """
         self.qblox.reset()
         self.disconnect_existed_map()
         
-        # Qubits first, then resonators. Module first, then Sequencer.
-        for q in qubits:
-            qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
+        for tone in tones:
+            tone_ = tone.replace('/', '_')
+            qudit = tone.split('/')[0]
+            module_idx = self.varman[f'{qudit}/module']  # Just an interger. It's for convenience.
+            sequencer_idx = self.varman[f'{tone}/sequencer']
+
+            # Implement common parameters.
+            for attribute in self[f'Module{module_idx}'].keys():
+                if attribute.startswith(('out', 'in', 'scope')):
+                    getattr(self.module[qudit], attribute)(self[f'Module{module_idx}/{attribute}'])
+
+            # Implement QCM-RF specific parameters.
+            if qudit.startswith('Q'):
+                out = self.varman[f'{qudit}/out']
+                getattr(self.module[qudit], f'out{out}_lo_freq')(self.varman[f'{qudit}/qubit_LO']) 
+
+                self.sequencer[tone].sync_en(True)
+                self.sequencer[tone].mod_en_awg(True)
+
+                getattr(self.sequencer[tone], f'channel_map_path0_out{out*2}_en')(True)
+                getattr(self.sequencer[tone], f'channel_map_path1_out{out*2+1}_en')(True)
+                
+            # Implement QRM-RF specific parameters.
+            elif qudit.startswith('R'):
+                self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
+                self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  # Last sequencer to triger acquire.
+                self.sequencer[tone].sync_en(True)
+                self.sequencer[tone].mod_en_awg(True)
+                self.sequencer[tone].demod_en_acq(True)
+                self.sequencer[tone].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
+                self.sequencer[tone].channel_map_path0_out0_en(True)
+                self.sequencer[tone].channel_map_path1_out1_en(True)
+                  
+
+            self.sequencer[tone].mixer_corr_gain_ratio(
+                self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_gain_ratio']
+                )           
+            self.sequencer[tone].mixer_corr_phase_offset_degree(
+                self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_phase_offset_degree']
+                )
             
-            for attribute in self[f'Module{qubit_module}'].keys():
-                if attribute.startswith('out') or attribute.startswith('in'):
-                    attr = getattr(self.module[q], attribute)
-                    attr(self[f'Module{qubit_module}/{attribute}'])
+            file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
+            self.sequencer[tone].sequence(file_path)
+
+
+        ##################################################
+        # # Qubits first, then resonators. Module first, then Sequencer.
+        # for q in qubits:
+        #     qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
             
-            attr = getattr(self.module[q], 'out{}_lo_freq'.format(self.varman[f'{q}/out']))
-            attr(self.varman[f'{q}/qubit_LO'])        
-            self.sequencer[q].sync_en(True)
-            self.sequencer[q].mod_en_awg(True)
-            attr = getattr(self.sequencer[q], 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2))
-            attr(True)
-            attr = getattr(self.sequencer[q], 'channel_map_path1_out{}_en'.format(self.varman[f'{q}/out'] * 2 + 1))
-            attr(True)
+        #     for attribute in self[f'Module{qubit_module}'].keys():
+        #         if attribute.startswith('out') or attribute.startswith('in'):
+        #             attr = getattr(self.module[q], attribute)
+        #             attr(self[f'Module{qubit_module}/{attribute}'])
             
-            # self.sequencer[q].gain_awg_path0(self.varman[f'{q}/{subspace[i]}/amp_rabi'])
-            # self.sequencer[q].gain_awg_path1(self.varman[f'{q}/{subspace[i]}/amp_rabi'])
-            # self.sequencer[q].nco_freq(self.varman[f'{q}/{subspace[i]}/mod_freq']) 
-            self.sequencer[q].mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
-            self.sequencer[q].mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
-            file_path = os.path.join(jsons_path, f'{q}_sequence.json')
-            self.sequencer[q].sequence(file_path)
+        #     attr = getattr(self.module[q], 'out{}_lo_freq'.format(self.varman[f'{q}/out']))
+        #     attr(self.varman[f'{q}/qubit_LO'])        
+        #     self.sequencer[q].sync_en(True)
+        #     self.sequencer[q].mod_en_awg(True)
+        #     attr = getattr(self.sequencer[q], 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2))
+        #     attr(True)
+        #     attr = getattr(self.sequencer[q], 'channel_map_path1_out{}_en'.format(self.varman[f'{q}/out'] * 2 + 1))
+        #     attr(True)
+            
+        #     self.sequencer[q].mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
+        #     self.sequencer[q].mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
+        #     file_path = os.path.join(jsons_path, f'{q}_sequence.json')
+        #     self.sequencer[q].sequence(file_path)
 
         
-        for r in resonators:
-            resonator_module = self.varman[f'{r}/module']
+        # for r in resonators:
+        #     resonator_module = self.varman[f'{r}/module']
             
-            for attribute in self[f'Module{resonator_module}'].keys():
-                if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
-                    attr = getattr(self.module[r], attribute)
-                    attr(self[f'Module{resonator_module}/{attribute}'])
+        #     for attribute in self[f'Module{resonator_module}'].keys():
+        #         if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
+        #             attr = getattr(self.module[r], attribute)
+        #             attr(self[f'Module{resonator_module}/{attribute}'])
             
-            self.module[r].out0_in0_lo_freq(self.varman[f'{r}/resonator_LO'])        
-            self.module[r].scope_acq_sequencer_select(self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
-            self.sequencer[r].sync_en(True)
-            self.sequencer[r].mod_en_awg(True)
-            self.sequencer[r].demod_en_acq(True)
-            self.sequencer[r].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
-            self.sequencer[r].channel_map_path0_out0_en(True)
-            self.sequencer[r].channel_map_path1_out1_en(True)
-
-            # self.sequencer[r].gain_awg_path0(self.varman[f'{r}/amp'])
-            # self.sequencer[r].gain_awg_path1(self.varman[f'{r}/amp'])
-            # self.sequencer[r].nco_freq(self.varman[f'{r}/mod_freq'])                    
-            self.sequencer[r].mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
-            self.sequencer[r].mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
-            file_path = os.path.join(jsons_path, f'{r}_sequence.json')
-            self.sequencer[r].sequence(file_path)
+        #     self.module[r].out0_in0_lo_freq(self.varman[f'{r}/resonator_LO'])        
+        #     self.module[r].scope_acq_sequencer_select(self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
+        #     self.sequencer[r].sync_en(True)
+        #     self.sequencer[r].mod_en_awg(True)
+        #     self.sequencer[r].demod_en_acq(True)
+        #     self.sequencer[r].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
+        #     self.sequencer[r].channel_map_path0_out0_en(True)
+        #     self.sequencer[r].channel_map_path1_out1_en(True)
+                  
+        #     self.sequencer[r].mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
+        #     self.sequencer[r].mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
+        #     file_path = os.path.join(jsons_path, f'{r}_sequence.json')
+        #     self.sequencer[r].sequence(file_path)
             
         # Sorry, this is just temporary code. It's tricky to set those freq/amp based on which qubit. --Zihao (01/30/2023)
+        # Sorry, after mapping sequencer to subspace, it become more ugly. --Zihao (04/12/2023)
     
     
     def disconnect_existed_map(self):
@@ -145,7 +186,7 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    def start_sequencer(self, qubits: list, resonators: list, measurement: dict, keep_raw: bool = False):
+    def start_sequencer(self, tones: list, measurement: dict, keep_raw: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.
@@ -161,31 +202,34 @@ class DACManager(Config):
         So it's barely useful, but I still leave the interface here.
         """
         # Arm sequencer first. It's necessary. Only armed sequencer will be started next.
-        for qudit in qubits + resonators:
-            self.sequencer[qudit].arm_sequencer()
+        for tone in tones:
+            self.sequencer[tone].arm_sequencer()
             
         # Really start sequencer.
         self.qblox.start_sequencer()  
 
-        for r in resonators:
+        for r in tones:
+            # Only loop over resonator.
+            if not r.startswith('R'): continue
+
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
-            seq_num = self.varman[f'{r}/sequencer']
+            seq_idx = self.varman[f'{r}/sequencer']
            
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
-            self.module[r].get_acquisition_state(seq_num, timeout)  
+            self.module[r].get_acquisition_state(seq_idx, timeout)  
 
             # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
             if keep_raw: 
-                self.module[r].store_scope_acquisition(seq_num, 'readout')
-                self.module[r].store_scope_acquisition(seq_num, 'heralding')
+                self.module[r].store_scope_acquisition(seq_idx, 'readout')
+                self.module[r].store_scope_acquisition(seq_idx, 'heralding')
             
             # Retrive the heterodyned result (binned data) back to python in Host PC.
-            data = self.module[r].get_acquisitions(seq_num)
+            data = self.module[r].get_acquisitions(seq_idx)
             
             # Clear the memory of instrument. 
             # It's necessary otherwise the acquisition result will accumulate and be averaged.
-            self.module[r].delete_acquisition_data(seq_num, 'readout')
-            self.module[r].delete_acquisition_data(seq_num, 'heralding')
+            self.module[r].delete_acquisition_data(seq_idx, 'readout')
+            self.module[r].delete_acquisition_data(seq_idx, 'heralding')
             
             # Append list of each repetition into measurement dictionary.
             measurement[r]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 

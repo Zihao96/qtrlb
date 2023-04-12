@@ -26,10 +26,11 @@ class MixerCorrection:
         self.subspace = subspace
         self.amp = amp
         self.waveform_length = waveform_length
+        self.tone = f'{qudit}/{subspace}' if qudit.startswith('Q') else qudit
         
         # There are pointer to actual object in qblox driver.
-        self.module = cfg.DAC.module[qudit]
-        self.sequencer = cfg.DAC.sequencer[f'{qudit}/{subspace}']
+        self.module = cfg.DAC.module[self.qudit]
+        self.sequencer = cfg.DAC.sequencer[self.tone]
         
         
     def run(self):
@@ -73,13 +74,11 @@ class MixerCorrection:
         if self.qudit.startswith('Q'):
             # Because the name of attribute depends on which output port.
             self.out = self.cfg[f'variables.{self.qudit}/out']
-            attr = getattr(self.module, f'out{self.out}_lo_freq')
-            attr(self.cfg[f'variables.{self.qudit}/qubit_LO'])
-            attr = getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')
-            attr(True)
-            attr = getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')
-            attr(True)
-            self.sequencer.nco_freq(self.cfg[f'variables.{self.qudit}/{self.subspace}/mod_freq'])
+            getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.{self.qudit}/qubit_LO'])
+            getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
+            getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')(True)
+            self.sequencer.nco_freq(self.cfg[f'variables.{self.tone}/mod_freq'])
+
         elif self.qudit.startswith('R'):
             self.out = 0
             self.module.out0_in0_lo_freq(self.cfg[f'variables.{self.qudit}/resonator_LO'])
@@ -92,16 +91,14 @@ class MixerCorrection:
         """
         offset0 should be float number between [-84, 73].
         """
-        attr = getattr(self.module, f'out{self.out}_offset_path0')
-        attr(offset0)
+        getattr(self.module, f'out{self.out}_offset_path0')(offset0)
 
 
     def set_offset1(self, offset1):
         """
         offset1 should be float number between [-84, 73].
         """
-        attr = getattr(self.module, f'out{self.out}_offset_path1')
-        attr(offset1)
+        getattr(self.module, f'out{self.out}_offset_path1')(offset1)
 
 
     def set_gain_ratio(self, gain_ratio):
