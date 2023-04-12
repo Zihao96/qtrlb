@@ -478,13 +478,15 @@ class Scan:
         These two pulses are in same column but different rows, so same moment but different sequencers.
         """
         gate_df = self.dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
+
         default_lengths = [round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) for _ in range(gate_df.shape[1])]
         lengths = self.make_it_list(lengths, default_lengths) 
+        assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
         ##################################################
         # pulse_df, pulse_lengths = compile_gate(gate_df, self.tones, lengths)
         # self.add_pulse(pulse_df, name, pulse_lengths, add_label=add_label, **pulse_kwargs)
 
-        for col_name, column in gate_df:
+        for col_name in gate_df:
             column = gate_df[[col_name]]  # Nested bracket keep column still be DataFrame rather than Series.
             try:
                 column.length = lengths[int(col_name.split('_')[1])]  

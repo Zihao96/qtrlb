@@ -715,6 +715,8 @@ class JustGate(Scan):
                  drive_qubits: str | list,
                  readout_resonators: str | list,
                  just_gate: dict,
+                 lengths: list,
+                 subspace: str | list = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -728,12 +730,19 @@ class JustGate(Scan):
                          x_start=1, 
                          x_stop=1, 
                          x_points=1, 
-                         subspace=None,
+                         subspace=subspace,
                          pregate=None,
-                         postgate=just_gate,
+                         postgate=None,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
+        
+        self.just_gate = just_gate
+        self.lengths = lengths
+
+
+    def add_main(self):
+        self.add_gate(self.just_gate, 'JustGate', self.lengths)
 
         
         
