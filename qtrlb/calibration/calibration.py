@@ -28,15 +28,20 @@ class Scan:
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
             readout_resonators: 'R3' or ['R1', 'R5'].
             scan_name: 'drive_amplitude', 't1', 'ramsey'.
-            x_start: 0.
-            x_stop: 320e-9.
-            x_points: number of points on x_axis. Start and stop points will be both included.
-            subspace: '12' or ['01', '12'], length should be same as drive_qubits.
-            pregate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}
-            postgate: Same requirement as pregate.
-            n_seqloops: Number of repetition inside sequence program. Total repetition will be n_seqloops * n_pyloops.
-            level_to_fit: 0, 1 or [0,1,0,0], length should be same as readout_resonators.
-            fitmodel: It should be better to pick from qtrlb.processing.fitting.
+            x_plot_label: The label of x axis on main plot.
+            x_plot_unit: The unit of x axis on main plot.
+            x_start: Initial value of parameter-sweep, always in Hz/Second etc without any prefix.
+            x_stop: Final value of parameter-sweep, always in Hz/Second etc without any prefix.
+            x_points: Number of points of parameter_sweep. Start and stop points will be both included.
+            subspace: '12' or ['01', '12']. The main subspace that experiment will work on.
+                      Length should be same as drive_qubits.
+            top_subspace: '12' or ['01', '12']. The highest subspace that experiment will reach to.
+                      Length should be same as drive_qubits. It will decide the sequencer involved.        
+            pregate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just before main sequence.
+            postgate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just after main sequence.
+            n_seqloops: Number of repetition inside sequence program. Total repetition will be self.n_reps.
+            level_to_fit: 0, 1 or [0,1,0,0]. Length should be same as readout_resonators.
+            fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
     """
     def __init__(self, 
                  cfg, 
@@ -49,6 +54,7 @@ class Scan:
                  x_stop: float, 
                  x_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -64,6 +70,7 @@ class Scan:
         self.x_stop = x_stop
         self.x_points = x_points
         self.subspace = self.make_it_list(subspace, ['01' for _ in self.drive_qubits])
+        self.top_subspace = self.make_it_list(top_subspace, self.subspace)
         self.pregate = pregate if pregate is not None else {}
         self.postgate = postgate if postgate is not None else {}
         self.n_seqloops = n_seqloops
@@ -87,6 +94,9 @@ class Scan:
         self.subspace_gate = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
+        self.qubit_pulse_length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
+        self.resonator_pulse_length = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
+        # Last two lines just for convenience.
 
         
     def run(self, 
@@ -143,7 +153,8 @@ class Scan:
         assert hasattr(u, self.x_plot_unit), f'The plot unit {self.x_plot_unit} has not been defined.'
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
-        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify subspace for each resonator.'
+        assert len(self.top_subspace) == len(self.drive_qubits), 'Please specify top_subspace for each qubit.'
+        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
         assert isinstance(self.pregate, dict), 'pregate must be dictionary like {"Q0":[gate1, gate2,...]}'
         assert isinstance(self.postgate, dict), 'postgate must to be dictionary like {"Q0":[gate1, gate2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
@@ -154,12 +165,17 @@ class Scan:
         """
         Generate list attribute self.tones from existing attributes.
         It will have values like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
+        Each tone will map to a sequencer which can only give one frequency at a moment.
+        By determine the tones, we actually determine the number of sequencer involved in experiment.
+        self.main_tones will be the tones that those Rabi/Ramsey/DriveAmplitude happen on.
+        self.rest_tones will be the tones that only do pregate/postgate/readout_gate.
+        For more information, see self.make_sequence, DACManager.implement_parameters and start_sequencer.
         """
         self.tones = []
-        self.tones_ = []  # Replace all slash by underscroll.
+        self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
 
         for i, qubit in enumerate(self.drive_qubits):
-            highest_level = int(self.subspace[i][-1])
+            highest_level = int(self.top_subspace[i][-1])
 
             for level in range(highest_level):
                 self.tones.append(f'{qubit}/{level}{level+1}')
@@ -167,6 +183,10 @@ class Scan:
 
         self.tones += self.readout_resonators
         self.tones_ += self.readout_resonators
+
+        self.main_tones = [f'{q}/{self.subspace[i]}' for i, q in enumerate(self.drive_qubits)]
+        self.main_tones_ = [f'{q}_{self.subspace[i]}' for i, q in enumerate(self.drive_qubits)]
+        self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
 
 
     ##################################################
@@ -197,9 +217,11 @@ class Scan:
         This bring you flexibility on qutrit and qudit experiment, for example qutrit Rz gate.
         Please check the VariableManager and DACManager about varman['tones'] for more details.
         """
-        # Gate dataframe for user to read/check gates.
+        # Gate and pulse dataframe for user to read/check gates.
         # Sequence will be correctly generated even without it.
         self.gate_df = dict_to_DataFrame(dic={}, name='', rows=self.qudits)
+        self.pulse_df = dict_to_DataFrame(dic={}, name='', rows=self.tones)
+
         self.sequences = {tone: {} for tone in self.tones}        
         self.set_waveforms_acquisitions()
         
@@ -228,7 +250,7 @@ class Scan:
         """
         for tone in self.tones:
             if tone.startswith('Q'):
-                length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
+                length = self.qubit_pulse_length
                 shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
@@ -238,7 +260,7 @@ class Scan:
                 acquisitions = {}
             
             elif tone.startswith('R'):
-                length = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
+                length = self.resonator_pulse_length
                 shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
@@ -374,7 +396,7 @@ class Scan:
         Add readout/heralding with acquisition to sequence program.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
-        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
+        readout_length_ns = self.resonator_pulse_length
         self.add_gate(gate=self.readout_gate, lengths=[tof_ns+readout_length_ns],
                       name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
         
@@ -479,7 +501,7 @@ class Scan:
         """
         gate_df = dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
 
-        default_lengths = [round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) for _ in range(gate_df.shape[1])]
+        default_lengths = [self.qubit_pulse_length for _ in range(gate_df.shape[1])]
         lengths = self.make_it_list(lengths, default_lengths) 
         assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
 
@@ -487,7 +509,9 @@ class Scan:
         self.add_pulse(pulse_df, pulse_lengths=lengths, add_label=add_label, **pulse_kwargs)
         
         # Concatenate a larger dataframe while keeping length for user to read/check it.
-        if concat_df: self.gate_df = pd.concat([self.gate_df, gate_df], axis=1)
+        if concat_df: 
+            self.gate_df = pd.concat([self.gate_df, gate_df], axis=1)
+            self.pulse_df = pd.concat([self.pulse_df, pulse_df], axis=1)
             
             
     def add_pulse(self, pulse_df: pd.DataFrame, pulse_lengths: list, add_label: bool = True, **pulse_kwargs):
@@ -541,7 +565,7 @@ class Scan:
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
         Because we may already get some data and want to save it by manually calling save_measurement().
         """
-        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.drive_qubits, self.scan_name]),
+        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.main_tones_, self.scan_name]),
                                    experiment_suffix=self.experiment_suffix)
         
         self.data_path = self.cfg.data.data_path
@@ -810,6 +834,7 @@ class Scan2D(Scan):
                  y_stop: float,
                  y_points: int,
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 10,
@@ -827,6 +852,7 @@ class Scan2D(Scan):
                       x_stop=x_stop, 
                       x_points=x_points, 
                       subspace=subspace,
+                      top_subspace=top_subspace,
                       pregate=pregate,
                       postgate=postgate,
                       n_seqloops=n_seqloops,

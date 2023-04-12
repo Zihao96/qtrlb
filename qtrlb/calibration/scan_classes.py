@@ -18,6 +18,7 @@ class DriveAmplitudeScan(Scan):
                  amp_stop: float, 
                  amp_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -35,6 +36,7 @@ class DriveAmplitudeScan(Scan):
                          x_stop=amp_stop, 
                          x_points=amp_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -50,48 +52,46 @@ class DriveAmplitudeScan(Scan):
         we will use register R11 to store the gain for DRAG path.
         """
         super().add_xinit()
-        
-        for i, qubit in enumerate(self.drive_qubits):             
+
+        for tone in self.main_tones:
             start = round(self.x_start * 32768)
-            start_DRAG = round(start * self.cfg[f'variables.{qubit}/{self.subspace[i]}/DRAG_weight'])
+            start_DRAG = round(start * self.cfg[f'variables.{tone}/DRAG_weight'])
             xinit = f"""
                     move             {start},R4     
                     move             {start_DRAG},R11
             """
-            self.sequences[qubit]['program'] += xinit
+            self.sequences[tone]['program'] += xinit
             
             
     def add_main(self):
-        length = round(self.cfg.variables['common/qubit_pulse_length'] * 1e9) 
-        
-        for i, qubit in enumerate(self.drive_qubits):
-            subspace_dict = self.cfg[f'variables.{qubit}/{self.subspace[i]}']
+        for tone in self.main_tones:
+            subspace_dict = self.cfg[f'variables.{tone}']
             
             step = round(self.x_step * 32768)
             step_DRAG = round(step * subspace_dict['DRAG_weight'])
             freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
                     
-            main = f"""
+            main = (f"""
                  #-----------Main-----------
                     set_freq         {freq}
                     set_awg_gain     R4,R11
             """  
+                    
+                 + f"""
+                    play             0,1,{self.qubit_pulse_length}""" * self.error_amplification_factor
 
-            main += f"""
-                    play             0,1,{length}""" * self.error_amplification_factor
-                
-            main += f""" 
+                 + f""" 
                     add              R4,{step},R4
                     add              R11,{step_DRAG},R11
-            """
-            self.sequences[qubit]['program'] += main
+            """)
+            self.sequences[tone]['program'] += main
 
-        for resonator in self.readout_resonators:
+        for tone in self.rest_tones:
             main = f"""
                  #-----------Main-----------
-                    wait             {length*self.error_amplification_factor}
+                    wait             {self.qubit_pulse_length * self.error_amplification_factor}
             """            
-            self.sequences[resonator]['program'] += main
+            self.sequences[tone]['program'] += main
 
 
 class RabiScan(Scan):
@@ -103,6 +103,7 @@ class RabiScan(Scan):
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -120,6 +121,7 @@ class RabiScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -140,7 +142,7 @@ class RabiScan(Scan):
         self.check_waveform_length()
         super().set_waveforms_acquisitions()
         
-        for q in self.drive_qubits:
+        for tone in self.main_tones:
             waveforms = {}
             for i, pulse_length in enumerate(self.x_values):
                 pulse_length_ns = round(pulse_length * 1e9)
@@ -148,9 +150,9 @@ class RabiScan(Scan):
             
                 index = i + self.init_waveform_index
                 waveforms[f'{index}'] = {"data" : get_waveform(length=pulse_length_ns, 
-                                                               shape=self.cfg.variables[f'{q}/pulse_shape']),
-                                         "index": index}
-            self.sequences[q]['waveforms'].update(waveforms)
+                                                               shape=self.cfg[f'variables.{tone}/pulse_shape']),
+                                         "index" : index}
+            self.sequences[tone]['waveforms'].update(waveforms)
         
         
     def check_waveform_length(self):
@@ -175,7 +177,7 @@ class RabiScan(Scan):
                     move             {start_ns},R4
                     move             {self.init_waveform_index},R11
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
+        for tone in self.tones: self.sequences[tone]['program'] += xinit
         
         
     def add_main(self, freq: str = None, gain: str = None):
@@ -190,9 +192,8 @@ class RabiScan(Scan):
         """
         step_ns = round(self.x_step * 1e9)
         
-        for i, qubit in enumerate(self.drive_qubits):
-            subspace = self.subspace[i]
-            subspace_dict = self.cfg[f'variables.{qubit}/{subspace}']
+        for tone in self.main_tones:
+            subspace_dict = self.cfg[f'variables.{tone}']
             if freq is None: freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
             if gain is None: gain = round(subspace_dict['amp_rabi'] * 32768)
                     
@@ -207,9 +208,9 @@ class RabiScan(Scan):
                     add              R11,1,R11
             """  
             
-            self.sequences[qubit]['program'] += main
+            self.sequences[tone]['program'] += main
 
-        for resonator in self.readout_resonators:
+        for tone in self.rest_tones:
             main = f"""
                  #-----------Main-----------
                     jlt              R4,1,@end_main
@@ -218,7 +219,7 @@ class RabiScan(Scan):
         end_main:   add              R4,{step_ns},R4
                     add              R11,1,R11
             """            
-            self.sequences[resonator]['program'] += main
+            self.sequences[tone]['program'] += main
             
             
     @property
@@ -231,12 +232,11 @@ class RabiScan(Scan):
         pi_amp = {}
         ideal_rabi_freq = 1 / 2 / self.cfg['variables.common/qubit_pulse_length']
         
-        for i, q in enumerate(self.drive_qubits):
-            r = f'R{q[1:]}'
+        for tone in self.main_tones:
+            r = 'R' + tone.split('/')[0][1:]
             fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 1
-            pi_pulse_amp = (ideal_rabi_freq / fit_rabi_freq
-                            * self.cfg[f'variables.{q}/{self.subspace[i]}/amp_rabi'])
-            pi_amp[q] = pi_pulse_amp
+            pi_pulse_amp = (ideal_rabi_freq / fit_rabi_freq * self.cfg[f'variables.{tone}/amp_rabi'])
+            pi_amp[tone] = pi_pulse_amp
             
         return pi_amp
         
@@ -250,6 +250,7 @@ class T1Scan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -267,6 +268,7 @@ class T1Scan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -283,7 +285,7 @@ class T1Scan(Scan):
         xinit = f"""
                     move             {start_ns},R4            
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
+        for tone in self.tones: self.sequences[tone]['program'] += xinit
         
         
     def add_main(self):
@@ -313,7 +315,7 @@ class T1Scan(Scan):
                     
         end_main:   add              R4,{step_ns},R4
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        for tone in self.tones: self.sequences[tone]['program'] += main
         
 
 class RamseyScan(Scan):
@@ -325,6 +327,7 @@ class RamseyScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -343,6 +346,7 @@ class RamseyScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -372,12 +376,12 @@ class RamseyScan(Scan):
                     move             {start_ADphase},R12
                     move             {int(1e9)}, R14
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
+        for tone in self.tones: self.sequences[tone]['program'] += xinit
         
         
     def add_main(self):
         """   
-        All register in sequencer is 32bit, which can only store integer [-2e31,2e31).
+        All register in sequencer is 32bit, which can only store integer [-2e31, 2e31).
         If we do Ramsey with more than 2 phase cycle, then it may cause error.
         Thus we substract 1e9 of R12 when it exceed 1e9, which is one phase cycle of Qblox.
         The wait trick is similar to T1Scan.
@@ -423,7 +427,7 @@ class RamseyScan(Scan):
                     add              R12,{step_ADphase},R12
         """
 
-        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        for tone in self.tones: self.sequences[tone]['program'] += main
         
         self.add_gate(half_pi_gate, 'Ramsey2ndHalfPIgate')
         
@@ -437,6 +441,7 @@ class EchoScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -455,6 +460,7 @@ class EchoScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -472,7 +478,7 @@ class EchoScan(Scan):
         xinit = f"""
                     move             {start_half_ns},R4            
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += xinit
+        for tone in self.tones: self.sequences[tone]['program'] += xinit
         
         
     def add_main(self):
@@ -498,7 +504,7 @@ class EchoScan(Scan):
                     
         end_main1:  nop
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        for tone in self.tones: self.sequences[tone]['program'] += main
         
         if self.echo_type == 'CP':
             pi_gate = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
@@ -521,7 +527,7 @@ class EchoScan(Scan):
                     
         end_main2:  add              R4,{step_half_ns},R4
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += main
+        for tone in self.tones: self.sequences[tone]['program'] += main
         
         self.add_gate(half_pi_gate, 'Echo2ndHalfPIgate')
         
@@ -543,6 +549,8 @@ class LevelScan(Scan):
                  postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None):
+        
+        top_subspace = [f'{level_stop-1}{level_stop}' for _ in drive_qubits]
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -553,6 +561,7 @@ class LevelScan(Scan):
                          x_start=level_start, 
                          x_stop=level_stop, 
                          x_points=level_stop-level_start+1, 
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -717,6 +726,7 @@ class JustGate(Scan):
                  just_gate: dict,
                  lengths: list,
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -731,6 +741,7 @@ class JustGate(Scan):
                          x_stop=1, 
                          x_points=1, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=None,
                          postgate=None,
                          n_seqloops=n_seqloops,

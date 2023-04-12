@@ -26,6 +26,7 @@ class ChevronScan(Scan2D, RabiScan):
                  detuning_stop: float, 
                  detuning_points: int, 
                  subspace: str | list = None,
+                 top_subspace: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 10,
@@ -48,6 +49,7 @@ class ChevronScan(Scan2D, RabiScan):
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -63,14 +65,14 @@ class ChevronScan(Scan2D, RabiScan):
         """
         super().add_yinit()
         
-        for i, qubit in enumerate(self.drive_qubits):
-            ssb_freq_start = self.y_start + self.cfg[f'variables.{qubit}/{self.subspace[i]}/mod_freq']
+        for tone in self.main_tones:
+            ssb_freq_start = self.y_start + self.cfg[f'variables.{tone}/mod_freq']
             ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
             
             yinit = f"""
                     move             {ssb_freq_start_4},R6
             """
-            self.sequences[qubit]['program'] += yinit
+            self.sequences[tone]['program'] += yinit
 
 
     def add_main(self):
@@ -85,7 +87,7 @@ class ChevronScan(Scan2D, RabiScan):
 
     def add_yvalue(self):
         ssb_freq_step_4 = self.frequency_translator(self.y_step)
-        for q in self.drive_qubits:  self.sequences[q]['program'] += f"""
+        for tone in self.main_tones:  self.sequences[tone]['program'] += f"""
                     add              R6,{ssb_freq_step_4},R6
         """
         
