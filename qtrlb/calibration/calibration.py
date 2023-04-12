@@ -118,7 +118,7 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = deepcopy(self.__dict__)
+        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
         
         self.make_sequence() 
         self.save_sequence()

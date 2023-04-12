@@ -62,13 +62,17 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
 
     # col_name is string, column is a Series.
     for col_name in gate_df:
+        pulse_df[col_name] = 'I'  # Add empty column to pulse_df first. Then fill with pulse.
         column = gate_df[col_name]
 
         # Both row_name and row are string.
         for row_name, gate in column.items():
 
-            if gate == 'I' or gate == 'RO':
+            if gate == 'I':
                 pass
+
+            elif gate == 'RO':
+                pulse_df.loc[f'{row_name}', col_name] = gate
 
             elif gate.startswith(('X', 'Y', 'Z')):
                 gate_str, subspace = gate.split('_')
@@ -80,8 +84,7 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
             
             else:
                 raise ValueError(f"Pulses: Gate {gate} hasn't been defined.")
-
-    pulse_df = pulse_df.fillna('I')
+            
     return pulse_df
 
 
