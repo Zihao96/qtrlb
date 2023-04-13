@@ -311,17 +311,16 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         For more details, please check qtrlb.utils.pulses.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
-        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
-        length = tof_ns + readout_length_ns
+        length = tof_ns + self.resonator_pulse_length_ns
         
-        for qudit in self.qudits:
-            if qudit.startswith('Q'):
+        for tone in self.tones:
+            if tone.startswith('Q'):
                 readout = f"""
                 # -----------Readout-----------
                     wait             {length}
                 """
-            elif qudit.startswith('R'):
-                gain = round(self.cfg.variables[f'{qudit}/amp'] * 32768)
+            elif tone.startswith('R'):
+                gain = round(self.cfg.variables[f'{tone}/amp'] * 32768)
                 readout = f"""
                 # -----------Readout-----------
                     set_freq         R6
@@ -330,7 +329,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                     acquire          0,R1,{length - tof_ns}
                 """
 
-            self.sequences[qudit]['program'] += readout
+            self.sequences[tone]['program'] += readout
         
         
     def add_yvalue(self):
@@ -397,17 +396,16 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         For more details, please check qtrlb.utils.pulses.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
-        readout_length_ns = round(self.cfg.variables['common/resonator_pulse_length'] * 1e9)
-        length = tof_ns + readout_length_ns
+        length = tof_ns + self.resonator_pulse_length_ns
         
-        for qudit in self.qudits:
-            if qudit.startswith('Q'):
+        for tone in self.tones:
+            if tone.startswith('Q'):
                 readout = f"""
                 # -----------Readout-----------
                     wait             {length}
                 """
-            elif qudit.startswith('R'):
-                freq = round(self.cfg[f'variables.{qudit}/mod_freq'] * 4)
+            elif tone.startswith('R'):
+                freq = round(self.cfg[f'variables.{tone}/mod_freq'] * 4)
                 readout = f"""
                 # -----------Readout-----------
                     set_freq         {freq}
@@ -416,7 +414,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                     acquire          0,R1,{length - tof_ns}
                 """
 
-            self.sequences[qudit]['program'] += readout
+            self.sequences[tone]['program'] += readout
         
         
     def add_yvalue(self):
@@ -486,11 +484,10 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             n_pyloops: int = 1):
         
         for length in self.length_values:
-            self.cfg['variables.common/resonator_pulse_length'] = length
-            self.cfg['variables.common/integration_length'] = length
+            self.resonator_pulse_length_ns = round(length * 1e9)
+            self.cfg['variables.common/integration_length'] = float(length)
             
-            super().run(experiment_suffix=f'{experiment_suffix}_{round(length*1e9)}ns',
-                        n_pyloops=n_pyloops)
+            super().run(experiment_suffix=f'{experiment_suffix}_{round(length*1e9)}ns', n_pyloops=n_pyloops)
             
             plt.close('all')
                   

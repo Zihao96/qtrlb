@@ -94,8 +94,8 @@ class Scan:
         self.subspace_gate = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
                                for q, ss in zip(self.drive_qubits, self.subspace)}
         self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
-        self.qubit_pulse_length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
-        self.resonator_pulse_length = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
+        self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
+        self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
         # Last two lines just for convenience.
 
         
@@ -250,7 +250,7 @@ class Scan:
         """
         for tone in self.tones:
             if tone.startswith('Q'):
-                length = self.qubit_pulse_length
+                length = self.qubit_pulse_length_ns
                 shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
@@ -260,7 +260,7 @@ class Scan:
                 acquisitions = {}
             
             elif tone.startswith('R'):
-                length = self.resonator_pulse_length
+                length = self.resonator_pulse_length_ns
                 shape = self.cfg.variables[f'{tone}/pulse_shape']
 
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
@@ -396,8 +396,7 @@ class Scan:
         Add readout/heralding with acquisition to sequence program.
         """
         tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
-        readout_length_ns = self.resonator_pulse_length
-        self.add_gate(gate=self.readout_gate, lengths=[tof_ns+readout_length_ns],
+        self.add_gate(gate=self.readout_gate, lengths=[tof_ns + self.resonator_pulse_length_ns],
                       name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
         
         
@@ -501,7 +500,7 @@ class Scan:
         """
         gate_df = dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
 
-        default_lengths = [self.qubit_pulse_length for _ in range(gate_df.shape[1])]
+        default_lengths = [self.qubit_pulse_length_ns for _ in range(gate_df.shape[1])]
         lengths = self.make_it_list(lengths, default_lengths) 
         assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
 

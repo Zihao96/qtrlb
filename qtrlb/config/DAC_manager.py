@@ -90,7 +90,8 @@ class DACManager(Config):
             # Implement QRM-RF specific parameters.
             elif qudit.startswith('R'):
                 self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
-                self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  # Last sequencer to triger acquire.
+                self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  
+                # Last sequencer to triger acquire.
                 self.sequencer[tone].sync_en(True)
                 self.sequencer[tone].mod_en_awg(True)
                 self.sequencer[tone].demod_en_acq(True)
@@ -108,57 +109,6 @@ class DACManager(Config):
             
             file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
             self.sequencer[tone].sequence(file_path)
-
-
-        ##################################################
-        # # Qubits first, then resonators. Module first, then Sequencer.
-        # for q in qubits:
-        #     qubit_module = self.varman[f'{q}/module']  # Just an interger. It's for convenience.
-            
-        #     for attribute in self[f'Module{qubit_module}'].keys():
-        #         if attribute.startswith('out') or attribute.startswith('in'):
-        #             attr = getattr(self.module[q], attribute)
-        #             attr(self[f'Module{qubit_module}/{attribute}'])
-            
-        #     attr = getattr(self.module[q], 'out{}_lo_freq'.format(self.varman[f'{q}/out']))
-        #     attr(self.varman[f'{q}/qubit_LO'])        
-        #     self.sequencer[q].sync_en(True)
-        #     self.sequencer[q].mod_en_awg(True)
-        #     attr = getattr(self.sequencer[q], 'channel_map_path0_out{}_en'.format(self.varman[f'{q}/out'] * 2))
-        #     attr(True)
-        #     attr = getattr(self.sequencer[q], 'channel_map_path1_out{}_en'.format(self.varman[f'{q}/out'] * 2 + 1))
-        #     attr(True)
-            
-        #     self.sequencer[q].mixer_corr_gain_ratio(self[f'Module{qubit_module}/mixer_corr_gain_ratio'])           
-        #     self.sequencer[q].mixer_corr_phase_offset_degree(self[f'Module{qubit_module}/mixer_corr_phase_offset_degree'])
-        #     file_path = os.path.join(jsons_path, f'{q}_sequence.json')
-        #     self.sequencer[q].sequence(file_path)
-
-        
-        # for r in resonators:
-        #     resonator_module = self.varman[f'{r}/module']
-            
-        #     for attribute in self[f'Module{resonator_module}'].keys():
-        #         if attribute.startswith('out') or attribute.startswith('in') or attribute.startswith('scope'):
-        #             attr = getattr(self.module[r], attribute)
-        #             attr(self[f'Module{resonator_module}/{attribute}'])
-            
-        #     self.module[r].out0_in0_lo_freq(self.varman[f'{r}/resonator_LO'])        
-        #     self.module[r].scope_acq_sequencer_select(self.varman[f'{r}/sequencer'])  # Last sequencer to triger acquire.
-        #     self.sequencer[r].sync_en(True)
-        #     self.sequencer[r].mod_en_awg(True)
-        #     self.sequencer[r].demod_en_acq(True)
-        #     self.sequencer[r].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
-        #     self.sequencer[r].channel_map_path0_out0_en(True)
-        #     self.sequencer[r].channel_map_path1_out1_en(True)
-                  
-        #     self.sequencer[r].mixer_corr_gain_ratio(self[f'Module{resonator_module}/mixer_corr_gain_ratio'])
-        #     self.sequencer[r].mixer_corr_phase_offset_degree(self[f'Module{resonator_module}/mixer_corr_phase_offset_degree'])
-        #     file_path = os.path.join(jsons_path, f'{r}_sequence.json')
-        #     self.sequencer[r].sequence(file_path)
-            
-        # Sorry, this is just temporary code. It's tricky to set those freq/amp based on which qubit. --Zihao (01/30/2023)
-        # Sorry, after mapping sequencer to subspace, it become more ugly. --Zihao (04/12/2023)
     
     
     def disconnect_existed_map(self):

@@ -78,7 +78,7 @@ class DriveAmplitudeScan(Scan):
             """  
                     
                  + f"""
-                    play             0,1,{self.qubit_pulse_length}""" * self.error_amplification_factor
+                    play             0,1,{self.qubit_pulse_length_ns}""" * self.error_amplification_factor
 
                  + f""" 
                     add              R4,{step},R4
@@ -89,7 +89,7 @@ class DriveAmplitudeScan(Scan):
         for tone in self.rest_tones:
             main = f"""
                  #-----------Main-----------
-                    wait             {self.qubit_pulse_length * self.error_amplification_factor}
+                    wait             {self.qubit_pulse_length_ns * self.error_amplification_factor}
             """            
             self.sequences[tone]['program'] += main
 
@@ -550,7 +550,7 @@ class LevelScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None):
         
-        top_subspace = [f'{level_stop-1}{level_stop}' for _ in drive_qubits]
+        top_subspace = [f'{level_stop-1}{level_stop}' for _ in self.make_it_list(drive_qubits)]
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
