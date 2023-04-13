@@ -580,7 +580,7 @@ class LevelScan(Scan):
     def add_xinit(self):
         super().add_xinit()
         
-        for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
+        for tone in self.tones: self.sequences[tone]['program'] += f"""
                     move             {self.x_start},R4            
         """
 
@@ -590,7 +590,7 @@ class LevelScan(Scan):
         Here we add all PI gate to our sequence program based on level_stop.
         We will use R4 to represent level and jlt instruction to skip later PI gate.
         """
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        for tone in self.tones: self.sequences[tone]['program'] += """
                 #-----------Main-----------
                     jlt              R4,1,@end_main    
         """         
@@ -599,11 +599,11 @@ class LevelScan(Scan):
             self.add_gate(gate = {q: [f'X180_{level}{level+1}'] for q in self.drive_qubits},
                           name = f'XPI{level}{level+1}')
             
-            for qudit in self.qudits: self.sequences[qudit]['program'] += f"""
+            for tone in self.tones: self.sequences[tone]['program'] += f"""
                     jlt              R4,{level+2},@end_main    
         """
             
-        for qudit in self.qudits: self.sequences[qudit]['program'] += """
+        for tone in self.tones: self.sequences[tone]['program'] += """
         end_main:   add              R4,1,R4    
         """
         
