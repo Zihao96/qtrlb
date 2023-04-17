@@ -1,33 +1,9 @@
-import os
-from qtrlb.config.variable_manager import VariableManager
-from qtrlb.config.DAC_manager import DACManager
-from qtrlb.config.process_manager import ProcessManager
-from qtrlb.config.data_manager import DataManager
 
 
-def begin_measurement_session(working_dir: str, variable_suffix: str = '',
-                              test_mode: bool = False):
-    """
-    Instantiate all managers along with MetaManager, then load them.
-    Return the instance of MetaManager.
-    """
-    yamls_path = os.path.join(working_dir, 'Yamls')
-    
-    varman = VariableManager(yamls_path, variable_suffix)
-    dacman = DACManager(yamls_path, varman, test_mode)
-    processman = ProcessManager(yamls_path, varman)
-    dataman = DataManager(yamls_path, varman)
-    
-    cfg = MetaManager(manager_dict={'variables':varman,
-                                    'DAC':dacman,
-                                    'process':processman,
-                                    'data':dataman},
-                      working_dir=working_dir)
-    return cfg
 
 
 class MetaManager:
-    """ A container for all managers to be accessible through one object.
+    """ A container for all managers(Config) to be accessible through one object.
         Each of their name will become an attribute of MetaManager.
         It also bring high-level interface for load, save, get, set, delete.
     
@@ -35,13 +11,16 @@ class MetaManager:
         manager_dict = {'variables': varman,
                         'DAC': dacman,
                         'process': processman,
-                        'data':dataman}
+                        'data':dataman,
+                        'gates':gateman}
     """
-    def __init__(self, manager_dict: dict, working_dir: str):
+    def __init__(self, manager_dict: dict, working_dir: str, splitter: str = '.'):
         self.manager_dict = manager_dict
         self.working_dir = working_dir
+        self.splitter = splitter
         
         for manager_name, manager in self.manager_dict.items():
+            print(manager_name)
             self.__setattr__(manager_name, manager)
       
     
@@ -76,7 +55,7 @@ class MetaManager:
             key: str. String of keys separated by one dot and some forward slashes.
             which : str. Choose which dictionary we look up. Should only be 'dict' or 'raw'.
         """
-        manager_name, key = key.split('.')
+        manager_name, key = key.split(self.splitter)
         manager = getattr(self, manager_name)
         return manager.get(key, which)
     
@@ -89,7 +68,7 @@ class MetaManager:
             key: str. String of keys separated by one dot and some forward slashes.
             which : str. Choose which dictionary we look up. Should only be 'dict' or 'raw'.
         """
-        manager_name, key = key.split('.')
+        manager_name, key = key.split(self.splitter)
         manager = getattr(self, manager_name)
         return manager.keys(key, which)
         
@@ -106,7 +85,7 @@ class MetaManager:
             which : str. Choose which dictionary we look up. Should only be 'dict' or 'both'.
             save_raw : bool. Whether we want to save config_raw or not.
         """
-        manager_name, key = key.split('.')
+        manager_name, key = key.split(self.splitter)
         manager = getattr(self, manager_name)
         return manager.set(key, value, which, save_raw)
         
@@ -120,7 +99,7 @@ class MetaManager:
             key : str. String of keys separated by forward slash.
             save_raw : bool. Whether we want to save config_raw or not.
         """
-        manager_name, key = key.split('.')
+        manager_name, key = key.split(self.splitter)
         manager = getattr(self, manager_name)
         return manager.delete(key, save_raw)
     

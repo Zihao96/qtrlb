@@ -37,7 +37,7 @@ def unitary(theta: float, axis: tuple, eliminate_float_error: bool = True) -> np
     
     
 def transpile_unitary_to_circuit(U: np.ndarray, 
-                                 basis_gates: tuple = ('x', 'z', 'rx', 'rz')) -> None:
+                                 basis_gates: tuple = ('x', 'z', 'rx', 'rz')) -> QuantumCircuit:
     """
     Using Qiskit transpile function to decompose a unitary into primitive gate.
     It may fail if the primitive gate set is not universal. 

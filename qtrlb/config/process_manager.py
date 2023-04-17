@@ -10,7 +10,6 @@ class ProcessManager(Config):
     
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
-            variable_suffix: 'EJEC' or 'ALGO'. A underscroll will be added in this layer.
     """
     def __init__(self, 
                  yamls_path: str, 

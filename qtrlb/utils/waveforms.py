@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy import exp, sin
+from numpy import exp, sin, cos
 PI = np.pi
 
 
@@ -33,7 +33,7 @@ def plot_waveform(length: int, shape: str, **waveform_kwargs):
     Plot waveform amplitude as time.
     """
     time = np.arange(length)
-    waveform = get_waveform(length, shape)
+    waveform = get_waveform(length, shape, **waveform_kwargs)
 
     fig, ax = plt.subplots(1, 1, dpi=150)
     ax.plot(time, waveform)
@@ -56,7 +56,7 @@ def gaussian(length: int, std: float = 0.15, **waveform_kwargs):
     """
     Ref: Eq.(20) in https://doi.org/10.1103/PhysRevA.96.022330
     Here std is a ratio and T is almost total length (which is half in Ref).
-    T need to -1 since I want to make me first and last data point always be zero.
+    T need to -1 since I want to make my first and last data point always be zero.
     """
     T = length - 1
     sigma = std * T
@@ -90,6 +90,34 @@ def cos_square_derivative(length: int, ramp_fraction: float = 0.25, **waveform_k
     ramp_up = sin(PI * np.arange(ramp_length) / ramp_length)
     ramp_down = -1 * np.flip(ramp_up)
     return np.concatenate((ramp_up, np.zeros(length-ramp_length*2, dtype=float), ramp_down))
+
+
+def hanning(length: int, coefficients: list = None, **waveform_kwargs):
+    """
+    Ref: https://en.wikipedia.org/wiki/Window_function#Cosine-sum_windows
+    https://numpy.org/doc/stable/reference/generated/numpy.hanning.html
+    """
+    if coefficients is None: coefficients = [1]
+
+    T = length - 1
+    t = np.arange(length)
+    waveform = np.zeros(length)
+    for i, c in enumerate(coefficients):
+        waveform += c * ( 1 - cos(2*PI * (i+1) * t / T) )
+    
+    return waveform / np.max(np.abs(waveform))
+
+
+def hanning_derivative(length: int, coefficients: list = None, **waveform_kwargs):
+    if coefficients is None: coefficients = [1]
+
+    T = length - 1
+    t = np.arange(length)
+    waveform = np.zeros(length)
+    for i, c in enumerate(coefficients):
+        waveform += c * sin(2*PI * (i+1) * t / T) * 2*PI * (i+1) / T
+    
+    return waveform / np.max(np.abs(waveform))
     
 
 # Note from Zihao(03/24/2023): I don't like it at all, but:
@@ -100,5 +128,7 @@ waveform_dict = {
     'gaussian': gaussian,
     'gaussian_derivative': gaussian_derivative,
     'cos_square': cos_square,
-    'cos_square_derivative':cos_square_derivative
+    'cos_square_derivative':cos_square_derivative,
+    'hanning': hanning,
+    'hanning_derivative': hanning_derivative
 }    
