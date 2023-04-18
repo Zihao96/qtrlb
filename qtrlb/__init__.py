@@ -23,6 +23,7 @@ def begin_measurement_session(working_dir: str,
     """
     Instantiate all managers along with MetaManager, then load them.
     Return the instance of MetaManager.
+    Please do not place this function and all import above at same file as MetaManager (circular import).
     """
     yamls_path = os.path.join(working_dir, 'Yamls')
     

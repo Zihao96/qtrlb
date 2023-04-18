@@ -16,15 +16,18 @@ class GateConfig(Config):
 class GateManager(MetaManager):
     """ A container for all GateConfig to be accessible through one object.
         Each of their name will become an attribute of this GateManager.
-        And this one itself will become an attribute of MetaManager.
+        And this one itself can become an attribute of MetaManager.
         It also bring high-level interface for load, save, get, set, delete.
 
         Note from Zihao(04/17/2023):
-        Yes, this class inherit
+        Yes, this class inherit MetaManager instead of Config, even though it takes Config-like \
+        parameters to initialize. I don't think this is hack, and I believe it's the perfect \
+        example of OOP.
     """
     def __init__(self, 
                  yamls_path: str, 
-                 varman: VariableManager = None):
+                 varman: VariableManager = None,
+                 splitter: str = ':'):
         
         yamls_path = os.path.join(yamls_path, 'Gates')
         files_path_list = glob.glob(os.path.join(yamls_path, '*.yaml'))
@@ -34,6 +37,5 @@ class GateManager(MetaManager):
             gate_name = os.path.basename(file_path).split('.')[0]
             manager_dict[gate_name] = GateConfig(yamls_path=yamls_path, suffix=gate_name, varman=varman)
 
-        super().__init__(manager_dict, None, ':')
-
+        super().__init__(manager_dict=manager_dict, working_dir=None, splitter=splitter)
         self.load()
