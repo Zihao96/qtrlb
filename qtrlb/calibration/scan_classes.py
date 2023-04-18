@@ -109,7 +109,7 @@ class RabiScan(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpSinModel,
-                 init_waveform_idx: int = 11):
+                 init_waveform_idx: int = 101):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,

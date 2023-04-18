@@ -32,7 +32,7 @@ class ChevronScan(Scan2D, RabiScan):
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None,
-                 init_waveform_idx: int = 11):
+                 init_waveform_idx: int = 101):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
