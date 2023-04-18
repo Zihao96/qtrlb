@@ -140,7 +140,7 @@ class RabiScan(Scan):
         We won't implement DRAG here since it will further limit our waveform length.
         """
         self.check_waveform_length()
-        super().set_waveforms_acquisitions()
+        super().set_waveforms_acquisitions(add_special_waveforms=False)
         
         for tone in self.main_tones:
             waveforms = {}

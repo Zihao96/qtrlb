@@ -239,9 +239,11 @@ class Scan:
         self.end_loop()
     
         
-    def set_waveforms_acquisitions(self, **waveform_kwargs):
+    def set_waveforms_acquisitions(self, add_special_waveforms: bool = True, **waveform_kwargs):
         """
-        Generate waveforms, weights, acquisitions items in self.sequences[qudit].
+        Generate waveforms, weights, acquisitions items in self.sequences[tone] dictionary.
+        By default, we will add all special waveforms from GateManager.
+        High waveform-demand scan like Rabi and Chevron can turn it to false.
         
         We skip weights acquisition, and I believe even if we need it,
         we can do it in post process. --Zihao(01/31/2023)
@@ -256,7 +258,7 @@ class Scan:
                 waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                         'index': 0},
                              '1qDRAG': {'data': get_waveform(length, shape+'_derivative', **waveform_kwargs), 
-                                        'index': 1}}                
+                                        'index': 1}}
                 acquisitions = {}
             
             elif tone.startswith('R'):
@@ -272,7 +274,35 @@ class Scan:
             
             self.sequences[tone]['waveforms'] = waveforms
             self.sequences[tone]['weights'] = {}
-            self.sequences[tone]['acquisitions'] = acquisitions           
+            self.sequences[tone]['acquisitions'] = acquisitions      
+
+        if add_special_waveforms: self.add_special_waveforms()
+
+
+    def add_special_waveforms(self):
+        """
+        Add all waveforms besides the single qubit gate and readout to the 'waveforms' in self.sequences.
+        Remember the total waveform length for each sequencer cannot exceed 16384 data points.
+        """
+        for gate, gate_config in self.cfg.gates.manager_dict.items():
+            for tone in self.tones:
+                
+                # We may not have defined such gate for all qubits/resonators.
+                try:
+                    pulse_dict = deepcopy(gate_config[tone])
+                except KeyError:
+                    continue
+
+                # Pop out all necessary keys and others will become kwargs.
+                length = round(pulse_dict.pop('length') * 1e9)
+                shape = pulse_dict.pop('pulse_shape')
+
+                waveforms = {f'{gate}MAIN': {'data': get_waveform(length, shape, **pulse_dict),
+                                             'index': pulse_dict['waveform_index']},
+                             f'{gate}DRAG': {'data': get_waveform(length, shape+'_derivative', **pulse_dict),
+                                             'index': pulse_dict['waveform_index'] + 1}}
+
+                self.sequences[tone]['waveforms'].update(waveforms)
 
         
     def init_program(self):
