@@ -826,10 +826,26 @@ class Scan:
         This is useful when we assign the frequency to register and treat it as a variable.
         When we call set_freq instruction in Q1ASM program, we can just pass negative frequency * 4.
         """
-        assert freq <= 500e6 and freq >= -500e6, 'The frequency must between +-500MHz.'
-        freq_4 = round(freq * 4)
+        assert -500e6 <= freq <= 500e6, 'The frequency must between +-500MHz.'
+        freq_4 = round(freq / freq_step)
         
         twos_complement_binary_str = format(freq_4 if freq_4 >= 0 else (1 << bit) + freq_4, f'0{bit}b')
+        return int(twos_complement_binary_str, 2)
+    
+
+    @staticmethod
+    def gain_translator(gain: float, gain_resolution: int = 32768, bit: int = 32):
+        """
+        This is the similar case as frequence_translator.
+        The gain passed in here take value [-1.0, 1.0).
+        We need to make it integer between [-32768, 32768) for set_awg_gain instruction.
+        Still This is useful when we assign the gain to register and treat it as a variable.
+        When we call set_awg_gain instruction in Q1ASM program, we can just pass negative gain * 32768.
+        """
+        assert -1 <= gain < 1, 'The gain must between [-1.0, 1.0).'
+        gain = round(gain * gain_resolution)
+        
+        twos_complement_binary_str = format(gain if gain >= 0 else (1 << bit) + gain, f'0{bit}b')
         return int(twos_complement_binary_str, 2)
 
 

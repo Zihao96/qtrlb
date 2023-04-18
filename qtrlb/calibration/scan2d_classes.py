@@ -525,3 +525,134 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             fig.colorbar(image, ax=ax, label='Fidelity', location='top')
             fig.savefig(os.path.join(self.data_path, f'{r}_full_result.png'))
             self.figures[r] = fig
+
+        
+class DRAGWeightScan(Scan2D):
+    def __init__(self, 
+                 cfg, 
+                 drive_qubits: str | list, 
+                 readout_resonators: str | list, 
+                 weight_start: float, 
+                 weight_stop: float, 
+                 weight_points: int, 
+                 subspace: str | list = None, 
+                 top_subspace: str | list = None, 
+                 pregate: dict = None, 
+                 postgate: dict = None, 
+                 n_seqloops: int = 1000, 
+                 level_to_fit: int | list = None, 
+                 fitmodel: Model = None):
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits, 
+                         readout_resonators=readout_resonators, 
+                         scan_name='DRAGWeight', 
+                         x_plot_label='Pulse Order', 
+                         x_plot_unit='arb', 
+                         x_start=0, 
+                         x_stop=1, 
+                         x_points=2, 
+                         y_plot_label='DRAG Weight', 
+                         y_plot_unit='arb', 
+                         y_start=weight_start, 
+                         y_stop=weight_stop, 
+                         y_points=weight_points, 
+                         subspace=subspace, 
+                         top_subspace=top_subspace, 
+                         pregate=pregate, 
+                         postgate=postgate, 
+                         n_seqloops=n_seqloops, 
+                         level_to_fit=level_to_fit, 
+                         fitmodel=fitmodel)
+        
+        for tone in self.main_tones:
+            assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_start < 1, 'Start value exceed range.'
+            assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_stop < 1, 'Stop value exceed range.'
+
+
+    def add_yinit(self):
+        """
+        Here R6 is the gain on the DRAG path, which is the gain on main path times DRAG_weight.
+        R12 is half of R6 for the half PI pulse.
+        R11 is just the gain on main path, and R13 is half of R11, they won't change during program. 
+        It's because set_awg_gain only take '#,#' or 'R#,R#' format, not '#,R#'.
+        """
+        super().add_yinit()
+
+        for tone in self.main_tones:
+            gain = round(self.cfg[f'variables.{tone}/amp_180'] * 32768)
+            gain_half = round(gain / 2)
+
+            gain_drag_start = round(gain * self.y_start)
+            gain_drag_half_start = round(gain_drag_start / 2)
+
+            yinit = f"""
+                    move             {gain_drag_start},R6
+                    move             {gain},R11
+                    move             {gain_drag_half_start},R12
+                    move             {gain_half},R13
+            """
+            self.sequences[tone]['program'] += yinit
+
+
+    def add_main(self):
+        """
+        Here I use jge and jlt instruction to realize the conditional instructions.
+        For more information, please refer to:
+        https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/documentation/sequencer.html
+        """
+
+        for tone in self.main_tones:
+            ssb_freq = self.cfg[f'variables.{tone}/mod_freq'] + self.cfg[f'variables.{tone}/pulse_detuning']
+            ssb_freq_4 = round(ssb_freq * 4)
+
+            main = f"""
+                    jge              R3,2,@XpiYhalf
+                    jlt              R3,2,@YpiXhalf
+
+        XpiYhalf:
+                    set_freq         {ssb_freq_4}
+                    set_awg_gain     R11,R6
+                    play             0,1,{self.qubit_pulse_length_ns} 
+
+                    set_ph_delta     {round(750e6)}
+                    set_awg_gain     R13,R12
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    set_ph_delta     {round(250e6)}
+
+                    jmp              @end_main
+
+        YpiXhalf:
+                    set_ph_delta     {round(750e6)}
+                    set_awg_gain     R13,R12
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    set_ph_delta     {round(250e6)}
+
+                    set_freq         {ssb_freq_4}
+                    set_awg_gain     R11,R6
+                    play             0,1,{self.qubit_pulse_length_ns} 
+
+                    jmp              @end_main
+
+        end_main:
+            """
+            self.sequences[tone]['program'] += main
+
+        for tone in self.rest_tones:
+            main = f"""
+                    wait             {self.qubit_pulse_length_ns * 2}
+            """
+            self.sequences[tone]['program'] += main
+
+
+    def add_yvalue(self):
+
+        for tone in self.main_tones:
+            gain = round(self.cfg[f'variables.{tone}/amp_180'] * 32768)
+            gain_drag_step = round(gain * self.y_step)
+            gain_drag_step_half = round(gain_drag_step / 2)
+
+            self.sequences[tone]['program'] += f"""
+                    add              R6,{gain_drag_step},R6
+                    add              R12,{gain_drag_step_half},R12
+            """
+

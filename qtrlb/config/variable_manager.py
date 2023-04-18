@@ -50,6 +50,10 @@ class VariableManager(Config):
             for subspace in self[f'{q}']:
                 if not subspace.isdecimal(): continue
                 tones_list.append(f'{q}/{subspace}')
+
+                # Check the DRAG_weight is in range.
+                assert -1 <= self[f'{q}/{subspace}/amp_180'] * self[f'{q}/{subspace}/DRAG_weight'] < 1, \
+                    f'DRAG weight of {q}/{subspace} is out of range.'
             
                 # Set AWG frequency for each subspace.
                 self.set(f'{q}/{subspace}/mod_freq', 

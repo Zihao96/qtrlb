@@ -711,8 +711,7 @@ class CalibrateClassification(LevelScan):
         
     def plot_IQ(self):
         super().plot_IQ(c_key='GMMpredicted_new')
-        
-        
+               
 
 class JustGate(Scan):
     """ Simply run the gate sequence user send to it.
@@ -755,31 +754,3 @@ class JustGate(Scan):
     def add_main(self):
         self.add_gate(self.just_gate, 'JustGate', self.lengths)
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
