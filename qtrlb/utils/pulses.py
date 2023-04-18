@@ -1,6 +1,8 @@
+import numpy as np
 import pandas as pd
 from warnings import simplefilter
 
+PI = np.pi
 # Disable a possible warning message from pandas.
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -140,7 +142,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         """
         
     elif pulse_string.startswith('Y'):
-        # Y = Z * X
+        # Y = Z90 * X * Z-90, operator order, so Z-90 first.
         angle = pulse_string[1:]
         subspace_dict = cfg[f'variables.{tone}']
         
@@ -149,10 +151,11 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         gain_drag = round(gain * subspace_dict['DRAG_weight'])
         
         pulse_program = f"""
-                    set_ph_delta     {round(500e6)}
+                    set_ph_delta     {round(750e6)}
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
                     play             0,1,{length}
+                    set_ph_delta     {round(250e6)}
         """
         
     elif pulse_string.startswith('Z'):
@@ -165,10 +168,25 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         pulse_program += '' if length == 0 else f""" 
                     upd_param        {length}
         """
-        
     
     elif pulse_string.startswith('H3'):
-        raise ValueError(f'Oh god, write it please!')
+        pulse_dict = cfg[f'gates.H3:{tone}']
+        subspace = tone.split('/')[-1]
+        
+        freq = round((pulse_dict['mod_freq'] + pulse_dict['pulse_detuning']) * 4)
+        gain = pulse_dict['amp']
+        gain_drag = round(gain * pulse_dict['DRAG_weight'])
+        waveform_index = pulse_dict['waveform_index']
+        prephase = round(pulse_dict['prephase'][subspace] / (2*PI) * 1e9)
+        postphase = round(pulse_dict['postphase'][subspace] / (2*PI) * 1e9)
+
+        pulse_program = f"""
+                    set_ph_delta     {prephase}
+                    set_freq         {freq}
+                    set_awg_gain     {gain},{gain_drag}
+                    play             {waveform_index},{waveform_index+1},{length}
+                    set_ph_delta     {postphase}
+        """
     
     else:
         raise ValueError(f'Pulses: The pulse "{pulse_string}" cannot be interpreted.')
