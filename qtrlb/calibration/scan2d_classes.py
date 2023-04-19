@@ -176,6 +176,8 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Plot readout fidelity along with fitting result as function of y_values.
         Code is similar to Scan.plot_main()
         """
+        self.figures = {}
+
         for i, r in enumerate(self.readout_resonators):
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
@@ -192,13 +194,13 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 ax.plot(x / self.y_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([fr'{v.name} = {v.value:0.3g}$\pm${v.stderr:0.1g}' \
-                                      for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            
+            self.figures[r] = fig
+
             
     def plot_spectrum(self):
         """
@@ -579,11 +581,15 @@ class DRAGWeightScan(Scan2D):
         super().add_yinit()
 
         for tone in self.main_tones:
-            gain = round(self.cfg[f'variables.{tone}/amp_180'] * 32768)
-            gain_half = round(gain / 2)
+            # A value between [0, 1)
+            gain_raw = self.cfg[f'variables.{tone}/amp_180']
 
-            gain_drag_start = round(gain * self.y_start)
-            gain_drag_half_start = round(gain_drag_start / 2)
+            # Values in 32768 format.
+            gain = self.gain_translator(gain_raw)
+            gain_half = self.gain_translator(gain_raw / 2)
+
+            gain_drag_start = self.gain_translator(gain_raw * self.y_start)
+            gain_drag_half_start = self.gain_translator(gain_raw * self.y_start / 2)
 
             yinit = f"""
                     move             {gain_drag_start},R6
@@ -645,14 +651,63 @@ class DRAGWeightScan(Scan2D):
 
 
     def add_yvalue(self):
-
         for tone in self.main_tones:
-            gain = round(self.cfg[f'variables.{tone}/amp_180'] * 32768)
-            gain_drag_step = round(gain * self.y_step)
-            gain_drag_step_half = round(gain_drag_step / 2)
+            gain_raw = self.cfg[f'variables.{tone}/amp_180']
+            
+            gain_drag_step = self.gain_translator(gain_raw * self.y_step)
+            gain_drag_step_half = self.gain_translator(gain_raw * self.y_step / 2)
 
             self.sequences[tone]['program'] += f"""
                     add              R6,{gain_drag_step},R6
                     add              R12,{gain_drag_step_half},R12
             """
 
+
+    def process_data(self):
+        """
+        Here we do a further step of processing data by not make 'to_fit' as (n_levels, y_points, x_points), \
+        but (n_levels, y_points) where we take difference between the two x_points.
+        """
+        super().process_data()
+        for r, data_dict in self.measurement.items(): 
+            data_dict['to_fit_raw'] = data_dict['to_fit']
+            data_dict['to_fit'] = (data_dict['to_fit_raw'][..., 0] - data_dict['to_fit_raw'][..., 1]) ** 2
+
+
+    def fit_data(self):
+        super().fit_data(x=self.y_values)  # We're actually using 1D fitting Scan.fit_data().
+
+
+    def plot_main(self, text_loc: str = 'lower right'):
+        """
+        Plot the difference between two x_points for each DRAG weight.
+        Code is similar to Scan.plot_main()
+        """
+        self.figures = {}
+        
+        for i, r in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
+            if self.classification_enable:
+                ylabel = fr'Difference of $P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
+            else:
+                ylabel = 'Difference of I-Q Coordinate (Rotated) [a.u.]'
+            
+            fig, ax = plt.subplots(1, 1, dpi=150)
+            ax.plot(self.y_values / self.y_unit_value, self.measurement[r]['to_fit'][level_index], 'k.')
+            ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
+            
+            if self.fit_result[r] is not None: 
+                # Raise resolution of fit result for smooth plot.
+                x = np.linspace(self.y_start, self.y_stop, self.y_points * 3)  
+                y = self.fit_result[r].eval(x=x)
+                ax.plot(x / self.y_unit_value, y, 'm-')
+                
+                # AnchoredText stolen from Ray's code.
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
+                ax.add_artist(anchored_text)
+
+            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+            self.figures[r] = fig

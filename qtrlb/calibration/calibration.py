@@ -639,14 +639,14 @@ class Scan:
         """
         Fit data in measurement dictionary and save result back into it.
         We will also keep fit result as attribute self.fit_result for future use.
-        The model should be better to pick from qtrlb.processing.fitting.
+        The model should be better picked from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
         
         Note from Zihao(03/17/2023):
         I leave an interface for x because it's convenient to fit multidimensional scan as 1D scan.
         In that case we can pass whichever axis as horizontal axis here.
         The only cost is to process self.measurement[r]['to_fit'] to correct shape.
-        # TODO: make 2D data fitting possible. Now RTS use 1D-like fitting.
+        # TODO: make 2D data fitting possible. Now RTS and DWS use 1D-like fitting.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
@@ -839,7 +839,7 @@ class Scan:
         This is the similar case as frequence_translator.
         The gain passed in here take value [-1.0, 1.0).
         We need to make it integer between [-32768, 32768) for set_awg_gain instruction.
-        Still This is useful when we assign the gain to register and treat it as a variable.
+        Still, this is useful when we assign the gain to register and treat it as a variable.
         When we call set_awg_gain instruction in Q1ASM program, we can just pass negative gain * 32768.
         """
         assert -1 <= gain < 1, 'The gain must between [-1.0, 1.0).'
