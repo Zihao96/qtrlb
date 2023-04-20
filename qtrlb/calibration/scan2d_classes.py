@@ -485,13 +485,14 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             experiment_suffix: str = '',
             n_pyloops: int = 1):
         
-        for length in self.length_values:
+        for i, length in enumerate(self.length_values):
             self.resonator_pulse_length_ns = round(length * 1e9)
             self.cfg['variables.common/integration_length'] = float(length)
             
             super().run(experiment_suffix=f'{experiment_suffix}_{round(length*1e9)}ns', n_pyloops=n_pyloops)
             
             plt.close('all')
+            print(f'RLAS: length_point {i} finish.')
                   
         # Load back the original yaml files.
         # Here you see the power of separating save and set, load and get. :)
@@ -543,7 +544,7 @@ class DRAGWeightScan(Scan2D):
                  postgate: dict = None, 
                  n_seqloops: int = 1000, 
                  level_to_fit: int | list = None, 
-                 fitmodel: Model = None):
+                 fitmodel: Model = QuadModel):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
                          readout_resonators=readout_resonators, 
