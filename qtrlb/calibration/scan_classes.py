@@ -5,7 +5,7 @@ from lmfit import Model
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population, \
-                                        get_readout_fidelity
+                                        get_readout_fidelity, correct_population
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
@@ -674,8 +674,8 @@ class CalibrateClassification(LevelScan):
                                                                          n_levels=self.x_points,
                                                                          mask=mask)
             data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
-            data_dict['PopulationCorrected_new'] = np.linalg.solve(data_dict['confusionmatrix_new'],
-                                                                   data_dict['PopulationNormalized_new'])
+            data_dict['PopulationCorrected_new'] = correct_population(data_dict['PopulationNormalized_new'],
+                                                                      data_dict['confusionmatrix_new'])
             data_dict['ReadoutFidelity'] =  get_readout_fidelity(data_dict['confusionmatrix_new'])
             
             self.cfg[f'process.{r}/IQ_means'] = means
