@@ -1,7 +1,7 @@
 import numpy as np
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, autorotate_IQ
+from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, autorotate_IQ, correct_population
 
 
 class ProcessManager(Config):
@@ -96,8 +96,8 @@ class ProcessManager(Config):
                                                                                  n_levels=self[f'{r}/n_readout_levels'],
                                                                                  mask=heralding_mask)
                 
-                data_dict['PopulationCorrected_readout'] = np.linalg.solve(self[f'{r}/corr_matrix'],
-                                                                           data_dict['PopulationNormalized_readout'])
+                data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
+                                                                              self[f'{r}/corr_matrix'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
             
@@ -116,8 +116,8 @@ class ProcessManager(Config):
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
                                                                                  n_levels=self[f'{r}/n_readout_levels'])
                 
-                data_dict['PopulationCorrected_readout'] = np.linalg.solve(self[f'{r}/corr_matrix'],
-                                                                           data_dict['PopulationNormalized_readout'])
+                data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
+                                                                              self[f'{r}/corr_matrix'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
 

@@ -606,7 +606,7 @@ class Scan:
         for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
     
     
-    def acquire_data(self):
+    def acquire_data(self, keep_raw: bool = False):
         """
         Create measurement dictionary, then start sequencer and save data into this dictionary.
         self.measurement should only have resonators' name as keys.
@@ -622,7 +622,7 @@ class Scan:
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(self.tones, self.measurement)
+            self.cfg.DAC.start_sequencer(self.tones, self.measurement, keep_raw)
             print(f'Scan: Pyloop {i} finished!')
             
             

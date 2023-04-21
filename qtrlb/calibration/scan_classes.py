@@ -537,6 +537,11 @@ class LevelScan(Scan):
         We then excite them to target level based on self.x_values using PI gate.
         It's convenient since all Readout-type Scan can inherit this class.
         One can use it to check classification result without reclassifying it.
+
+        Note from Zihao(04/21/2023):
+        I design the LevelScan and later ReadoutTemplateScan so that they don't need to use \
+        attributes like subsapce and main_tones. However, the tones still matters, which means \
+        the top_subspace still matters. See the make_tones_list in LevelScan for more details.
     """
     def __init__(self, 
                  cfg,  
@@ -549,8 +554,6 @@ class LevelScan(Scan):
                  postgate: dict = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None):
-        
-        top_subspace = [f'{level_stop-1}{level_stop}' for _ in self.make_it_list(drive_qubits)]
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -560,8 +563,7 @@ class LevelScan(Scan):
                          x_plot_unit='arb', 
                          x_start=level_start, 
                          x_stop=level_stop, 
-                         x_points=level_stop-level_start+1, 
-                         top_subspace=top_subspace,
+                         x_points=level_stop-level_start+1,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -575,6 +577,11 @@ class LevelScan(Scan):
         for r in self.readout_resonators: 
             readout_levels = self.cfg[f'variables.{r}/readout_levels'] 
             assert (readout_levels == self.x_values.tolist()), f'Please check readout levels of {r}!'
+
+
+    def make_tones_list(self):
+        self.top_subspace = [f'{self.x_stop-1}{self.x_stop}' for _ in self.drive_qubits]
+        super().make_tones_list()
 
         
     def add_xinit(self):
@@ -753,4 +760,48 @@ class JustGate(Scan):
 
     def add_main(self):
         self.add_gate(self.just_gate, 'JustGate', self.lengths)
+
+
+class CalibrateTOF(JustGate):
+    def __init__(self, 
+                 cfg, 
+                 drive_qubits: str, 
+                 readout_resonators: str):
+        super().__init__(cfg, 
+                         drive_qubits, 
+                         readout_resonators, 
+                         just_gate={drive_qubits: ['I']}, 
+                         lengths=None, 
+                         n_seqloops=1)
+        
+        self.scan_name = 'CalibrateTOF'
+        
+
+    def run(self, experiment_suffix: str = '', n_pyloops: int = 1000):
+        super().run(experiment_suffix, n_pyloops)
+
+
+    def acquire_data(self):
+        super().acquire_data(keep_raw=True)
+
+
+    def plot(self, start: int = 0, stop: int = 16384):
+        """
+        Start and stop is for helping user zoom into plot.
+        """
+        r = self.readout_resonators[0]  # We should only use one resonator.
+        self.raw_data = np.array(self.measurement[r]['raw_readout'])
+
+        t = np.arange(16384)
+        I_trace = np.mean(self.raw_data, axis=1)[0]
+        Q_trace = np.mean(self.raw_data, axis=1)[1]
+
+        fig, ax = plt.subplots(2, 1, dpi=150)
+        ax[0].plot(t[start:stop], I_trace[start:stop])
+        ax[1].plot(t[start:stop], Q_trace[start:stop])
+        ax[0].set(xlabel='Time[ns]', ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {r}')
+        ax[0].set(xlabel='Time[ns]', ylabel='Q')
+
+        fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+        self.figures = {r: fig}
 

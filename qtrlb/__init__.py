@@ -2,7 +2,7 @@
 
 import os
 
-from qtrlb.calibration.scan_classes import DriveAmplitudeScan, RabiScan, T1Scan, RamseyScan, EchoScan, LevelScan, CalibrateClassification, JustGate
+from qtrlb.calibration.scan_classes import DriveAmplitudeScan, RabiScan, T1Scan, RamseyScan, EchoScan, LevelScan, CalibrateClassification, JustGate, CalibrateTOF
 from qtrlb.calibration.scan2d_classes import ChevronScan, ReadoutFrequencyScan, ReadoutAmplitudeScan, ReadoutLengthAmpScan, DRAGWeightScan
 from qtrlb.calibration.randomized_benchmarking import RB1QB
 from qtrlb.processing.fitting import QuadModel

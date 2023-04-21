@@ -107,6 +107,22 @@ def normalize_population(input_data, n_levels: int, axis: int = 0, mask: np.ndar
     return np.array(result)
 
 
+def correct_population(input_data, corr_matrix: list | np.ndarray):
+    """
+    Correct population based on a correction matrix (modification of confusion matrix).
+    The element (row i, column j) in corr_matrix is P(predicted as state i | actually in state j).
+    Thus, the corr_matrix times actual population gives predicted population.
+    We have predicted by GMM and want to know hte actual result, so we use np.linalg.solve here.
+    Unfortunately, if corr_matrix has shape (M, M), the shape of data can only be (M,) or (M, K).
+    It means data with (M, K, N) etc will cause ValueError.
+    So I choose to flat all other dimonsion and shape them back later.
+    """
+    input_data = np.array(input_data)
+    flat_data = input_data.reshape(input_data.shape[0], -1)
+    result = np.linalg.solve(corr_matrix, flat_data).reshape(input_data.shape)
+    return result
+
+
 def find_most_distant_points(input_data):
     """
     Find the most distant points of data based on Euclidean distance.
