@@ -2,6 +2,7 @@
 
 import os
 
+from qtrlb.calibration.calibration import Scan, Scan2D
 from qtrlb.calibration.scan_classes import DriveAmplitudeScan, RabiScan, T1Scan, RamseyScan, EchoScan, LevelScan, CalibrateClassification, JustGate, CalibrateTOF
 from qtrlb.calibration.scan2d_classes import ChevronScan, ReadoutFrequencyScan, ReadoutAmplitudeScan, ReadoutLengthAmpScan, DRAGWeightScan
 from qtrlb.calibration.randomized_benchmarking import RB1QB
@@ -12,7 +13,7 @@ from qtrlb.config.DAC_manager import DACManager
 from qtrlb.config.process_manager import ProcessManager
 from qtrlb.config.data_manager import DataManager
 from qtrlb.config.gate_manager import GateManager
-from qtrlb.config.config import MetaManager
+from qtrlb.config.config import Config, MetaManager
 
 
 
