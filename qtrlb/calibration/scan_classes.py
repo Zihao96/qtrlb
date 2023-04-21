@@ -54,8 +54,10 @@ class DriveAmplitudeScan(Scan):
         super().add_xinit()
 
         for tone in self.main_tones:
-            start = round(self.x_start * 32768)
-            start_DRAG = round(start * self.cfg[f'variables.{tone}/DRAG_weight'])
+            start = self.gain_translator(self.x_start)
+            start_DRAG = self.gain_translator(self.x_start * self.cfg[f'variables.{tone}/DRAG_weight'])
+            # start = round(self.x_start * 32768)
+            # start_DRAG = round(start * self.cfg[f'variables.{tone}/DRAG_weight'])
             xinit = f"""
                     move             {start},R4     
                     move             {start_DRAG},R11
@@ -67,8 +69,8 @@ class DriveAmplitudeScan(Scan):
         for tone in self.main_tones:
             subspace_dict = self.cfg[f'variables.{tone}']
             
-            step = round(self.x_step * 32768)
-            step_DRAG = round(step * subspace_dict['DRAG_weight'])
+            step = self.gain_translator(self.x_step)
+            step_DRAG = self.gain_translator(self.x_step * subspace_dict['DRAG_weight'])
             freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
                     
             main = (f"""
