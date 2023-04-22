@@ -21,6 +21,7 @@ class RB1QB(Scan):
                  n_gates_points: int,
                  n_random: int = 30,
                  subspace: str = None,
+                 top_subspace: str = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int = 0,
                  fitmodel: Model = ExpModel2):
@@ -35,6 +36,7 @@ class RB1QB(Scan):
                          x_stop=n_gates_stop, 
                          x_points=n_gates_points,
                          subspace=subspace,
+                         top_subspace=top_subspace,
                          prepulse=None,
                          postpulse=None,
                          n_seqloops=n_seqloops,
@@ -55,16 +57,22 @@ class RB1QB(Scan):
         The fit and plot will happen after we get all measurements.
         The fitting result and figure file will be saved in the last measurement folder.
         """
+        self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
         self.attrs = deepcopy(self.__dict__)
-        
+
+        self.sequences = {}  # For the make_exp_dir working correctly.
+        self.make_exp_dir()
+        self.original_data_path = self.data_path
+
         for i in range(self.n_random):
-            self.experiment_suffix = experiment_suffix + f'_Random_{self.n_runs}'
+            self.data_path = os.path.join(self.original_data_path, f'Random_{i}')
+            os.makedirs(os.path.join(self.data_path, f'{self.readout_resonators[0]}_IQplots'))
+
             self.make_sequence() 
             self.save_sequence()
             self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
-            self.make_exp_dir()  # It also save a copy of yamls and jsons there.
             self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
             self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
             self.process_data()
@@ -82,7 +90,7 @@ class RB1QB(Scan):
         Please refer to Scan.make_sequence for general structure and example.
         Here I have to flatten the x loop for randomized benchmarking.
         """
-        self.sequences = {qudit:{} for qudit in self.qudits}        
+        self.sequences = {tone: {} for tone in self.tones}         
         self.set_waveforms_acquisitions()
         
         self.Clifford_sequences = []
@@ -127,7 +135,6 @@ class RB1QB(Scan):
         We will loop over all number of clifford first(inner), then loop over all randomization(outer).
         Since randomization is a type of averaging to some extent.
         """
-        qubit_pulse_length = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
         relaxation_length = round(self.cfg['variables.common/relaxation_time'] * 1e9)
         add_label = False  # Nothing should go wrong if make it True. Just for simplicity.
         concat_df = False  # Nothing should go wrong if make it True. But it's very slow.
@@ -137,16 +144,17 @@ class RB1QB(Scan):
         for j in range(self.x_points):
             primitive_sequence = self.primitive_sequences[j][0]  # For only single random.
             
-            pulse = {q: primitive_sequence for q in self.drive_qubits}
+            gate = {q: primitive_sequence for q in self.drive_qubits}
             name = f'RBpoint{j}'
-            lengths = [qubit_pulse_length if not gate.startswith('Z') or gate.startswith('I') else 0
-                       for gate in primitive_sequence]
+            lengths = [self.qubit_pulse_length_ns 
+                       if not gate_str.startswith('Z') or gate_str.startswith('I') else 0
+                       for gate_str in primitive_sequence]
             
             self.add_sequence_start()
             self.add_wait(name+'RLX', relaxation_length, add_label=add_label, concat_df=concat_df)
             if heralding: self.add_heralding(name+'HRD', add_label=add_label, concat_df=concat_df)
-            self.add_pulse(self.subspace_pulse, 'Subspace', add_label=add_label, concat_df=concat_df)
-            self.add_pulse(pulse, name, lengths, add_label=add_label, concat_df=concat_df)
+            self.add_gate(self.subspace_pulse, 'Subspace', add_label=add_label, concat_df=concat_df)
+            self.add_gate(gate, name, lengths, add_label=add_label, concat_df=concat_df)
             self.add_readout(name+'RO', add_label=add_label, concat_df=concat_df)
             self.add_sequence_end()
 
@@ -188,15 +196,6 @@ class RB1QB(Scan):
                         self.data_all_randoms[r][i][self.level_to_fit[j]], 
                         'b.')
 
+            self.figures[r].savefig(os.path.join(self.original_data_path, f'{r}.png'))
             self.figures[r].canvas.draw()
-
-
-
-
-
-
-
-
-
-
 

@@ -1010,7 +1010,7 @@ class Scan2D(Scan):
 
             for l in range(n_subplots):
                 level = self.cfg[f'variables.{r}/readout_levels'][l]
-                this_title = title + fr'P_{{{level}}}' if self.classification_enable else title
+                this_title = title + fr', $P_{{{level}}}$' if self.classification_enable else title
                 
                 image = ax[l].imshow(data[l], cmap='RdBu_r', interpolation='none', aspect='auto', 
                                      origin='lower', extent=[np.min(self.x_values) / self.x_unit_value, 

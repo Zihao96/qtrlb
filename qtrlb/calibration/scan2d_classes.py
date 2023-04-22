@@ -469,6 +469,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
 
+        self.scan_name = 'ReadoutLengthAmp'
         self.length_start = length_start
         self.length_stop = length_stop
         self.length_points = length_points
