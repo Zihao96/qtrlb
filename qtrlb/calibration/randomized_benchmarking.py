@@ -37,8 +37,8 @@ class RB1QB(Scan):
                          x_points=n_gates_points,
                          subspace=subspace,
                          top_subspace=top_subspace,
-                         prepulse=None,
-                         postpulse=None,
+                         pregate=None,
+                         postgate=None,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -60,7 +60,7 @@ class RB1QB(Scan):
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = deepcopy(self.__dict__)
+        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
 
         self.sequences = {}  # For the make_exp_dir working correctly.
         self.make_exp_dir()
@@ -72,7 +72,7 @@ class RB1QB(Scan):
 
             self.make_sequence() 
             self.save_sequence()
-            self.cfg.DAC.implement_parameters(self.drive_qubits, self.readout_resonators, self.jsons_path) 
+            self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
             self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
             self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
             self.process_data()
@@ -81,6 +81,7 @@ class RB1QB(Scan):
             self.measurements.append(self.measurement)
             self.plot_IQ()
             if self.classification_enable: self.plot_populations()
+            print(f'Random {i} finished!')
             
         self.fit_data()
         self.plot()
@@ -124,6 +125,7 @@ class RB1QB(Scan):
         if jsons_path is None: return
         file_path = os.path.join(jsons_path, 'RB_sequence.json')
         
+        if not hasattr(self, 'Clifford_sequences'): return
         with open(file_path, 'w', encoding='utf-8') as file:
             both_sequences = {'Clifford_sequences': self.Clifford_sequences,
                               'primitive_sequences': self.primitive_sequences}
@@ -153,7 +155,7 @@ class RB1QB(Scan):
             self.add_sequence_start()
             self.add_wait(name+'RLX', relaxation_length, add_label=add_label, concat_df=concat_df)
             if heralding: self.add_heralding(name+'HRD', add_label=add_label, concat_df=concat_df)
-            self.add_gate(self.subspace_pulse, 'Subspace', add_label=add_label, concat_df=concat_df)
+            self.add_gate(self.subspace_gate, 'Subspace', add_label=add_label, concat_df=concat_df)
             self.add_gate(gate, name, lengths, add_label=add_label, concat_df=concat_df)
             self.add_readout(name+'RO', add_label=add_label, concat_df=concat_df)
             self.add_sequence_end()
@@ -194,7 +196,7 @@ class RB1QB(Scan):
             for i in range(self.n_random):
                 ax.plot(self.x_values / self.x_unit_value, 
                         self.data_all_randoms[r][i][self.level_to_fit[j]], 
-                        'b.')
+                        'r.', alpha=0.1)
 
             self.figures[r].savefig(os.path.join(self.original_data_path, f'{r}.png'))
             self.figures[r].canvas.draw()
