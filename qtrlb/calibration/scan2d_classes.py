@@ -168,7 +168,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
     def plot(self):
         self.plot_main()
         self.plot_spectrum()
-        self.plot_IQ()
+        if self.cfg['variables.commom/plot_IQ']: self.plot_IQ()
         
 
     def plot_main(self, text_loc: str = 'lower right'):

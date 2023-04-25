@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
@@ -789,7 +790,7 @@ class CalibrateTOF(JustGate):
 
     def plot(self, start: int = 0, stop: int = 16384):
         """
-        Start and stop is for helping user zoom into plot.
+        Start and stop set the limit of x axis.
         """
         r = self.readout_resonators[0]  # We should only use one resonator.
         self.raw_data = np.array(self.measurement[r]['raw_readout'])
@@ -801,9 +802,72 @@ class CalibrateTOF(JustGate):
         fig, ax = plt.subplots(2, 1, dpi=150)
         ax[0].plot(t[start:stop], I_trace[start:stop])
         ax[1].plot(t[start:stop], Q_trace[start:stop])
-        ax[0].set(xlabel='Time[ns]', ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {r}')
-        ax[0].set(xlabel='Time[ns]', ylabel='Q')
+        ax[0].set(ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {r}')
+        ax[1].set(ylabel='Q', label='Time[ns]')
 
         fig.savefig(os.path.join(self.data_path, f'{r}.png'))
         self.figures = {r: fig}
 
+
+class CheckBlobShift(CalibrateClassification):
+    """ A quick check. Work, but don't take it serious on this scan.
+        It just keep doing CalibrateClassification and gmm_fit them.
+        It only takes one qubit and one resonator.
+    """
+    def __init__(self, 
+                 cfg, 
+                 drive_qubits: str, 
+                 readout_resonators: str, 
+                 n_seqloops: int = 1000):
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits, 
+                         readout_resonators=readout_resonators, 
+                         level_start=0,
+                         level_stop=1,
+                         n_seqloops=n_seqloops, 
+                         save_cfg=False)
+
+        self.scan_name = 'CheckBlobShift'
+        
+    def run(self, n_rounds: int, sleep_seconds: int, experiment_suffix: str = '', n_pyloops: int = 1):
+        self.experiment_suffix = experiment_suffix
+        self.n_pyloops = n_pyloops
+        self.n_reps = self.n_seqloops * self.n_pyloops
+        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
+        self.make_sequence() 
+        self.save_sequence()
+        self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
+
+        for i in range(n_rounds):
+            self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
+            self.process_data()
+            self.fit_data()
+            self.n_runs += 1
+            self.measurements.append(self.measurement)
+            print(f'Round {i} finished')
+            if not self.n_runs == n_rounds: time.sleep(sleep_seconds)
+
+        self.plot()
+
+    
+    def plot(self):
+        r = self.readout_resonators[0]
+
+        # The shape of the two arrays should be:
+        # means_all.shape = (n_runs, x_points=2, IQ=2)
+        # covar_all.shape = (n_runs, x_points=2)
+        means_all = np.array([measurement[r]['means_new'] for measurement in self.measurements])
+        covar_all = np.array([measurement[r]['covariances_new'] for measurement in self.measurements])
+
+        t = np.arange(self.n_runs)
+        fig, ax = plt.subplots(2, 1, dpi=150)
+        ax[0].errorbar(t, means_all[:, 0, 0], yerr=covar_all[:,0], label='|0>, I')
+        ax[1].errorbar(t, means_all[:, 0, 1], yerr=covar_all[:,0], label='|0>, Q')
+        ax[0].errorbar(t, means_all[:, 1, 0], yerr=covar_all[:,1], label='|1>, I')
+        ax[1].errorbar(t, means_all[:, 1, 1], yerr=covar_all[:,1], label='|1>, Q')
+        ax[0].set(title='Trace of IQ means with covariances as error bar')
+        ax[1].set(xlabel='Number of round')
+        ax[0].legend(loc='right', framealpha=0.3)
+        ax[1].legend(loc='right', framealpha=0.3)
+
+        self.figures = {r: fig}
