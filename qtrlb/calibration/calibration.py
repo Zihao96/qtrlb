@@ -635,18 +635,18 @@ class Scan:
         self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.x_points))
         
 
-    def fit_data(self, x: list | np.ndarray = None): 
+    def fit_data(self, x: list | np.ndarray = None, **fitting_kwargs): 
         """
         Fit data in measurement dictionary and save result back into it.
         We will also keep fit result as attribute self.fit_result for future use.
         The model should be better picked from qtrlb.processing.fitting.
         data_dict['to_fit'] usually have shape (n_levels, x_points), or (2, x_points) without classification.
+        Allow multi-dimensional fitting through fitting_kwargs by passing 'y' or even 'z'.
         
         Note from Zihao(03/17/2023):
         I leave an interface for x because it's convenient to fit multidimensional scan as 1D scan.
         In that case we can pass whichever axis as horizontal axis here.
         The only cost is to process self.measurement[r]['to_fit'] to correct shape.
-        # TODO: make 2D data fitting possible. Now RTS and DWS use 1D-like fitting.
         """
         self.fit_result = {r: None for r in self.readout_resonators}
         if self.fitmodel is None: return
@@ -656,7 +656,7 @@ class Scan:
             try:
                 level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
                 self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][level_index],
-                                         x=x, fitmodel=self.fitmodel)
+                                         x=x, fitmodel=self.fitmodel, **fitting_kwargs)
                 
                 params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
                 self.measurement[r]['fit_result'] = params

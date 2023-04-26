@@ -31,7 +31,7 @@ class ChevronScan(Scan2D, RabiScan):
                  postgate: dict = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list = None,
-                 fitmodel: Model = None,
+                 fitmodel: Model = None,  # Don't fit by default.
                  init_waveform_idx: int = 101):
         
         super().__init__(cfg=cfg, 
@@ -90,6 +90,10 @@ class ChevronScan(Scan2D, RabiScan):
         for tone in self.main_tones:  self.sequences[tone]['program'] += f"""
                     add              R6,{ssb_freq_step_4},R6
         """
+            
+
+    def fit_data(self, x=None, **fitting_kwargs):
+        super().fit_data(x=x, y=self.y_values, **fitting_kwargs)
         
         
 class ReadoutTemplateScan(Scan2D, LevelScan):
