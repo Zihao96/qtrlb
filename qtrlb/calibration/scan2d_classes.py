@@ -348,6 +348,17 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         super().process_data(compensate_ED=True)
 
 
+    def adjust_ED(self, ED: float, save_cfg: bool = True):
+        """
+        A convenient method for changing electrical delay then redo process, fit and plot_spectrum.
+        ED should be in second.
+        """
+        self.cfg['variables.common/electrical_delay'] = ED
+        if save_cfg: self.cfg.save()
+        self.process_data()
+        self.plot_spectrum()
+
+
 class ReadoutAmplitudeScan(ReadoutTemplateScan):
     def __init__(self,
                  cfg, 

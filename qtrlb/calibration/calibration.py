@@ -796,6 +796,16 @@ class Scan:
             plt.legend()
             fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected.png'))
             plt.close(fig)
+
+
+    def switch_level(self, level_to_fit: int | list):
+        """ 
+        A covenient method for change level_to_fit then redo fit and plot.
+        """
+        self.level_to_fit = self.make_it_list(level_to_fit)
+        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level for all resonators.'
+        self.fit_data()
+        self.plot()
         
         
     @staticmethod

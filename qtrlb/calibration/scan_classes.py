@@ -2,6 +2,7 @@ import os
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
@@ -243,6 +244,40 @@ class RabiScan(Scan):
             
         return pi_amp
         
+
+class DebugRabi(RabiScan):
+    """ Make the RabiScan plot both I and Q coordinate in single plot for debugging.
+        Work and plot coordinate instead of population even with classification.
+    """
+    def plot_main(self, text_loc: str = 'lower right'):
+        self.figures = {}
+        
+        for i, r in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
+            ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
+            
+            fig, ax = plt.subplots(1, 2, figsize=(13, 5))
+            ax[0].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][0], 'k.')
+            ax[0].set(xlabel=xlabel, ylabel=ylabel, title=title)
+            ax[1].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][1], 'k.')
+            ax[1].set(xlabel=xlabel, ylabel=ylabel, title=title)
+            
+            if self.fit_result[r] is not None: 
+                # Raise resolution of fit result for smooth plot.
+                x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
+                y = self.fit_result[r].eval(x=x)
+                ax[level_index].plot(x / self.x_unit_value, y, 'm-')
+                
+                # AnchoredText stolen from Ray's code.
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
+                ax[level_index].add_artist(anchored_text)
+
+            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+            self.figures[r] = fig
+
     
 class T1Scan(Scan):
     def __init__(self, 
@@ -788,7 +823,7 @@ class CalibrateTOF(JustGate):
         super().acquire_data(keep_raw=True)
 
 
-    def plot(self, start: int = 0, stop: int = 16384):
+    def plot_main(self, start: int = 0, stop: int = 16384, savefig: bool = True):
         """
         Start and stop set the limit of x axis.
         """
@@ -805,7 +840,7 @@ class CalibrateTOF(JustGate):
         ax[0].set(ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {r}')
         ax[1].set(ylabel='Q', label='Time[ns]')
 
-        fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+        if savefig: fig.savefig(os.path.join(self.data_path, f'{r}.png'))
         self.figures = {r: fig}
 
 
@@ -829,6 +864,7 @@ class CheckBlobShift(CalibrateClassification):
 
         self.scan_name = 'CheckBlobShift'
         
+
     def run(self, n_rounds: int, sleep_seconds: int, experiment_suffix: str = '', n_pyloops: int = 1):
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
