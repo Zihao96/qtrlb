@@ -673,6 +673,7 @@ class Scan:
         Plot the experiment result and save them into data directory.
         """
         self.plot_main()
+        if self.cfg.DAC.test_mode: return
         if self.cfg['variables.common/plot_IQ']: self.plot_IQ()
         if self.classification_enable: self.plot_populations()
 
