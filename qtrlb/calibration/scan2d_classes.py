@@ -354,7 +354,9 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         ED should be in second.
         """
         self.cfg['variables.common/electrical_delay'] = ED
-        if save_cfg: self.cfg.save()
+        if save_cfg: 
+            self.cfg.save()
+            self.cfg.load()
         self.process_data()
         self.plot_spectrum()
 

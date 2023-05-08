@@ -114,6 +114,7 @@ class MixerCorrection:
             self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio'] = gain_ratio
             self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree'] = phase_offset
             self.cfg.save()
+            self.cfg.load()
             
             
     def set_offset0(self, offset0):
