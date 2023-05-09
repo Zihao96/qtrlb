@@ -487,7 +487,8 @@ class EchoScan(Scan):
                  level_to_fit: int | list = None,
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 65528,
-                 echo_type: str = 'CP'):
+                 echo_type: str = 'CP',
+                 reverse_last_gate: bool = True):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -508,6 +509,7 @@ class EchoScan(Scan):
         
         self.divisor_ns = divisor_ns
         self.echo_type = echo_type
+        self.reverse_last_gate = reverse_last_gate
 
         
     def add_xinit(self):
@@ -568,6 +570,7 @@ class EchoScan(Scan):
         """
         for tone in self.tones: self.sequences[tone]['program'] += main
         
+        if self.reverse_last_gate: half_pi_gate = {q: [f'X-90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
         self.add_gate(half_pi_gate, 'Echo2ndHalfPIgate')
         
         
