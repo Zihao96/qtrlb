@@ -240,7 +240,8 @@ class RabiScan(Scan):
             r = 'R' + tone.split('/')[0][1:]
             fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 1
             pi_pulse_amp = (ideal_rabi_freq / fit_rabi_freq * self.cfg[f'variables.{tone}/amp_rabi'])
-            pi_amp[tone] = pi_pulse_amp
+            pi_amp[f'{tone}_180'] = pi_pulse_amp
+            pi_amp[f'{tone}_90'] = pi_pulse_amp / 2
             
         return pi_amp
         

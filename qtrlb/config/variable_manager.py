@@ -112,6 +112,8 @@ class VariableManager(Config):
 
     def transmon_parameters(self, transmon: str, chi_kHz: float = None):
         """
+        All return values are in [GHz].
+        
         Calculate transmon property like EJ, EC, g, etc from values in variables.yaml.
         Notice the full dispersive shift/ac Stark shift is 2 * chi.
         Notice fr is a little bit tricky, but doesn't influence the result too much.

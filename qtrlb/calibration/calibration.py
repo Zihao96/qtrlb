@@ -806,7 +806,7 @@ class Scan:
         self.level_to_fit = self.make_it_list(level_to_fit)
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level for all resonators.'
         self.fit_data()
-        self.plot()
+        self.plot_main()
         
         
     @staticmethod
