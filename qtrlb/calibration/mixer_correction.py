@@ -1,6 +1,7 @@
 import os
 import json
 import numpy as np
+import ipywidgets as ipyw
 
 
 
@@ -38,11 +39,10 @@ class MixerCorrection:
         
     def run(self):
         """
-        Make sequence and start sequencer.
+        Make sequence, start sequencer and create interactive ipywidget.
         """
         self.make_sequence()
-        self.sequencer.arm_sequencer()
-        self.cfg.DAC.qblox.start_sequencer()
+        self.create_ipywidget()
         
         
     def make_sequence(self):
@@ -96,6 +96,51 @@ class MixerCorrection:
             self.sequencer.channel_map_path1_out1_en(True)
             self.sequencer.nco_freq(self.cfg[f'variables.{self.qudit}/mod_freq'])
             self.sequencer.nco_prop_delay_comp_en(True)
+
+
+    def create_ipywidget(self, 
+                         widget_width: str = '600px', 
+                         offset0_min: float = -84.0,
+                         offset0_max: float = +73.0,
+                         offset1_min: float = -84.0,
+                         offset1_max: float = +73.0) -> None:
+        """
+        Start sequencer once and create ipywidget.
+        Allow user to change min/max of the FloatSlider for DC offset. 
+        """
+        
+        layout = ipyw.Layout(width=widget_width) 
+        self.sequencer.arm_sequencer()
+        self.cfg.DAC.qblox.start_sequencer()
+        
+        ipyw.interact(
+            self.set_offset0, 
+            offset0=ipyw.FloatSlider(
+                value=self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path0'], 
+                min=offset0_min, max=offset0_max, step=0.001, layout=layout
+            )
+        )
+        ipyw.interact(
+            self.set_offset1, 
+            offset1=ipyw.FloatSlider(
+                value=self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path1'], 
+                min=offset1_min, max=offset1_max, step=0.001, layout=layout
+            )
+        )
+        ipyw.interact(
+            self.set_gain_ratio, 
+            gain_ratio=ipyw.FloatSlider(
+                value=self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio'], 
+                min=0.7, max=1.3, step=0.001, layout=layout
+            )
+        )
+        ipyw.interact(
+            self.set_phase_offset, 
+            phase_offset=ipyw.FloatSlider(
+                value=self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree'], 
+                min=-45.0, max=45.0, step=0.001, layout=layout
+            )   
+        )
 
 
     def stop(self, save_cfg: bool = True):
