@@ -144,7 +144,7 @@ def find_most_distant_points(input_data):
     return point_i, point_j
 
 
-def get_readout_fidelity(confusion_matrix: list | np.ndarray):
+def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:
     """
     Calculate readout fidelity based on a given confusion matrix.
     We are using form of confusion matrix such that sum vertical elements give 1.
@@ -155,4 +155,4 @@ def get_readout_fidelity(confusion_matrix: list | np.ndarray):
     """
     confusion_matrix = np.array(confusion_matrix)
     fidelity = (1 + confusion_matrix[0, 0] - np.sum(confusion_matrix[0, 1:]) ) / 2
-    return fidelity
+    return float(fidelity)

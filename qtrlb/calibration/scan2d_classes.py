@@ -491,7 +491,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         self.length_stop = length_stop
         self.length_points = length_points
         self.length_plot_label = 'Readout Length'
-        self.length_plot_unit = 'ns'
+        self.length_plot_unit = 'us'
         
         assert 16384 * u.ns > self.length_stop >= self.length_start > 0, \
             'Readout length must be ascending values in (0, 16384) ns.'
@@ -502,12 +502,46 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
     def run(self, 
             experiment_suffix: str = '',
             n_pyloops: int = 1):
+        """
+        Disassemble the Scan.run() method to save all data into one folder.
+        self.data_path will be dynamically changed during loop.
+        """
+        # Assign attribute as usual
+        self.experiment_suffix = experiment_suffix
+        self.n_pyloops = n_pyloops
+        self.n_reps = self.n_seqloops * self.n_pyloops
+        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
+
+        # Make the main folder, but not save sequence here since we don't have it yet.
+        self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.main_tones_, self.scan_name]),
+                                   experiment_suffix=self.experiment_suffix)
+        self.main_data_path = self.cfg.data.data_path
+        self.datetime_stamp = self.cfg.data.datetime_stamp
+        self.cfg.save(yamls_path=self.cfg.data.yamls_path, verbose=False)
         
+        # Loop over each length
         for i, length in enumerate(self.length_values):
+            # Change length
             self.resonator_pulse_length_ns = round(length * 1e9)
             self.cfg['variables.common/integration_length'] = float(length)
-            
-            super().run(experiment_suffix=f'{experiment_suffix}_{round(length*1e9)}ns', n_pyloops=n_pyloops)
+
+            # Make the sub folder, self.data_path will be updated here.
+            self.data_path = os.path.join(self.main_data_path, f'{self.resonator_pulse_length_ns}ns')
+            os.makedirs(os.path.join(self.data_path, f'{self.readout_resonators[0]}_IQplots'))
+            os.makedirs(os.path.join(self.data_path, 'Jsons'))
+
+            # Run as usual, but using the new self.data_path.
+            self.make_sequence() 
+            self.save_sequence()
+            self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
+            self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
+            self.acquire_data()
+            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.process_data()
+            self.fit_data()
+            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.plot()
+            self.measurements.append(self.measurement)
             
             plt.close('all')
             print(f'RLAS: length_point {i} finish.')
@@ -516,6 +550,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         # Here you see the power of separating save and set, load and get. :)
         self.cfg.load()
         self.plot_full_result()
+        self.n_runs += 1
         
         
     def plot_full_result(self):
@@ -531,8 +566,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             
             for measurement in self.measurements:
                 self.data_all_lengths[r].append(measurement[r]['to_fit'][0])
+                # Index 0 is from process_data in ReadoutTemplateScan.
                 
-             
             title = f'{self.datetime_stamp}, Readout Length-Amp Scan, {r}'  
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = self.length_plot_label + f'[{self.length_plot_unit}]'
@@ -541,10 +576,12 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
             image = ax.imshow(self.data_all_lengths[r], cmap='RdBu_r', interpolation='none', aspect='auto', 
-                              origin='lower', extent=[np.min(self.y_values), np.max(self.y_values), 
-                                                      np.min(self.length_values), np.max(self.length_values)])
+                              origin='lower', extent=[np.min(self.y_values), 
+                                                      np.max(self.y_values), 
+                                                      np.min(self.length_values) / self.length_unit_value, 
+                                                      np.max(self.length_values) / self.length_unit_value])
             fig.colorbar(image, ax=ax, label='Fidelity', location='top')
-            fig.savefig(os.path.join(self.data_path, f'{r}_full_result.png'))
+            fig.savefig(os.path.join(self.main_data_path, f'{r}_full_result.png'))
             self.figures[r] = fig
 
         

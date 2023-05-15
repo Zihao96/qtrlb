@@ -55,7 +55,7 @@ class RB1QB(Scan):
         Because the 16384 instruction limit of the instrument, we cannot run all random at once.
         Instead, we will use measurement/measurements trick to run different random sequence.
         The fit and plot will happen after we get all measurements.
-        The fitting result and figure file will be saved in the last measurement folder.
+        This is similar trick as ReadoutLengthAmpScan.
         """
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops

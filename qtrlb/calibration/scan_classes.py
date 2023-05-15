@@ -257,13 +257,13 @@ class DebugRabi(RabiScan):
             level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
-            ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
+            ylabel = 'Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 2, figsize=(13, 5))
             ax[0].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][0], 'k.')
-            ax[0].set(xlabel=xlabel, ylabel=ylabel, title=title)
+            ax[0].set(xlabel=xlabel, ylabel=f'I-{ylabel}', title=title)
             ax[1].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][1], 'k.')
-            ax[1].set(xlabel=xlabel, ylabel=ylabel, title=title)
+            ax[1].set(xlabel=xlabel, ylabel=f'Q-{ylabel}', title=title)
             
             if self.fit_result[r] is not None: 
                 # Raise resolution of fit result for smooth plot.
