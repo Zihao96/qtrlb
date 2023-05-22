@@ -678,7 +678,7 @@ class Scan:
         if self.classification_enable: self.plot_populations()
 
 
-    def plot_main(self, text_loc: str = 'lower right'):
+    def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
         """
         Plot the main result along with fitting, if not failed.
         Figure will be saved to data directory and show up on python console.
@@ -697,7 +697,7 @@ class Scan:
             else:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
             
-            fig, ax = plt.subplots(1, 1, dpi=150)
+            fig, ax = plt.subplots(1, 1, dpi=dpi)
             ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][level_index], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
@@ -719,7 +719,8 @@ class Scan:
     def plot_IQ(self, 
                 IQ_key: str = 'IQrotated_readout', 
                 c_key: str = 'GMMpredicted_readout', 
-                mask_key: str = 'Mask_heralding'):
+                mask_key: str = 'Mask_heralding',
+                dpi: int = 75):
         """
         Plot the IQ point for each element in self.x_values.
         Figure will be saved to data directory without show up on python console.
@@ -745,7 +746,7 @@ class Scan:
                     c = self.measurement[r][c_key][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
 
-                fig, ax = plt.subplots(1, 1, dpi=150)
+                fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
                 ax.axvline(color='k', ls='dashed')    
                 ax.axhline(color='k', ls='dashed')
@@ -760,7 +761,7 @@ class Scan:
                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
                    c_masked = np.ma.MaskedArray(c, mask=mask)
                    
-                   fig, ax = plt.subplots(1, 1, dpi=150)
+                   fig, ax = plt.subplots(1, 1, dpi=dpi)
                    ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
                    ax.axvline(color='k', ls='dashed')    
                    ax.axhline(color='k', ls='dashed')
@@ -770,7 +771,7 @@ class Scan:
                    plt.close(fig)
 
 
-    def plot_populations(self):
+    def plot_populations(self, dpi: int = 150):
         """
         Plot populations for all levels, both with and without readout correction.
         """
@@ -779,7 +780,7 @@ class Scan:
             ylabel = 'Probability'
             
             title = f'Uncorrected probability, {self.scan_name}, {r}'
-            fig, ax = plt.subplots(1, 1, dpi=150)
+            fig, ax = plt.subplots(1, 1, dpi=dpi)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
                 ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationNormalized_readout'][i], 
                         c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
@@ -789,7 +790,7 @@ class Scan:
             plt.close(fig)
             
             title = f'Corrected probability, {self.scan_name}, {r}'
-            fig, ax = plt.subplots(1, 1, dpi=150)
+            fig, ax = plt.subplots(1, 1, dpi=dpi)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
                 ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationCorrected_readout'][i], 
                         c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
@@ -1003,7 +1004,7 @@ class Scan2D(Scan):
         self.plot_main()
 
 
-    def plot_main(self, text_loc: str = 'upper right'):
+    def plot_main(self, text_loc: str = 'upper right', dpi: int = 150):
         """
         Plot population for all levels. 
         If we disable classification, plot both quadrature.
@@ -1019,7 +1020,7 @@ class Scan2D(Scan):
             ylabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             
-            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=150)
+            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=dpi)
 
             for l in range(n_subplots):
                 level = self.cfg[f'variables.{r}/readout_levels'][l]
