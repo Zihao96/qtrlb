@@ -150,9 +150,13 @@ def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:
     We are using form of confusion matrix such that sum vertical elements give 1.
     
     Reference:
-    https://arxiv.org/pdf/2208.05879.pdf
-    Page 4, definition of F_a before Eq.(4)
+    https://www.nature.com/articles/s41534-023-00689-6
+    Page 3, definition of F_a before Eq.(4)
+
+    Note from Zihao(05/22/2023):
+        The equation above is related to its context in paper.
+        I then read carefully about how they actually do three level fidelity.
+        It's really just mean of diagonal. You can try Fig.4(b) about 96.9%.
     """
-    confusion_matrix = np.array(confusion_matrix)
-    fidelity = (1 + confusion_matrix[0, 0] - np.sum(confusion_matrix[0, 1:]) ) / 2
+    fidelity = np.mean(np.diagonal(confusion_matrix))
     return float(fidelity)

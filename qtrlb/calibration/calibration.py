@@ -1010,6 +1010,8 @@ class Scan2D(Scan):
         
         # TODO add fit to the corresponding level, or add interface for adding fit.
         """
+        self.figures = {}
+
         for r in self.readout_resonators:
             data = self.measurement[r]['to_fit']
             n_subplots = len(data)
@@ -1032,6 +1034,7 @@ class Scan2D(Scan):
                 fig.colorbar(image, ax=ax[l], label='Probability/Coordinate', location='top')
                 
             fig.savefig(os.path.join(self.data_path, f'{r}.png'))
+            self.figures[r] = fig
 
 
 
