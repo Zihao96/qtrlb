@@ -228,3 +228,4 @@ class DACManager(Config):
 
         else:
             raise TypeError(f'DAC: Cannot translate the {tone}. Please check it type.')
+
