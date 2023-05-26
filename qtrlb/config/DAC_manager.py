@@ -98,7 +98,7 @@ class DACManager(Config):
                 self.sequencer[tone].mod_en_awg(True)
                 self.sequencer[tone].demod_en_acq(True)
                 self.sequencer[tone].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
-                self.sequencer[tone].nco_prop_delay_comp_en(True)
+                self.sequencer[tone].nco_prop_delay_comp_en(self.varman['common/nco_delay_comp'])
                 self.sequencer[tone].channel_map_path0_out0_en(True)
                 self.sequencer[tone].channel_map_path1_out1_en(True)
                   
