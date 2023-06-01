@@ -1,6 +1,5 @@
 import qtrlb.utils.units as u
 from qtrlb.config.config import Config
-from qtrlb.utils.transmon_parameters3 import falpha_to_EJEC, get_bare_frequency
 
 
 class VariableManager(Config):
@@ -118,6 +117,12 @@ class VariableManager(Config):
         Notice the full dispersive shift/ac Stark shift is 2 * chi.
         Notice fr is a little bit tricky, but doesn't influence the result too much.
         """
+        try:
+            from qtrlb.utils.transmon_parameters3 import falpha_to_EJEC, get_bare_frequency
+        except ModuleNotFoundError:
+            print('Missing the module to run such function')
+            return
+
         assert transmon.startswith('Q'), 'Transmon has to be string like "Q3", "Q0".'
         resonator = f'R{transmon[1:]}'
         f01_GHz = self[f'{transmon}/01/freq'] / u.GHz

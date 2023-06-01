@@ -123,6 +123,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain}
+                    reset_ph
                     play             0,0,{tof_ns} 
                     acquire          {acq_index},R1,{length - tof_ns}
         """

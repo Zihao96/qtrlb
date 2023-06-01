@@ -139,7 +139,7 @@ class DACManager(Config):
                 raise ValueError(f'The type of {m} is invalid.')
 
 
-    def start_sequencer(self, tones: list, measurement: dict, keep_raw: bool = False):
+    def start_sequencer(self, tones: list, measurement: dict, keep_raw: bool = False, heralding_enable: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.
@@ -174,7 +174,7 @@ class DACManager(Config):
             # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
             if keep_raw: 
                 self.module[r].store_scope_acquisition(seq_idx, 'readout')
-                self.module[r].store_scope_acquisition(seq_idx, 'heralding')
+                if heralding_enable: self.module[r].store_scope_acquisition(seq_idx, 'heralding')
             
             # Retrive the heterodyned result (binned data) back to python in Host PC.
             data = self.module[r].get_acquisitions(seq_idx)
@@ -182,19 +182,21 @@ class DACManager(Config):
             # Clear the memory of instrument. 
             # It's necessary otherwise the acquisition result will accumulate and be averaged.
             self.module[r].delete_acquisition_data(seq_idx, 'readout')
-            self.module[r].delete_acquisition_data(seq_idx, 'heralding')
+            if heralding_enable: self.module[r].delete_acquisition_data(seq_idx, 'heralding')
             
             # Append list of each repetition into measurement dictionary.
             measurement[r]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 
             measurement[r]['Heterodyned_readout'][1].append(data['readout']['acquisition']['bins']['integration']['path1'])
-            measurement[r]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
-            measurement[r]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
+            if heralding_enable:
+                measurement[r]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
+                measurement[r]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
 
             if keep_raw:
                 measurement[r]['raw_readout'][0].append(data['readout']['acquisition']['scope']['path0']['data']) 
                 measurement[r]['raw_readout'][1].append(data['readout']['acquisition']['scope']['path1']['data'])
-                measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
-                measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
+                if heralding_enable:
+                    measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
+                    measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
         # In case of the sequencers don't stop correctly.
         self.qblox.stop_sequencer()

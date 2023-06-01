@@ -20,7 +20,7 @@ class DriveAmplitudeScan(Scan):
                  amp_stop: float, 
                  amp_points: int, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -38,7 +38,7 @@ class DriveAmplitudeScan(Scan):
                          x_stop=amp_stop, 
                          x_points=amp_points, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -107,7 +107,7 @@ class RabiScan(Scan):
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -125,7 +125,7 @@ class RabiScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -289,7 +289,7 @@ class T1Scan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -307,7 +307,7 @@ class T1Scan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -335,7 +335,7 @@ class T1Scan(Scan):
         After each wait we substract divisor from R11.
         Then if R11 is smaller than divisor, we wait the remainder.
         """
-        pi_gate = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        pi_gate = {tone.split('/')[0]: [f'X180_{tone.split("/")[1]}'] for tone in self.main_tones}
         self.add_gate(pi_gate, 'T1PIgate')
         
         step_ns = round(self.x_step * 1e9)
@@ -366,7 +366,7 @@ class RamseyScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -385,7 +385,7 @@ class RamseyScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -425,7 +425,7 @@ class RamseyScan(Scan):
         Thus we substract 1e9 of R12 when it exceed 1e9, which is one phase cycle of Qblox.
         The wait trick is similar to T1Scan.
         """
-        half_pi_gate = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        half_pi_gate = {tone.split('/')[0]: [f'X90_{tone.split("/")[1]}'] for tone in self.main_tones}
         self.add_gate(half_pi_gate, 'Ramsey1stHalfPIgate')
         
         step_ns = round(self.x_step * 1e9)
@@ -480,7 +480,7 @@ class EchoScan(Scan):
                  length_stop: float, 
                  length_points: int, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -500,7 +500,7 @@ class EchoScan(Scan):
                          x_stop=length_stop, 
                          x_points=length_points, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=pregate,
                          postgate=postgate,
                          n_seqloops=n_seqloops,
@@ -526,7 +526,7 @@ class EchoScan(Scan):
         """
         Here R4 only represent half of the total waiting time.
         """
-        half_pi_gate = {q: [f'X90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        half_pi_gate = {tone.split('/')[0]: [f'X90_{tone.split("/")[1]}'] for tone in self.main_tones}
         self.add_gate(half_pi_gate, 'Echo1stHalfPIgate')
         
         step_half_ns = round(self.x_step / 2 * 1e9)
@@ -548,9 +548,9 @@ class EchoScan(Scan):
         for tone in self.tones: self.sequences[tone]['program'] += main
         
         if self.echo_type == 'CP':
-            pi_gate = {q: [f'X180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+            pi_gate = {tone.split('/')[0]: [f'X180_{tone.split("/")[1]}'] for tone in self.main_tones}
         elif self.echo_type == 'CPMG':
-            pi_gate = {q: [f'Y180_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+            pi_gate = {tone.split('/')[0]: [f'Y180_{tone.split("/")[1]}'] for tone in self.main_tones}
         self.add_gate(pi_gate, 'EchoPIgate')
         
         main = f"""
@@ -570,7 +570,8 @@ class EchoScan(Scan):
         """
         for tone in self.tones: self.sequences[tone]['program'] += main
         
-        if self.reverse_last_gate: half_pi_gate = {q: [f'X-90_{ss}'] for q, ss in zip(self.drive_qubits, self.subspace)}
+        if self.reverse_last_gate: 
+            half_pi_gate = {tone.split('/')[0]: [f'X-90_{tone.split("/")[1]}'] for tone in self.main_tones}
         self.add_gate(half_pi_gate, 'Echo2ndHalfPIgate')
         
         
@@ -580,10 +581,10 @@ class LevelScan(Scan):
         It's convenient since all Readout-type Scan can inherit this class.
         One can use it to check classification result without reclassifying it.
 
-        Note from Zihao(04/21/2023):
+        Note from Zihao(06/01/2023):
         I design the LevelScan and later ReadoutTemplateScan so that they don't need to use \
         attributes like subsapce and main_tones. However, the tones still matters, which means \
-        the top_subspace still matters. See the make_tones_list in LevelScan for more details.
+        the subspace still matters. See the make_tones_list in LevelScan for more details.
     """
     def __init__(self, 
                  cfg,  
@@ -622,7 +623,7 @@ class LevelScan(Scan):
 
 
     def make_tones_list(self):
-        self.top_subspace = [f'{self.x_stop-1}{self.x_stop}' for _ in self.drive_qubits]
+        self.subspace = [f'{self.x_stop-1}{self.x_stop}' for _ in self.drive_qubits]
         super().make_tones_list()
 
         
@@ -774,7 +775,7 @@ class JustGate(Scan):
                  just_gate: dict,
                  lengths: list,
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list = None,
                  fitmodel: Model = None):
@@ -789,7 +790,7 @@ class JustGate(Scan):
                          x_stop=1, 
                          x_points=1, 
                          subspace=subspace,
-                         top_subspace=top_subspace,
+                         main_tones=main_tones,
                          pregate=None,
                          postgate=None,
                          n_seqloops=n_seqloops,

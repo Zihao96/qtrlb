@@ -33,10 +33,11 @@ class Scan:
             x_start: Initial value of parameter-sweep, always in Hz/Second etc without any prefix.
             x_stop: Final value of parameter-sweep, always in Hz/Second etc without any prefix.
             x_points: Number of points of parameter_sweep. Start and stop points will be both included.
-            subspace: '12' or ['01', '12']. The main subspace that experiment will work on.
-                      Length should be same as drive_qubits.
-            top_subspace: '12' or ['01', '12']. The highest subspace that experiment will reach to.
-                      Length should be same as drive_qubits. It will decide the sequencer involved.        
+            subspace: '12' or ['01', '12']. The highest subspace that experiment will reach to.
+                    It will decide the sequencer involved. Length must be same as drive_qubits.
+                    Each element should be one-to-one associated to each qubit in order.
+                    If main_tones is None, then it will also be the subspace that experiment will work on.
+            main_tones: 'Q0/12' or ['Q0/01', 'Q0/12']. The tones that experiment will work on if specified.      
             pregate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just before main sequence.
             postgate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just after main sequence.
             n_seqloops: Number of repetition inside sequence program. Total repetition will be self.n_reps.
@@ -54,7 +55,7 @@ class Scan:
                  x_stop: float, 
                  x_points: int, 
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 1000,
@@ -70,7 +71,7 @@ class Scan:
         self.x_stop = x_stop
         self.x_points = x_points
         self.subspace = self.make_it_list(subspace, ['01' for _ in self.drive_qubits])
-        self.top_subspace = self.make_it_list(top_subspace, self.subspace)
+        self.main_tones = self.make_it_list(main_tones)
         self.pregate = pregate if pregate is not None else {}
         self.postgate = postgate if postgate is not None else {}
         self.n_seqloops = n_seqloops
@@ -91,8 +92,8 @@ class Scan:
         self.make_tones_list()
         
         self.x_unit_value = getattr(u, self.x_plot_unit)
-        self.subspace_gate = {q: [f'X180_{l}{l+1}' for l in range(int(ss[0]))] \
-                               for q, ss in zip(self.drive_qubits, self.subspace)}
+        self.subspace_gate = {tone.split('/')[0]: [f'X180_{l}{l+1}' for l in range(int(tone.split('/')[1][0]))] 
+                              for tone in self.main_tones if tone.startswith('Q')}
         self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
         self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
         self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
@@ -153,7 +154,6 @@ class Scan:
         assert hasattr(u, self.x_plot_unit), f'The plot unit {self.x_plot_unit} has not been defined.'
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
-        assert len(self.top_subspace) == len(self.drive_qubits), 'Please specify top_subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
         assert isinstance(self.pregate, dict), 'pregate must be dictionary like {"Q0":[gate1, gate2,...]}'
         assert isinstance(self.postgate, dict), 'postgate must to be dictionary like {"Q0":[gate1, gate2,...]}'
@@ -174,8 +174,9 @@ class Scan:
         self.tones = []
         self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
 
+        # Determine tones list from self.subspace.
         for i, qubit in enumerate(self.drive_qubits):
-            highest_level = int(self.top_subspace[i][-1])
+            highest_level = int(self.subspace[i][-1])
 
             for level in range(highest_level):
                 self.tones.append(f'{qubit}/{level}{level+1}')
@@ -184,8 +185,9 @@ class Scan:
         self.tones += self.readout_resonators
         self.tones_ += self.readout_resonators
 
-        self.main_tones = [f'{q}/{self.subspace[i]}' for i, q in enumerate(self.drive_qubits)]
-        self.main_tones_ = [f'{q}_{self.subspace[i]}' for i, q in enumerate(self.drive_qubits)]
+        # If main_tones keep default, generate it from self.subspace.
+        if self.main_tones == []: self.main_tones = [f'{q}/{ss}' for q, ss in zip(self.drive_qubits, self.subspace)]
+        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
         self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
 
 
@@ -268,8 +270,8 @@ class Scan:
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                     'index': 0}}
                 
-                acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0},
-                                'heralding': {'num_bins': self.num_bins, 'index': 1}}
+                acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0}}
+                if self.heralding_enable: acquisitions['heralding'] = {'num_bins': self.num_bins, 'index': 1}
             
             
             self.sequences[tone]['waveforms'] = waveforms
@@ -622,7 +624,7 @@ class Scan:
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(self.tones, self.measurement, keep_raw)
+            self.cfg.DAC.start_sequencer(self.tones, self.measurement, keep_raw, self.heralding_enable)
             print(f'Scan: Pyloop {i} finished!')
             
             
@@ -891,7 +893,7 @@ class Scan2D(Scan):
                  y_stop: float,
                  y_points: int,
                  subspace: str | list = None,
-                 top_subspace: str | list = None,
+                 main_tones: str | list = None,
                  pregate: dict = None,
                  postgate: dict = None,
                  n_seqloops: int = 10,
@@ -909,7 +911,7 @@ class Scan2D(Scan):
                       x_stop=x_stop, 
                       x_points=x_points, 
                       subspace=subspace,
-                      top_subspace=top_subspace,
+                      main_tones=main_tones,
                       pregate=pregate,
                       postgate=postgate,
                       n_seqloops=n_seqloops,
