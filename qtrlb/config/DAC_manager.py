@@ -196,6 +196,11 @@ class DACManager(Config):
                 measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
                 measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
+        # In case of the sequencers don't stop correctly.
+        self.qblox.stop_sequencer()
+        
+        # Do not call qblox.reset() here since it will make debugging difficult.
+
 
     @staticmethod
     def tone_to_qudit(tone: str | list) -> str | list:
