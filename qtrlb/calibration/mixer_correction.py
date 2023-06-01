@@ -69,6 +69,8 @@ class MixerCorrection:
             json.dump(sequence, file, indent=4)
 
         self.cfg.DAC.qblox.reset()
+        self.cfg.DAC.disconnect_existed_map()
+        self.cfg.DAC.disable_all_lo()
         self.sequencer.sequence(file_path)
         self.sequencer.sync_en(True)
         self.sequencer.mod_en_awg(True)
@@ -81,6 +83,7 @@ class MixerCorrection:
             # Because the name of attribute depends on which output port.
             self.out = self.cfg[f'variables.{self.qudit}/out']
             self.att = self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_att']
+            getattr(self.module, f'out{self.out}_lo_en')(True)
             getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.{self.qudit}/qubit_LO'])
             getattr(self.module, f'out{self.out}_att')(self.att)
             getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
@@ -90,6 +93,7 @@ class MixerCorrection:
         elif self.qudit.startswith('R'):
             self.out = 0
             self.att = self.cfg[f'DAC.Module{self.module_idx}/out0_att']
+            self.module.out0_in0_lo_en(True)
             self.module.out0_in0_lo_freq(self.cfg[f'variables.{self.qudit}/resonator_LO'])
             self.module.out0_att(self.att)
             self.sequencer.channel_map_path0_out0_en(True)
@@ -143,7 +147,7 @@ class MixerCorrection:
         )
 
 
-    def stop(self, save_cfg: bool = True):
+    def stop(self, save_cfg: bool = False):
         """
         Stop sequencer and store all the current value into cfg if asked.
         """

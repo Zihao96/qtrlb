@@ -66,6 +66,7 @@ class DACManager(Config):
         """
         self.qblox.reset()
         self.disconnect_existed_map()
+        self.disable_all_lo()
         
         for tone in tones:
             tone_ = tone.replace('/', '_')
@@ -81,6 +82,7 @@ class DACManager(Config):
             # Implement QCM-RF specific parameters.
             if qudit.startswith('Q'):
                 out = self.varman[f'{qudit}/out']
+                getattr(self.module[qudit], f'out{out}_lo_en')(True)
                 getattr(self.module[qudit], f'out{out}_lo_freq')(self.varman[f'{qudit}/qubit_LO']) 
 
                 self.sequencer[tone].sync_en(True)
@@ -91,6 +93,7 @@ class DACManager(Config):
                 
             # Implement QRM-RF specific parameters.
             elif qudit.startswith('R'):
+                self.module[qudit].out0_in0_lo_en(True)
                 self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
                 self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  
                 # Last sequencer to triger acquire.
@@ -137,6 +140,23 @@ class DACManager(Config):
                 
             else:
                 raise ValueError(f'The type of {m} is invalid.')
+            
+
+    def disable_all_lo(self):
+        """
+        Disable all the LO so that nothing will come out of output port when we don't use them.
+        It's really because all LO is enabled by default.
+        """
+        for module in self.qblox.modules:
+            if not (module.present() and module.is_rf_type): continue
+
+            if module.is_qcm_type:
+                module.out0_lo_en(False)
+                module.out1_lo_en(False)
+            elif module.is_qrm_type:
+                module.out0_in0_lo_en(False)
+            else:
+                print(f'Failed to disable LO for module type {module.module_type}')
 
 
     def start_sequencer(self, tones: list, measurement: dict, keep_raw: bool = False, heralding_enable: bool = False):
