@@ -582,9 +582,9 @@ class LevelScan(Scan):
         One can use it to check classification result without reclassifying it.
 
         Note from Zihao(06/01/2023):
-        I design the LevelScan and later ReadoutTemplateScan so that they don't need to use \
-        attributes like subsapce and main_tones. However, the tones still matters, which means \
-        the subspace still matters. See the make_tones_list in LevelScan for more details.
+        I design the LevelScan and later ReadoutTemplateScan so that they don't need to use attributes \
+        like subsapce and main_tones, and these attribute will be kept as default like ['01']. 
+        However, the self.tones still matters, see the make_tones_list in LevelScan for more details.
     """
     def __init__(self, 
                  cfg,  
@@ -623,8 +623,26 @@ class LevelScan(Scan):
 
 
     def make_tones_list(self):
-        self.subspace = [f'{self.x_stop-1}{self.x_stop}' for _ in self.drive_qubits]
-        super().make_tones_list()
+        """
+        Overload the parent method to keep main_tones at Q#/01 as default.
+        The self.tones will be determined by the level_stop.
+        """
+        self.tones = []
+        self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
+
+        # Determine tones list from level_stop.
+        for qubit in self.drive_qubits:
+            for level in range(self.x_stop):
+                self.tones.append(f'{qubit}/{level}{level+1}')
+                self.tones_.append(f'{qubit}_{level}{level+1}')
+
+        self.tones += self.readout_resonators
+        self.tones_ += self.readout_resonators
+
+        # Make main_tones default here.
+        self.main_tones = [f'{q}/01' for q in self.drive_qubits]
+        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
+        self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
 
         
     def add_xinit(self):
