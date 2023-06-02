@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import numpy as np
 import ipywidgets as ipyw
 
@@ -84,6 +85,7 @@ class MixerCorrection:
             self.out = self.cfg[f'variables.{self.qudit}/out']
             self.att = self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_att']
             getattr(self.module, f'out{self.out}_lo_en')(True)
+            time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
             getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.{self.qudit}/qubit_LO'])
             getattr(self.module, f'out{self.out}_att')(self.att)
             getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
@@ -94,6 +96,7 @@ class MixerCorrection:
             self.out = 0
             self.att = self.cfg[f'DAC.Module{self.module_idx}/out0_att']
             self.module.out0_in0_lo_en(True)
+            time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
             self.module.out0_in0_lo_freq(self.cfg[f'variables.{self.qudit}/resonator_LO'])
             self.module.out0_att(self.att)
             self.sequencer.channel_map_path0_out0_en(True)

@@ -1,4 +1,5 @@
 import os
+import time
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
 from qblox_instruments import Cluster
@@ -83,6 +84,7 @@ class DACManager(Config):
             if qudit.startswith('Q'):
                 out = self.varman[f'{qudit}/out']
                 getattr(self.module[qudit], f'out{out}_lo_en')(True)
+                time.sleep(0.005)  # This sleep is important to make LO work correctly. 1ms doesn't work.
                 getattr(self.module[qudit], f'out{out}_lo_freq')(self.varman[f'{qudit}/qubit_LO']) 
 
                 self.sequencer[tone].sync_en(True)
@@ -94,6 +96,7 @@ class DACManager(Config):
             # Implement QRM-RF specific parameters.
             elif qudit.startswith('R'):
                 self.module[qudit].out0_in0_lo_en(True)
+                time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
                 self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
                 self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  
                 # Last sequencer to triger acquire.
