@@ -3,6 +3,7 @@ import json
 import time
 import numpy as np
 import ipywidgets as ipyw
+from qtrlb.config.config import MetaManager
 
 
 
@@ -18,7 +19,7 @@ class MixerCorrection:
             waveform_length: Integer between [4,16384]. Don't change.
     """
     def __init__(self, 
-                 cfg, 
+                 cfg: MetaManager, 
                  qudit: str,
                  subspace: str = '01',
                  amp: float = 0.1,

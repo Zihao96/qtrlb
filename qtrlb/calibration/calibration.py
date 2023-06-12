@@ -9,6 +9,7 @@ from copy import deepcopy
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
+from qtrlb.config.config import MetaManager
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -45,21 +46,21 @@ class Scan:
             fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
     """
     def __init__(self, 
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
                  x_start: float, 
                  x_stop: float, 
                  x_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
@@ -422,7 +423,7 @@ class Scan:
         print('Scan: The base experiment class has been called. No main sequence will be added.')
 
     
-    def add_readout(self, name='Readout', add_label: bool = True, 
+    def add_readout(self, name: str = 'Readout', add_label: bool = True, 
                     concat_df: bool = True, acq_index: int = 0):
         """
         Add readout/heralding with acquisition to sequence program.
@@ -498,7 +499,7 @@ class Scan:
         self.add_gate(gate, name, lengths, add_label=add_label, concat_df=concat_df)
     
             
-    def add_gate(self, gate: dict, name: str, lengths: list = None,
+    def add_gate(self, gate: dict[str: list[str]], name: str, lengths: list[int] = None,
                  add_label: bool = True, concat_df: bool = True, **pulse_kwargs):
         """
         The general method for adding gates to sequence.
@@ -545,7 +546,7 @@ class Scan:
             self.pulse_df = pd.concat([self.pulse_df, pulse_df], axis=1)
             
             
-    def add_pulse(self, pulse_df: pd.DataFrame, pulse_lengths: list, add_label: bool = True, **pulse_kwargs):
+    def add_pulse(self, pulse_df: pd.DataFrame, pulse_lengths: list[int], add_label: bool = True, **pulse_kwargs):
         """
         Interpret the pulse dataframe to string and add it to the sequence program of each sequencer.
         Here we assume user has specified length of each column.
@@ -802,7 +803,7 @@ class Scan:
             plt.close(fig)
 
 
-    def switch_level(self, level_to_fit: int | list):
+    def switch_level(self, level_to_fit: int | list[int]):
         """ 
         A covenient method for change level_to_fit then redo fit and plot.
         """
@@ -878,9 +879,9 @@ class Scan2D(Scan):
         but we don't want to run RabiScan.__init__() since it will redefine out x_axis.
     """
     def __init__(self, 
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
@@ -892,12 +893,12 @@ class Scan2D(Scan):
                  y_start: float,
                  y_stop: float,
                  y_points: int,
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         
         Scan.__init__(self,

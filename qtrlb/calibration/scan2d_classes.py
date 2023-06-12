@@ -5,6 +5,7 @@ from lmfit import Model
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 import qtrlb.utils.units as u
+from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
 from qtrlb.processing.fitting import QuadModel
@@ -16,21 +17,21 @@ from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normali
 
 class ChevronScan(Scan2D, RabiScan):
     def __init__(self,
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  length_start: float,
                  length_stop: float,
                  length_points: int,
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,  # Don't fit by default.
                  init_waveform_idx: int = 101):
         
@@ -263,18 +264,18 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         
 class ReadoutFrequencyScan(ReadoutTemplateScan):
     def __init__(self,
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  level_start: int,
                  level_stop: int,
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int, 
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = QuadModel):
         
         super().__init__(cfg=cfg, 
@@ -363,18 +364,18 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
 
 class ReadoutAmplitudeScan(ReadoutTemplateScan):
     def __init__(self,
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         
         super().__init__(cfg=cfg, 
@@ -455,9 +456,9 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         Even if noise change the optimal point, it will not be too much.
     """
     def __init__(self,
-                 cfg, 
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
@@ -466,10 +467,10 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                  length_start: float = 100 * u.ns,
                  length_stop: float = 5000 * u.ns,
                  length_points: int = 50,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
 
         super().__init__(cfg=cfg, 
@@ -587,18 +588,18 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         
 class DRAGWeightScan(Scan2D):
     def __init__(self, 
-                 cfg, 
-                 drive_qubits: str | list, 
-                 readout_resonators: str | list, 
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str], 
+                 readout_resonators: str | list[str], 
                  weight_start: float, 
                  weight_stop: float, 
                  weight_points: int, 
-                 subspace: str | list = None, 
-                 main_tones: str | list = None, 
-                 pregate: dict = None, 
-                 postgate: dict = None, 
+                 subspace: str | list[str] = None, 
+                 main_tones: str | list[str] = None, 
+                 pregate: dict[str: list[str]] = None, 
+                 postgate: dict[str: list[str]] = None, 
                  n_seqloops: int = 1000, 
-                 level_to_fit: int | list = None, 
+                 level_to_fit: int | list[int] = None, 
                  fitmodel: Model = QuadModel):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 

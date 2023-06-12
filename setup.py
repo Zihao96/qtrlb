@@ -17,5 +17,5 @@ setup(name='qtrlb',
                         'cirq==1.1.0',
                         'pyvisa==1.13.0'],
       packages=['qtrlb'],
-      python_requires=">=3.11.0",
+      python_requires=">=3.10.0",
       zip_safe=False)

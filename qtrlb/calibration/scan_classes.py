@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
+from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population, \
@@ -13,18 +14,18 @@ from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 class DriveAmplitudeScan(Scan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = SinModel,
                  error_amplification_factor: int = 1):
         
@@ -100,18 +101,18 @@ class DriveAmplitudeScan(Scan):
 
 class RabiScan(Scan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  length_start: float = 0, 
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpSinModel,
                  init_waveform_idx: int = 101):
         
@@ -282,18 +283,18 @@ class DebugRabi(RabiScan):
     
 class T1Scan(Scan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 65528):
         
@@ -359,18 +360,18 @@ class T1Scan(Scan):
 
 class RamseyScan(Scan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65528,
                  artificial_detuning: float = 0.0):
@@ -473,18 +474,18 @@ class RamseyScan(Scan):
         
 class EchoScan(Scan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpModel,
                  divisor_ns: int = 65528,
                  echo_type: str = 'CP',
@@ -587,16 +588,16 @@ class LevelScan(Scan):
         However, the self.tones still matters, see the make_tones_list in LevelScan for more details.
     """
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  scan_name: str,
                  level_start: int, 
                  level_stop: int,  
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None):
+                 level_to_fit: int | list[int] = None):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -678,13 +679,13 @@ class LevelScan(Scan):
         
 class CalibrateClassification(LevelScan):
     def __init__(self, 
-                 cfg,  
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
                  level_start: int, 
                  level_stop: int,  
-                 pregate: dict = None,
-                 postgate: dict = None,
+                 pregate: dict[str: list[str]] = None,
+                 postgate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True):
 
@@ -787,15 +788,15 @@ class JustGate(Scan):
         Here I treat it as a postgate. User can also use add_main, then add_gate.
     """
     def __init__(self,
-                 cfg,
-                 drive_qubits: str | list,
-                 readout_resonators: str | list,
-                 just_gate: dict,
-                 lengths: list,
-                 subspace: str | list = None,
-                 main_tones: str | list = None,
+                 cfg: MetaManager,
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
+                 just_gate: dict[str: list[str]],
+                 lengths: list[int],
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list = None,
+                 level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         
         super().__init__(cfg=cfg,
@@ -825,12 +826,12 @@ class JustGate(Scan):
 
 class CalibrateTOF(JustGate):
     def __init__(self, 
-                 cfg, 
+                 cfg: MetaManager, 
                  drive_qubits: str, 
                  readout_resonators: str):
-        super().__init__(cfg, 
-                         drive_qubits, 
-                         readout_resonators, 
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits, 
+                         readout_resonators=readout_resonators, 
                          just_gate={drive_qubits: ['I']}, 
                          lengths=None, 
                          n_seqloops=1)
@@ -873,7 +874,7 @@ class CheckBlobShift(CalibrateClassification):
         It only takes one qubit and one resonator.
     """
     def __init__(self, 
-                 cfg, 
+                 cfg: MetaManager, 
                  drive_qubits: str, 
                  readout_resonators: str, 
                  n_seqloops: int = 1000):

@@ -3,6 +3,7 @@ import json
 import numpy as np
 from lmfit import Model
 from copy import deepcopy
+from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.processing.fitting import ExpModel2
 from qtrlb.utils.RB1QB_tools import Clifford_gates, Clifford_to_primitive, \
@@ -13,7 +14,7 @@ from qtrlb.utils.RB1QB_tools import Clifford_gates, Clifford_to_primitive, \
     
 class RB1QB(Scan):
     def __init__(self,
-                 cfg,
+                 cfg: MetaManager,
                  drive_qubits: str,
                  readout_resonators: str,
                  n_gates_start: int,
