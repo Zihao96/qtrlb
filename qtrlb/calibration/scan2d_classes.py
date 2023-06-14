@@ -183,7 +183,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         """
         self.figures = {}
 
-        for i, r in enumerate(self.readout_resonators):
+        for r in self.readout_resonators:
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = 'Readout Fidelity [a.u.]'
@@ -224,9 +224,10 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             ax[0].set(xlabel=xlabel, ylabel=ylabel[0], title=title)
             ax[1].set(xlabel=xlabel, ylabel=ylabel[1])
             
-            for level in self.x_values:
-                ax[0].plot(self.y_values / self.y_unit_value, np.angle(data[:, level]), label=f'|{level}>')
-                ax[1].plot(self.y_values / self.y_unit_value, np.absolute(data[:, level]), label=f'|{level}>')
+            # The level might not always start from 0.
+            for i, level in enumerate(self.x_values):
+                ax[0].plot(self.y_values / self.y_unit_value, np.angle(data[:, i]), label=f'|{level}>')
+                ax[1].plot(self.y_values / self.y_unit_value, np.absolute(data[:, i]), label=f'|{level}>')
 
             ax[0].legend()
             ax[1].legend()
