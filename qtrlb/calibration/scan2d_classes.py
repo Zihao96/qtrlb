@@ -333,6 +333,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                 # -----------Readout-----------
                     set_freq         R6
                     set_awg_gain     {gain},{gain}
+                    reset_ph
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """
@@ -431,6 +432,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                 # -----------Readout-----------
                     set_freq         {freq}
                     set_awg_gain     R6,R6
+                    reset_ph
                     play             0,0,{tof_ns} 
                     acquire          0,R1,{length - tof_ns}
                 """

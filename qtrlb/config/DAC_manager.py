@@ -30,7 +30,7 @@ class DACManager(Config):
             dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
             self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         else:
-            self.qblox = Cluster('cluster', '192.168.0.2') 
+            self.qblox = Cluster('cluster', '192.168.1.2') 
 
         self.qblox.reset()
         
