@@ -22,8 +22,8 @@ class DriveAmplitudeScan(Scan):
                  amp_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = SinModel,
@@ -40,8 +40,8 @@ class DriveAmplitudeScan(Scan):
                          x_points=amp_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -109,8 +109,8 @@ class RabiScan(Scan):
                  length_points: int = 81, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpSinModel,
@@ -127,8 +127,8 @@ class RabiScan(Scan):
                          x_points=length_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -188,7 +188,7 @@ class RabiScan(Scan):
     def add_main(self, freq: str = None, gain: str = None):
         """
         Qblox doesn't accept zero length waveform, so we use Label 'end_main' here.
-        There is 4ns delay after each Rabi pulse before postgate/readout.
+        There is 4ns delay after each Rabi pulse before post_gate/readout.
         It's because the third index of 'play' instruction cannot be register.
         So we cannot set it as a variable, and wait will be separated.
         The parameters freq and gain are left as connector for multidimensional scan.
@@ -291,8 +291,8 @@ class T1Scan(Scan):
                  length_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpModel,
@@ -309,8 +309,8 @@ class T1Scan(Scan):
                          x_points=length_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -368,8 +368,8 @@ class RamseyScan(Scan):
                  length_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpSinModel,
@@ -387,8 +387,8 @@ class RamseyScan(Scan):
                          x_points=length_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -482,8 +482,8 @@ class EchoScan(Scan):
                  length_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpModel,
@@ -502,8 +502,8 @@ class EchoScan(Scan):
                          x_points=length_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -594,8 +594,8 @@ class LevelScan(Scan):
                  scan_name: str,
                  level_start: int, 
                  level_stop: int,  
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None):
 
@@ -608,8 +608,8 @@ class LevelScan(Scan):
                          x_start=level_start, 
                          x_stop=level_stop, 
                          x_points=level_stop-level_start+1,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit)
         
@@ -684,8 +684,8 @@ class CalibrateClassification(LevelScan):
                  readout_resonators: str | list[str],
                  level_start: int, 
                  level_stop: int,  
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True):
 
@@ -695,8 +695,8 @@ class CalibrateClassification(LevelScan):
                          scan_name='CalibrateClassification',
                          level_start=level_start, 
                          level_stop=level_stop, 
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
@@ -785,7 +785,6 @@ class CalibrateClassification(LevelScan):
 class JustGate(Scan):
     """ Simply run the gate sequence user send to it.
         It can be a fun way to figure out direction of the Z rotation.
-        Here I treat it as a postgate. User can also use add_main, then add_gate.
     """
     def __init__(self,
                  cfg: MetaManager,
@@ -810,8 +809,8 @@ class JustGate(Scan):
                          x_points=1, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=None,
-                         postgate=None,
+                         pre_gate=None,
+                         post_gate=None,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)

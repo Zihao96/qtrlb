@@ -28,8 +28,8 @@ class ChevronScan(Scan2D, RabiScan):
                  detuning_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,  # Don't fit by default.
@@ -51,8 +51,8 @@ class ChevronScan(Scan2D, RabiScan):
                          y_points=detuning_points, 
                          subspace=subspace,
                          main_tones=main_tones,
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -79,7 +79,7 @@ class ChevronScan(Scan2D, RabiScan):
     def add_main(self):
         """
         Qblox doesn't accept zero length waveform, so we use Label 'end_main' here.
-        There is 4ns delay after each Rabi pulse before postgate/readout.
+        There is 4ns delay after each Rabi pulse before post_gate/readout.
         It's because the third index of 'play' instruction cannot be register.
         So we cannot set it as a variable, and wait will be separated.
         """
@@ -273,8 +273,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int, 
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = QuadModel):
@@ -293,8 +293,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                          y_start=detuning_start, 
                          y_stop=detuning_stop, 
                          y_points=detuning_points, 
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)  
@@ -374,8 +374,8 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
@@ -394,8 +394,8 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                          y_start=amp_start, 
                          y_stop=amp_stop, 
                          y_points=amp_points, 
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)  
@@ -470,8 +470,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                  length_start: float = 100 * u.ns,
                  length_stop: float = 5000 * u.ns,
                  length_points: int = 50,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
@@ -484,8 +484,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                          amp_start=amp_start, 
                          amp_stop=amp_stop, 
                          amp_points=amp_points, 
-                         pregate=pregate,
-                         postgate=postgate,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
@@ -599,8 +599,8 @@ class DRAGWeightScan(Scan2D):
                  weight_points: int, 
                  subspace: str | list[str] = None, 
                  main_tones: str | list[str] = None, 
-                 pregate: dict[str: list[str]] = None, 
-                 postgate: dict[str: list[str]] = None, 
+                 pre_gate: dict[str: list[str]] = None, 
+                 post_gate: dict[str: list[str]] = None, 
                  n_seqloops: int = 1000, 
                  level_to_fit: int | list[int] = None, 
                  fitmodel: Model = QuadModel):
@@ -620,8 +620,8 @@ class DRAGWeightScan(Scan2D):
                          y_points=weight_points, 
                          subspace=subspace, 
                          main_tones=main_tones, 
-                         pregate=pregate, 
-                         postgate=postgate, 
+                         pre_gate=pre_gate, 
+                         post_gate=post_gate, 
                          n_seqloops=n_seqloops, 
                          level_to_fit=level_to_fit, 
                          fitmodel=fitmodel)

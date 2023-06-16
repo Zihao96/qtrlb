@@ -65,6 +65,8 @@ class DataManager(Config):
         """
         Save the measurement dictionary into a hdf5.
         I keep this layer because we can also pass information of scan here and save it as attrs.
+        Some attributes, cfg for instance, cannot (and shouldn't) be saved. They raise TypeError.
+        Attributes about gates may be stringized.
         """
         if attrs is None: attrs = {}
         hdf5_path = os.path.join(data_path, 'measurement.hdf5')  
@@ -74,9 +76,27 @@ class DataManager(Config):
             for k, v in attrs.items(): 
                 try:
                     h5file.attrs[k] = v
-                # Some attributes, cfg for instance, cannot (and shouldn't) be saved.
                 except TypeError:  
-                    pass
+                    # If v is a dictionary(pre_gate, post_gate), it will also raise TypeError.
+                    if (k.__class__ is str) and (k.split('_')[-1] == 'gate'):
+                        h5file.attrs[k] = str(v)
+                    else:
+                        pass
+
+    @staticmethod
+    def load_measurement(data_path: str) -> tuple[dict, dict]:
+        """
+        Load the measurement dictionary from a hdf5 file.
+        Return measurement dictionary and attributes dictionary.
+        data_path should be the folder path without the measurement.hdf5 at end.
+        """
+        hdf5_path = os.path.join(data_path, 'measurement.hdf5')
+
+        with h5py.File(hdf5_path, 'r') as h5file:
+            measurement = DataManager.load_hdf5_to_dict(h5file)
+            attrs = {k: v for k, v in h5file.attrs.items()}
+
+        return measurement, attrs
         
         
     @staticmethod
@@ -94,9 +114,8 @@ class DataManager(Config):
                 h5.create_dataset(k, data = v)
 
                 
-
     @staticmethod                
-    def load_hdf5_to_dict(h5: h5py.File | h5py.Group, dictionary: dict = None):
+    def load_hdf5_to_dict(h5: h5py.File | h5py.Group, dictionary: dict = None) -> dict:
         """
         Recursively load a hdf5 file/group to a nested dictionary.
         """
@@ -108,4 +127,5 @@ class DataManager(Config):
                 dictionary[k] = DataManager.load_hdf5_to_dict(v, dictionary[k])
             else:
                 dictionary[k] = np.array(v)
+                
         return dictionary

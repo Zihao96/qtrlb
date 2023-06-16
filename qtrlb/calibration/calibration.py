@@ -39,8 +39,8 @@ class Scan:
                     Each element should be one-to-one associated to each qubit in order.
                     If main_tones is None, then it will also be the subspace that experiment will work on.
             main_tones: 'Q0/12' or ['Q0/01', 'Q0/12']. The tones that experiment will work on if specified.      
-            pregate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just before main sequence.
-            postgate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just after main sequence.
+            pre_gate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just before main sequence.
+            post_gate: {'Q0': ['X180_01'], 'Q1': ['X90_12', 'Y90_12']}. They apply just after main sequence.
             n_seqloops: Number of repetition inside sequence program. Total repetition will be self.n_reps.
             level_to_fit: 0, 1 or [0,1,0,0]. Length should be same as readout_resonators.
             fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
@@ -57,8 +57,8 @@ class Scan:
                  x_points: int, 
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
@@ -73,8 +73,8 @@ class Scan:
         self.x_points = x_points
         self.subspace = self.make_it_list(subspace, ['01' for _ in self.drive_qubits])
         self.main_tones = self.make_it_list(main_tones)
-        self.pregate = pregate if pregate is not None else {}
-        self.postgate = postgate if postgate is not None else {}
+        self.pre_gate = pre_gate if pre_gate is not None else {}
+        self.post_gate = post_gate if post_gate is not None else {}
         self.n_seqloops = n_seqloops
         self.level_to_fit = self.make_it_list(level_to_fit, [0 for _ in self.readout_resonators])
         self.fitmodel = fitmodel
@@ -141,7 +141,7 @@ class Scan:
         Check the qubits/resonators are always string with 'Q' or 'R'.
         Warn user if any drive_qubits are not being readout without raising error.
         Make sure each qubit has subspace and each resonator has level_to_fit.
-        Make sure the pregate/postgate is indeed in form of dictionary.
+        Make sure the pre_gate/post_gate is indeed in form of dictionary.
         Check total acquisition point in sequence program.
         Make sure classification is on when heralding is on.
         """
@@ -156,8 +156,8 @@ class Scan:
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
-        assert isinstance(self.pregate, dict), 'pregate must be dictionary like {"Q0":[gate1, gate2,...]}'
-        assert isinstance(self.postgate, dict), 'postgate must to be dictionary like {"Q0":[gate1, gate2,...]}'
+        assert isinstance(self.pre_gate, dict), 'pre_gate must be dictionary like {"Q0":[gate1, gate2,...]}'
+        assert isinstance(self.post_gate, dict), 'post_gate must to be dictionary like {"Q0":[gate1, gate2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
 
@@ -169,7 +169,7 @@ class Scan:
         Each tone will map to a sequencer which can only give one frequency at a moment.
         By determine the tones, we actually determine the number of sequencer involved in experiment.
         self.main_tones will be the tones that those Rabi/Ramsey/DriveAmplitude happen on.
-        self.rest_tones will be the tones that only do pregate/postgate/readout_gate.
+        self.rest_tones will be the tones that only do pre_gate/post_gate/readout_gate.
         For more information, see self.make_sequence, DACManager.implement_parameters and start_sequencer.
         """
         self.tones = []
@@ -234,9 +234,9 @@ class Scan:
         self.add_relaxation()
         if self.cfg.variables['common/heralding']: self.add_heralding()
         self.add_gate(self.subspace_gate, 'Subspace')
-        self.add_gate(self.pregate, 'Pregate')
+        self.add_gate(self.pre_gate, 'Pregate')
         self.add_main()
-        self.add_gate(self.postgate, 'Postgate')
+        self.add_gate(self.post_gate, 'Postgate')
         self.add_readout()
         
         self.end_loop()
@@ -503,7 +503,7 @@ class Scan:
                  add_label: bool = True, concat_df: bool = True, **pulse_kwargs):
         """
         The general method for adding gates to sequence.
-        We will generate the Pandas DataFrame of pregate, postgate, readout, with padded 'I'.
+        We will generate the Pandas DataFrame of pre_gate, post_gate, readout, with padded 'I'.
         All qubits and resonators will become the (row) index of dataframe.
         An additional interger attribute 'length' in [ns] will be associated with each column.
         If lengths is shorter than number of gate, it will be padded using the last length.
@@ -514,8 +514,8 @@ class Scan:
             lengths: The duration of each gate(column) in [ns]. Default is single qubit gate time.
             name: String in sequence program to improve readability.
             
-        Example of a subspace_gate + pregate DataFrame:
-           subspace_0 subspace_1 pregate_0 pregate_1
+        Example of a subspace_gate + pre_gate DataFrame:
+           subspace_0 subspace_1 Pregate_0 Pregate_1
         Q3    X180_01          I    Y90_01         I
         Q4    X180_01    X180_12    Y90_01    Z90_12
         R3          I          I         I         I
@@ -895,8 +895,8 @@ class Scan2D(Scan):
                  y_points: int,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 pregate: dict[str: list[str]] = None,
-                 postgate: dict[str: list[str]] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
@@ -913,8 +913,8 @@ class Scan2D(Scan):
                       x_points=x_points, 
                       subspace=subspace,
                       main_tones=main_tones,
-                      pregate=pregate,
-                      postgate=postgate,
+                      pre_gate=pre_gate,
+                      post_gate=post_gate,
                       n_seqloops=n_seqloops,
                       level_to_fit=level_to_fit,
                       fitmodel=fitmodel)

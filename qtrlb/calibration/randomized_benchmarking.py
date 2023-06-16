@@ -38,8 +38,8 @@ class RB1QB(Scan):
                          x_points=n_gates_points,
                          subspace=subspace,
                          top_subspace=top_subspace,
-                         pregate=None,
-                         postgate=None,
+                         pre_gate=None,
+                         post_gate=None,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
