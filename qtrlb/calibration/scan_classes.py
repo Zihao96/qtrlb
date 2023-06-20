@@ -613,14 +613,7 @@ class LevelScan(Scan):
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit)
         
-    
-    def check_attribute(self):
-        super().check_attribute()
-        
         self.x_values = self.x_values.astype(int)  # Useful for correct plot label.
-        for r in self.readout_resonators: 
-            readout_levels = self.cfg[f'variables.{r}/readout_levels'] 
-            assert (readout_levels == self.x_values.tolist()), f'Please check readout levels of {r}!'
 
 
     def make_tones_list(self):

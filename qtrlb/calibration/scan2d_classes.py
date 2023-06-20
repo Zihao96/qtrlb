@@ -111,11 +111,6 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         and we have to rebuild some wheels. Although it's possible to leave an interface in some \
         parent method, that will make things too thick, too ugly and hard to read.
     """
-    def check_attribute(self):
-        super().check_attribute()
-        assert not self.classification_enable, 'Please turn off classification.'
-        
-        
     def process_data(self, compensate_ED: bool = False):
         """
         Here we override the parent method since the processing for this Scan has no similarity to \
@@ -251,7 +246,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     I = self.measurement[r]['IQrotated_readout'][0,:,y,x]
                     Q = self.measurement[r]['IQrotated_readout'][1,:,y,x]
                     c = self.measurement[r]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+                    cmap = LSC.from_list(None, plt.cm.tab10(self.x_values), 12)
                     
                     ax[x].scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
                     ax[x].axvline(color='k', ls='dashed')    
