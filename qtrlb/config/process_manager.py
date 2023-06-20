@@ -11,6 +11,11 @@ class ProcessManager(Config):
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
     """
+    customized_process_dict = {
+        
+    }
+
+
     def __init__(self, 
                  yamls_path: str, 
                  varman: VariableManager = None):
@@ -52,12 +57,13 @@ class ProcessManager(Config):
                 self[f'{r}/IQ_means'] = [[i*10, i*10] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
-    def process_data(self, measurement: dict, shape: tuple):
+    def process_data(self, measurement: dict, shape: tuple, **process_kwargs):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         Three common routine are hard coded here since we never change them.
-        User can define new routine by adding new key in process.yaml and add code here.
-        The shape is expected to be (2, n_reps, x_points).
+        User can define new routine by adding item to customized_process_dict and use it in variables.yaml.
+        The shape is expected to be (2, n_reps, x_points) for base Scan. TODO: Make shape kwargs.
+        This function will change measurement in-place.
         
         Note from Zihao(02/17/2023):
         The new key should better be the first 'if' condition below.
@@ -65,8 +71,8 @@ class ProcessManager(Config):
         while going into the customized process routine.
         """
 
-        if self['customized']:
-            pass
+        if self['customized'] is not None:
+            self.customized_process_dict[self['customized']](measurement, **process_kwargs)
         
         
         elif self['heralding']:
