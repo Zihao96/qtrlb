@@ -674,8 +674,8 @@ class Scan:
                 self.measurement[r]['fit_result'] = params
                 self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
             except Exception:
-                traceback_str = traceback.format_exc()
-                print(f'Scan: Failed to fit {r} data. ', traceback_str)
+                self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
+                print(f'Scan: Failed to fit {r} data. ')
                 self.measurement[r]['fit_result'] = None
                 self.measurement[r]['fit_model'] = str(self.fitmodel)
                 
