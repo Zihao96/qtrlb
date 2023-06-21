@@ -11,11 +11,6 @@ class ProcessManager(Config):
         Attributes:
             yamls_path: An absolute path of the directory containing all yamls with a template folder.
     """
-    customized_process_dict = {
-        
-    }
-
-
     def __init__(self, 
                  yamls_path: str, 
                  varman: VariableManager = None):
@@ -61,18 +56,18 @@ class ProcessManager(Config):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         Three common routine are hard coded here since we never change them.
-        User can define new routine by adding item to customized_process_dict and use it in variables.yaml.
-        The shape is expected to be (2, n_reps, x_points) for base Scan. TODO: Make shape kwargs.
-        This function will change measurement in-place.
+        User can define new routine by adding function to ProcessManager and use it in variables.yaml.
+        The shape is usually (2, n_reps, x_points) for base Scan and (2, n_reps, y_points, x_points) for 2D Scan.
+        !*-*This function will change measurement in-place*-*!
         
         Note from Zihao(02/17/2023):
-        The new key should better be the first 'if' condition below.
+        The customized key should better be the first 'if' condition below.
         Because one may need to keep heralding to be true to add that pulse in sequence,
         while going into the customized process routine.
         """
 
         if self['customized'] is not None:
-            self.customized_process_dict[self['customized']](measurement, **process_kwargs)
+            getattr(self, self['customized'])(measurement, shape, **process_kwargs)
         
         
         elif self['heralding']:
@@ -176,5 +171,8 @@ class ProcessManager(Config):
         return heralding_mask
 
 
-
-    
+    ##################################################           
+    # All functions below are different customized data processing.
+    # Use them by change customized_data_process in variables.yaml
+    def two_tone_readout(self, measurement: dict, shape: tuple, **process_kwargs):
+        pass

@@ -718,12 +718,12 @@ class DRAGWeightScan(Scan2D):
             """
 
 
-    def process_data(self):
+    def process_data(self, **process_kwargs):
         """
         Here we do a further step of processing data by not make 'to_fit' as (n_levels, y_points, x_points), \
         but (n_levels, y_points) where we take difference between the two x_points.
         """
-        super().process_data()
+        super().process_data(**process_kwargs)
         for r, data_dict in self.measurement.items(): 
             data_dict['to_fit_raw'] = data_dict['to_fit']
             data_dict['to_fit'] = (data_dict['to_fit_raw'][..., 0] - data_dict['to_fit_raw'][..., 1]) ** 2

@@ -103,7 +103,10 @@ class Scan:
         
     def run(self, 
             experiment_suffix: str = '',
-            n_pyloops: int = 1):
+            n_pyloops: int = 1,
+            process_kwargs: dict = None,
+            fitting_kwargs: dict = None,
+            plot_kwargs: dict = None):
         """
         Make sequence, implement parameter to qblox instrument.
         Then Run the experiment and acquire data, process data, fit and plot.
@@ -120,6 +123,10 @@ class Scan:
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
         self.n_reps = self.n_seqloops * self.n_pyloops
+
+        self.process_kwargs = process_kwargs if process_kwargs is not None else {}
+        self.fitting_kwargs = fitting_kwargs if fitting_kwargs is not None else {}
+        self.plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
         self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
         
         self.make_sequence() 
@@ -128,10 +135,10 @@ class Scan:
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.process_data()
-        self.fit_data()
+        self.process_data(**self.process_kwargs)
+        self.fit_data(**self.fitting_kwargs)
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.plot()
+        self.plot(**self.plot_kwargs)
         self.n_runs += 1
         self.measurements.append(self.measurement)
         
@@ -629,13 +636,15 @@ class Scan:
             print(f'Scan: Pyloop {i} finished!')
             
             
-    def process_data(self):
+    def process_data(self, **process_kwargs):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         For example, in 2D scan, we need to give it another shape.
         """
-        self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.x_points))
+        self.cfg.process.process_data(self.measurement, 
+                                      shape=(2, self.n_reps, self.x_points),
+                                      **process_kwargs)
         
 
     def fit_data(self, x: list | np.ndarray = None, **fitting_kwargs): 
@@ -994,12 +1003,14 @@ class Scan2D(Scan):
         for tone in self.tones: self.sequences[tone]['program'] += y_end
 
 
-    def process_data(self):
+    def process_data(self, **process_kwargs):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         """
-        self.cfg.process.process_data(self.measurement, shape=(2, self.n_reps, self.y_points, self.x_points))
+        self.cfg.process.process_data(self.measurement, 
+                                      shape=(2, self.n_reps, self.y_points, self.x_points),
+                                      **process_kwargs)
 
 
     def plot(self):
