@@ -53,6 +53,7 @@ def gmm_predict(input_data, means, covariances, covariance_type='spherical'):
     By default, means should have shape (n_components, 2) for 2D gaussian.
     Covariances should have shape (n_components,) for symmetrical distribution,
     where n_components is the number of Gaussian blob in IQ plane.
+    The return values are always count from zero.
     
     Reference:
     https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
@@ -86,9 +87,9 @@ def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
     return gmm.means_, gmm.covariances_
 
 
-def normalize_population(input_data, n_levels: int, axis: int = 0, mask: np.ndarray = None):
+def normalize_population(input_data, levels: list | np.ndarray, axis: int = 0, mask: np.ndarray = None):
     """
-    Count population (specific interger) for n_levels along a given axis.
+    Count population (specific interger) for different levels along a given axis.
     Return to normalized population (counts of appearing) with shape (n_levels, x_points).
     Allow a mask to pick entries in input_data to be normalized.
     Typically, the input_data and mask should have shape (n_reps, x_points).
@@ -103,7 +104,7 @@ def normalize_population(input_data, n_levels: int, axis: int = 0, mask: np.ndar
     """
     # Zihao(02/17/2023): It's short, but still worth a function with clear explanation.
     masked_data = np.ma.MaskedArray(input_data, mask=mask)
-    result = [np.mean(masked_data==level, axis=axis) for level in range(n_levels)]
+    result = [np.mean(masked_data==level, axis=axis) for level in levels]
     return np.array(result)
 
 
@@ -160,3 +161,50 @@ def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:
     """
     fidelity = np.mean(np.diagonal(confusion_matrix))
     return float(fidelity)
+
+
+def two_tone_predict(input_data_0: list | np.ndarray, 
+                     input_data_1: list | np.ndarray, 
+                     levels_0: list | np.ndarray, 
+                     levels_1: list | np.ndarray) -> tuple(np.ndarray, np.ndarray):
+    """
+    Classify the qudit state based on result of GMM prediction from two tones.
+    Levels are list of possible state assignment result of corresponding tones.
+    We need one and only one element appearing in both levels list.
+    We will generate a mask to drop the data that has contradiction when normalizing it.
+    The result and mask should have same shape as two input data.
+    """
+    input_data_0 = np.array(input_data_0) 
+    input_data_1 = np.array(input_data_1)
+    levels_0 = np.array(levels_0)
+    levels_1 = np.array(levels_1)
+
+    # Find intersection and check it's unique.
+    intersection = np.intersect1d(levels_0, levels_1)
+    assert len(intersection) == 1, 'More than one state are reading out by both tone!'
+    intersection_array = intersection * np.ones(shape=input_data_0.shape)
+
+    # Element-wise comparision for finding the contradiction.
+    mask_boolean_0 = np.equal(intersection_array, input_data_0)
+    mask_boolean_1 = np.equal(intersection_array, input_data_0)
+    mask = 1 - (mask_boolean_0 | mask_boolean_1)  
+    # 1-True is zero and will be kept, 1-False is one and will be masked.
+
+
+    # Try logic first.
+    a = 0
+    b = 0
+
+    # Contradiction happen.
+    if a != levels_0[-1] and b != levels_1[0]:
+        result = np.nan
+
+    # Use a as result.
+    elif a != levels_0[-1]:
+        result = a
+
+    # Use b as result
+    else:
+        result = b
+
+    return result, mask

@@ -148,10 +148,10 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     
                 sub_dict['means'] = means
                 sub_dict['covariances'] = covariances
-                sub_dict['GMMpredicted'] = gmm_predict(data_dict['IQrotated_readout'][..., y, :], 
-                                                       means=means, covariances=covariances)
+                sub_dict['GMMpredicted'] = self.x_start + gmm_predict(data_dict['IQrotated_readout'][..., y, :], 
+                                                                      means=means, covariances=covariances)
                 sub_dict['confusionmatrix'] = normalize_population(sub_dict['GMMpredicted'], 
-                                                                   n_levels=self.x_points)
+                                                                   levels=self.x_values)
                 sub_dict['ReadoutFidelity'] = get_readout_fidelity(sub_dict['confusionmatrix'])
                 
                 data_dict['GMMfitted'][f'{y}'] = sub_dict
@@ -718,12 +718,12 @@ class DRAGWeightScan(Scan2D):
             """
 
 
-    def process_data(self, **process_kwargs):
+    def process_data(self):
         """
         Here we do a further step of processing data by not make 'to_fit' as (n_levels, y_points, x_points), \
         but (n_levels, y_points) where we take difference between the two x_points.
         """
-        super().process_data(**process_kwargs)
+        super().process_data()
         for r, data_dict in self.measurement.items(): 
             data_dict['to_fit_raw'] = data_dict['to_fit']
             data_dict['to_fit'] = (data_dict['to_fit_raw'][..., 0] - data_dict['to_fit_raw'][..., 1]) ** 2

@@ -119,6 +119,11 @@ class Scan:
         Note from Zihao(03/03/2023):
         We call implement_parameters methods here instead of during init/load of DACManager, \
         because we want those modules/sequencers not being used to keep their default status.
+
+        Note from Zihao(06/21/2023):
+        I didn't use ** on these kwargs. I believe dict bring us better encapsulation.
+        Pass in a whole dictionary can be more general than just pass 'something = somevalue'.
+        It's because the key doen't need to be string anymore.
         """
         self.experiment_suffix = experiment_suffix
         self.n_pyloops = n_pyloops
@@ -135,10 +140,10 @@ class Scan:
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.process_data(**self.process_kwargs)
-        self.fit_data(**self.fitting_kwargs)
+        self.process_data()
+        self.fit_data()
         self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
-        self.plot(**self.plot_kwargs)
+        self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
         
@@ -636,7 +641,7 @@ class Scan:
             print(f'Scan: Pyloop {i} finished!')
             
             
-    def process_data(self, **process_kwargs):
+    def process_data(self):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
@@ -644,7 +649,7 @@ class Scan:
         """
         self.cfg.process.process_data(self.measurement, 
                                       shape=(2, self.n_reps, self.x_points),
-                                      **process_kwargs)
+                                      process_kwargs=self.process_kwargs)
         
 
     def fit_data(self, x: list | np.ndarray = None, **fitting_kwargs): 
@@ -1003,14 +1008,14 @@ class Scan2D(Scan):
         for tone in self.tones: self.sequences[tone]['program'] += y_end
 
 
-    def process_data(self, **process_kwargs):
+    def process_data(self):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         We keep this layer here to provide possibility to inject functionality between acquire and fit.
         """
         self.cfg.process.process_data(self.measurement, 
                                       shape=(2, self.n_reps, self.y_points, self.x_points),
-                                      **process_kwargs)
+                                      process_kwargs=self.process_kwargs)
 
 
     def plot(self):

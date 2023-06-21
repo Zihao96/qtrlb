@@ -1,7 +1,7 @@
 import numpy as np
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, autorotate_IQ, correct_population
+from qtrlb.processing.processing import rotate_IQ, gmm_predict, normalize_population, autorotate_IQ, correct_population, two_tone_predict
 
 
 class ProcessManager(Config):
@@ -52,7 +52,7 @@ class ProcessManager(Config):
                 self[f'{r}/IQ_means'] = [[i*10, i*10] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
-    def process_data(self, measurement: dict, shape: tuple, **process_kwargs):
+    def process_data(self, measurement: dict, shape: tuple, process_kwargs: dict = None):
         """
         Process the data by performing reshape, rotation, average, GMM, fit, plot, etc.
         Three common routine are hard coded here since we never change them.
@@ -67,7 +67,7 @@ class ProcessManager(Config):
         """
 
         if self['customized'] is not None:
-            getattr(self, self['customized'])(measurement, shape, **process_kwargs)
+            getattr(self, self['customized'])(measurement, shape, process_kwargs)
         
         
         elif self['heralding']:
@@ -81,12 +81,15 @@ class ProcessManager(Config):
                 data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
                                                              angle=self[f'{r}/IQ_rotation_angle'])
                 
-                data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                                means=self[f'{r}/IQ_means'], 
-                                                                covariances=self[f'{r}/IQ_covariances'])
-                data_dict['GMMpredicted_heralding'] = gmm_predict(data_dict['IQrotated_heralding'], 
-                                                                  means=self[f'{r}/IQ_means'], 
-                                                                  covariances=self[f'{r}/IQ_covariances'])
+                data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+                                                                 means=self[f'{r}/IQ_means'], 
+                                                                 covariances=self[f'{r}/IQ_covariances'])
+                                                     + self[f'{r}/readout_levels'][0])
+                
+                data_dict['GMMpredicted_heralding'] = (gmm_predict(data_dict['IQrotated_heralding'], 
+                                                                   means=self[f'{r}/IQ_means'], 
+                                                                   covariances=self[f'{r}/IQ_covariances'])
+                                                       + self[f'{r}/readout_levels'][0])
                 
             heralding_mask = self.heralding_test(measurement=measurement)
             
@@ -94,7 +97,7 @@ class ProcessManager(Config):
                 data_dict['Mask_heralding'] = heralding_mask  # So that it can be save to hdf5.
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
-                                                                                 n_levels=self[f'{r}/n_readout_levels'],
+                                                                                 levels=self[f'{r}/readout_levels'],
                                                                                  mask=heralding_mask)
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
@@ -110,12 +113,13 @@ class ProcessManager(Config):
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
-                data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                                means=self[f'{r}/IQ_means'], 
-                                                                covariances=self[f'{r}/IQ_covariances'])
+                data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+                                                                 means=self[f'{r}/IQ_means'], 
+                                                                 covariances=self[f'{r}/IQ_covariances'])
+                                                     + self[f'{r}/readout_levels'][0])
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
-                                                                                 n_levels=self[f'{r}/n_readout_levels'])
+                                                                                 levels=self[f'{r}/readout_levels'])
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
                                                                               self[f'{r}/corr_matrix'])
@@ -174,5 +178,58 @@ class ProcessManager(Config):
     ##################################################           
     # All functions below are different customized data processing.
     # Use them by change customized_data_process in variables.yaml
-    def two_tone_readout(self, measurement: dict, shape: tuple, **process_kwargs):
-        pass
+    def two_tone_readout(self, measurement: dict, shape: tuple, process_kwargs: dict):
+        """
+        Using two tones frequency-multiplexing to readout one resonator.
+        Generate exactly same 'to_fit' value for both tones to avoid later bug.
+        
+        Example of process_kwargs:
+        {
+            ('R0', 'R1'): corr_matrix,
+            ('R2', 'R3'): corr_matrix,
+        }
+
+        Note from Zihao(2023/06/21):
+        I know it won't be elegant, but I also don't want to do premature optimization.
+        Let's make it better when we really need to. 
+        I didn't use ** on these kwargs. I believe dict bring us better encapsulation.
+        Pass in a whole dictionary can be more general than just pass 'something = somevalue'.
+        It's because the key doen't need to be string anymore.
+        """
+        # Normal GMM prediction as classification.
+        for r, data_dict in measurement.items():  
+            data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+            
+            data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
+                                                        angle=self[f'{r}/IQ_rotation_angle'])
+            
+            data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+                                                             means=self[f'{r}/IQ_means'], 
+                                                             covariances=self[f'{r}/IQ_covariances'])
+                                                 + self[f'{r}/readout_levels'][0])
+            # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
+            # Values are integers as state assignment result.
+
+
+        for (tone_0, tone_1), corr_matrix in process_kwargs.items():
+            twotonepredicted_readout, mask_twotone = two_tone_predict(measurement[tone_0]['GMMpredicted_readout'],
+                                                                      measurement[tone_1]['GMMpredicted_readout'],
+                                                                      self[f'{tone_0}/readout_levels'],
+                                                                      self[f'{tone_1}/readout_levels'])
+            population_normalized_readout = normalize_population(twotonepredicted_readout,
+                                                                 levels=np.union1d(self[f'{tone_0}/readout_levels'],
+                                                                                   self[f'{tone_1}/readout_levels']),
+                                                                 mask=mask_twotone)
+            population_corrected_readout = correct_population(population_normalized_readout, corr_matrix)
+
+            measurement[tone_0]['Mask_twotone'] = mask_twotone
+            measurement[tone_1]['Mask_twotone'] = mask_twotone
+            measurement[tone_0]['TwoTonepredicted_readout'] = twotonepredicted_readout
+            measurement[tone_1]['TwoTonepredicted_readout'] = twotonepredicted_readout
+            measurement[tone_0]['PopulationNormalized_readout'] = population_normalized_readout
+            measurement[tone_1]['PopulationNormalized_readout'] = population_normalized_readout
+            measurement[tone_0]['PopulationCorrected_readout'] = population_corrected_readout
+            measurement[tone_1]['PopulationCorrected_readout'] = population_corrected_readout
+            measurement[tone_0]['to_fit'] = population_corrected_readout
+            measurement[tone_1]['to_fit'] = population_corrected_readout
+            
