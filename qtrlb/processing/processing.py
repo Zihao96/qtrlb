@@ -185,26 +185,11 @@ def two_tone_predict(input_data_0: list | np.ndarray,
     intersection_array = intersection * np.ones(shape=input_data_0.shape)
 
     # Element-wise comparision for finding the contradiction.
-    mask_boolean_0 = np.equal(intersection_array, input_data_0)
-    mask_boolean_1 = np.equal(intersection_array, input_data_0)
-    mask = 1 - (mask_boolean_0 | mask_boolean_1)  
     # 1-True is zero and will be kept, 1-False is one and will be masked.
+    mask = 1 - (np.equal(intersection_array, input_data_0) | np.equal(intersection_array, input_data_1))  
 
-
-    # Try logic first.
-    a = 0
-    b = 0
-
-    # Contradiction happen.
-    if a != levels_0[-1] and b != levels_1[0]:
-        result = np.nan
-
-    # Use a as result.
-    elif a != levels_0[-1]:
-        result = a
-
-    # Use b as result
-    else:
-        result = b
-
+    # For kept data, one of the two has to be the intersection.
+    # Then the other one is what we need (get it by substraction).
+    # For masked data, it doesn't matter :)
+    result = input_data_0 + input_data_1 - intersection_array
     return result, mask
