@@ -166,7 +166,7 @@ def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:
 def two_tone_predict(input_data_0: list | np.ndarray, 
                      input_data_1: list | np.ndarray, 
                      levels_0: list | np.ndarray, 
-                     levels_1: list | np.ndarray) -> tuple(np.ndarray, np.ndarray):
+                     levels_1: list | np.ndarray) -> tuple[np.ndarray]:
     """
     Classify the qudit state based on result of GMM prediction from two tones.
     Levels are list of possible state assignment result of corresponding tones.
