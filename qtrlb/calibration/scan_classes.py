@@ -374,7 +374,8 @@ class RamseyScan(Scan):
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65528,
-                 artificial_detuning: float = 0.0):
+                 artificial_detuning: float = 0.0,
+                 AD_factor: int = 1):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -395,7 +396,8 @@ class RamseyScan(Scan):
         
         self.divisor_ns = divisor_ns
         self.artificial_detuning = artificial_detuning
-        self._artificial_detuning = -1 * self.artificial_detuning
+        self.AD_factor = AD_factor
+        self._artificial_detuning = self.AD_factor * self.artificial_detuning
         # It's because the AD is opposite of the natural direction of 'set_ph_delta'.
 
         
