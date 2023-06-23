@@ -116,6 +116,8 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Here we override the parent method since the processing for this Scan has no similarity to \
         other Scan. Code is similar to CalibrateClassification.fit_data()
         """
+        self.x_values = self.x_values.astype(int)
+
         shape = (2, self.n_reps, self.y_points, self.x_points)
         electrical_delay = self.cfg['variables.common/electrical_delay'] if compensate_ED else 0
         phase_offset = np.exp(1j * 2 * np.pi * self.y_values * electrical_delay)
