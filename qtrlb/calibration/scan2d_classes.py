@@ -150,8 +150,9 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     
                 sub_dict['means'] = means
                 sub_dict['covariances'] = covariances
-                sub_dict['GMMpredicted'] = self.x_start + gmm_predict(data_dict['IQrotated_readout'][..., y, :], 
-                                                                      means=means, covariances=covariances)
+                sub_dict['GMMpredicted'] = gmm_predict(data_dict['IQrotated_readout'][..., y, :], 
+                                                       means=means, covariances=covariances,
+                                                       lowest_level=self.x_start)
                 sub_dict['confusionmatrix'] = normalize_population(sub_dict['GMMpredicted'], 
                                                                    levels=self.x_values)
                 sub_dict['ReadoutFidelity'] = get_readout_fidelity(sub_dict['confusionmatrix'])
@@ -223,8 +224,10 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             
             # The level might not always start from 0.
             for i, level in enumerate(self.x_values):
-                ax[0].plot(self.y_values / self.y_unit_value, np.angle(data[:, i]), label=f'|{level}>')
-                ax[1].plot(self.y_values / self.y_unit_value, np.absolute(data[:, i]), label=f'|{level}>')
+                ax[0].plot(self.y_values / self.y_unit_value, np.angle(data[:, i]), 
+                           c=self.color_list[level], label=f'|{level}>')
+                ax[1].plot(self.y_values / self.y_unit_value, np.absolute(data[:, i]), 
+                           c=self.color_list[level], label=f'|{level}>')
 
             ax[0].legend()
             ax[1].legend()

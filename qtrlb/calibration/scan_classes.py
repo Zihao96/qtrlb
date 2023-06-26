@@ -725,8 +725,9 @@ class CalibrateClassification(LevelScan):
                 
             data_dict['means_new'] = means
             data_dict['covariances_new'] = covariances
-            data_dict['GMMpredicted_new'] = self.x_start + gmm_predict(data_dict['IQrotated_readout'], 
-                                                                       means=means, covariances=covariances)
+            data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                        means=means, covariances=covariances,
+                                                        lowest_level=self.x_start)
             data_dict['PopulationNormalized_new'] = normalize_population(data_dict['GMMpredicted_new'],
                                                                          levels=self.x_values,
                                                                          mask=mask)

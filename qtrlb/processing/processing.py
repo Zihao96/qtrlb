@@ -47,7 +47,7 @@ def autorotate_IQ(input_data: list | np.ndarray, n_components: int):
     return result
     
 
-def gmm_predict(input_data, means, covariances, covariance_type='spherical'):
+def gmm_predict(input_data, means, covariances, covariance_type='spherical', lowest_level: int = 0):
     """
     Predict the state of input data based on given means and covariances of GMM.
     By default, means should have shape (n_components, 2) for 2D gaussian.
@@ -69,7 +69,7 @@ def gmm_predict(input_data, means, covariances, covariance_type='spherical'):
     gmm.precisions_cholesky_ = _compute_precision_cholesky(covariances, covariance_type)
     gmm.weights_  = np.ones(n_components) / n_components
 
-    result = gmm.predict(input_data.reshape(2,-1).T).reshape(input_data.shape[1:])
+    result = lowest_level + gmm.predict(input_data.reshape(2,-1).T).reshape(input_data.shape[1:])
     # Magic reshape stealing from Ray.
     return result
 
@@ -136,7 +136,7 @@ def find_most_distant_points(input_data):
     input_data = np.array(input_data)  
     max_distance = 0
     for i in input_data:
-        for j in input_data:
+        for j in input_data[i:]:
             distance_ij = np.linalg.norm(i-j)
             if distance_ij > max_distance:
                 max_distance = distance_ij

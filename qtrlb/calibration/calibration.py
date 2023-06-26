@@ -45,6 +45,9 @@ class Scan:
             level_to_fit: 0, 1 or [0,1,0,0]. Length should be same as readout_resonators.
             fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
     """
+    color_list = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    
+
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
