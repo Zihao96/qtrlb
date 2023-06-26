@@ -1,6 +1,7 @@
-import datetime
 import os
+import glob
 import h5py
+import datetime
 import traceback
 import numpy as np
 from qtrlb.config.config import Config
@@ -55,11 +56,10 @@ class DataManager(Config):
             os.makedirs(self.yamls_path)
             os.makedirs(self.jsons_path)
         except FileExistsError:
-            traceback_str = traceback.format_exc()
             print('DataManager: Experiment directory exists. No directory will be created.')
-            print(traceback_str)
-        
-        
+            print(traceback.format_exc())
+
+
     @staticmethod
     def save_measurement(data_path: str, measurement: dict, attrs: dict = None):
         """
@@ -82,6 +82,7 @@ class DataManager(Config):
                         h5file.attrs[k] = str(v)
                     else:
                         pass
+
 
     @staticmethod
     def load_measurement(data_path: str) -> tuple[dict, dict]:
@@ -129,3 +130,65 @@ class DataManager(Config):
                 dictionary[k] = np.array(v)
                 
         return dictionary
+    
+
+    @staticmethod
+    def get_data_paths(datetime_stamp_start: str, datetime_stamp_stop: str, base_directory: str) -> list:
+        """
+        Extract all the data directories (those include measurement.hdf5) within a given time interval. 
+        Return to a list whose elements are string of paths in time order.
+        The speed of this function usually limited by the speed of loading the folder structure from remote Box server.
+
+        Parameters
+        ----------
+        datetime_stamp_start : Example: '20221115/235852'. Forward slash is fine  here for Windows.
+        datetime_stamp_stop : Example: '20221116/000051'
+        base_directory : The path of the data folder until the 'Qblox'. Typically cfg['data.base_directory'].
+                         Might need to be changed based on OS and username.
+        """
+        data_paths = []
+        first_date, first_time = os.path.split(datetime_stamp_start)
+        last_date, last_time = os.path.split(datetime_stamp_stop)
+
+        if last_date < first_date:
+            raise ValueError('The datetime_stamp_stop should be later than datetime_stamp_start!!!')
+            
+        elif last_date == first_date:
+            assert first_time <= last_time, 'The datetime_stamp_stop should be later than datetime_stamp_start!!!'
+
+            # Add data_path in this date between first and last time
+            data_paths.extend(
+                [
+                    data_path for data_path in glob.glob(os.path.join(base_directory, first_date, '*')) 
+                    if (os.path.basename(data_path)[:6] >= first_time 
+                        and os.path.basename(data_path)[:6] <= last_time) 
+                ]
+            )
+        
+        elif last_date > first_date:
+            # Add data_path in first date
+            data_paths.extend(
+                [
+                    data_path for data_path in glob.glob(os.path.join(base_directory, first_date, '*')) 
+                    if os.path.basename(data_path)[:6] >= first_time
+                ]
+            )
+
+            # Add data_path in last date
+            data_paths.extend(
+                [
+                    data_path for data_path in glob.glob(os.path.join(base_directory, last_date, '*')) 
+                    if os.path.basename(data_path)[:6] <= last_time
+                ]
+            )
+
+            # If there are more than 2 days
+            first_date, last_date = (int(first_date), int(last_date))
+            if last_date-1 != first_date:
+                for date in range(first_date+1, last_date):
+                    data_paths.extend(
+                        [data_path for data_path in glob.glob(os.path.join(base_directory, str(date), '*'))]
+                    )
+
+        return sorted(data_paths)
+
