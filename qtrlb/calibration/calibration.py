@@ -46,7 +46,7 @@ class Scan:
             fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
     """
     color_list = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    
+
 
     def __init__(self, 
                  cfg: MetaManager, 
@@ -79,7 +79,9 @@ class Scan:
         self.pre_gate = pre_gate if pre_gate is not None else {}
         self.post_gate = post_gate if post_gate is not None else {}
         self.n_seqloops = n_seqloops
-        self.level_to_fit = self.make_it_list(level_to_fit, [0 for _ in self.readout_resonators])
+        self.level_to_fit = self.make_it_list(level_to_fit, 
+                                              [self.cfg[f'variables.{r}/lowest_readout_levels'] 
+                                               for r in self.readout_resonators])
         self.fitmodel = fitmodel
         
         self.n_runs = 0
