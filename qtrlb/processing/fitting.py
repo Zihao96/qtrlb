@@ -48,6 +48,9 @@ def quad_func(x, x0, A, C):
 def sin_func(x, freq, phase, A, C):
     return C + A * sin(2*PI*freq*x + phase)
 
+def gaussian1d_func(x, mean, std, A, C):
+    return C + A * exp( ((x-mean) / std)**2 / 2 )
+
 def exp_func2(x, r, A, C):
     return C + A * (r ** x)
 
@@ -60,6 +63,21 @@ def chevron_func(x, y, omega_0, freq_offset, phase, A, C):
     t, detuning = np.meshgrid(x, y)  # Return 2D data when t and detuning are both array.
     omega_R = np.sqrt( omega_0**2 + (detuning - freq_offset)**2 )
     return C + A * (omega_0/omega_R)**2 * sin(2*PI * omega_R * t / 2 + phase)**2
+
+
+def resonator_hanger_transmission_func(x, f0, Q, Qc, theta, A, phi, ED, PCC):
+    """
+    Calculate S21 as a function of frequency.
+    Here x is frequency, A and phi are global amplitude/phase factor.
+    A and phi will effectively change the off-resonant amplitude/phase.
+    ED is the electrical delay in unit of [s].
+    PCC is Power Compression Coefficient to compensate natural power drop as mod_freq.
+    PCC is in unit of [Amplitude/Hz], which is [mV/Hz] on Qblox.
+    Reference:
+    https://iopscience.iop.org/article/10.1088/2058-9565/ac070e
+    """
+    S21 =  1 - Q * exp(1j * theta) / Qc / (1 +  2j * Q * (x-f0) / f0)
+    return A * exp(1j * (2*PI * (x-f0) * ED + phi)) * (1 + PCC * (x-f0)) * S21
 
 
 class ExpSinModel(Model):
@@ -152,3 +170,35 @@ class ChevronModel(Model):
         self.set_param_hint('A', value=np.max(data)-np.min(data))
         self.set_param_hint('C', value=np.mean(data))
         return self.make_params()
+    
+
+class ResonatorHangerTransmissionModel(Model):
+    def __init__(self, *args, **kwargs):
+        super().__init__(func=resonator_hanger_transmission_func, *args, **kwargs)
+
+    def guess(self, data, x):
+        amplitude = np.abs(data)
+        phase = np.angle(data)
+
+        A_guess = np.max(amplitude)
+        f0_guess = x[np.argmin(amplitude)]
+        amplitude /= A_guess  # Normalize amplitude for later guess.
+
+        # Guess all parameters except Qs.
+        self.set_param_hint('f0', value=f0_guess, min=0)
+        self.set_param_hint('theta', value=0, min=-PI, max=PI)
+        self.set_param_hint('A', value=A_guess, min=0)
+        self.set_param_hint('phi', value=np.mean(phase), min=-PI, max=PI)
+        self.set_param_hint('ED', value=(phase[-1] - phase[0]) / (x[-1] - x[0]))
+        self.set_param_hint('PCC', value=(amplitude[-1] - amplitude[0]) / (x[-1] - x[0]))
+
+        # Guess Q.
+        half_max = (np.max(amplitude) + np.min(amplitude)) / 2
+        full_width = 2 * np.abs(f0_guess - x[np.argmin(np.abs(amplitude - half_max))])
+        self.set_param_hint('Q', value=f0_guess/full_width, min=0)
+
+        # Guess Qc.
+        # Ref: https://lmfit.github.io/lmfit-py/examples/example_complex_resonator_model.html
+        self.set_param_hint('Qc', value=f0_guess/full_width/(1-np.min(amplitude)), min=0)
+
+        return self.make_params()  

@@ -8,7 +8,7 @@ import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan
-from qtrlb.processing.fitting import QuadModel
+from qtrlb.processing.fitting import fit, QuadModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
 
@@ -216,7 +216,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
-            ylabel = ['IQ-phase [rad]', 'IQ-LogMag [a.u.]']
+            ylabel = ('IQ-Phase [rad]', 'IQ-Amplitude [a.u.]')
             
             fig, ax = plt.subplots(2, 1, figsize=(8,8), dpi=150)
             ax[0].set(xlabel=xlabel, ylabel=ylabel[0], title=title)
@@ -349,6 +349,51 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
 
     def process_data(self):
         super().process_data(compensate_ED=True)
+
+
+    def fit_resonator(self, level_to_fit: int | list[int], fitmodel: Model = ResonatorHangerTransmissionModel):
+        """
+        Fit frequency and quality factor of resonators for a given level, then plot results.
+        """
+        level_to_fit = self.make_it_list(level_to_fit)
+        assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
+
+        results = {}
+        for i, r in enumerate(self.readout_resonators):
+            # Fit
+            level = level_to_fit[i]
+            data_to_fit = self.measurement[r]['IQEDcompensated_readout'][:, level]
+            x = self.y_values + self.cfg[f'variables.{r}/freq']
+            result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
+            
+            # Plot
+            data_reeval = result.eval(x=x)
+            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
+            ylabel = ('IQ-Phase [rad]', 'IQ-Amplitude [a.u.]')
+
+            fig, ax = plt.subplots(2, 1, figsize=(8, 8), dpi=150)
+            ax[0].set(xlabel=xlabel, ylabel=ylabel[0], title=title)
+            ax[1].set(xlabel=xlabel, ylabel=ylabel[1])
+            ax[0].plot(self.y_values / self.y_unit_value, np.angle(data_to_fit), 'k.', label=f'|{level}>')
+            ax[0].plot(self.y_values / self.y_unit_value, np.angle(data_reeval), 'm-', label=f'|{level}>, Fit')
+            ax[1].plot(self.y_values / self.y_unit_value, np.abs(data_to_fit), 'k.', label=f'|{level}>')
+            ax[1].plot(self.y_values / self.y_unit_value, np.abs(data_reeval), 'm-', label=f'|{level}>, Fit')
+            ax[0].legend()
+            ax[1].legend()
+            
+            fig.savefig(os.path.join(self.data_path, f'{r}_level{level}_fit.png'))
+            results[r] = result
+
+        print('RFS: Use results[r].params in Jupyter to show parameters.')
+        return results
+    
+
+    def plot_resonator(self, results: dict):
+        """
+        Plot the spectrum of resonators 
+        """
+        pass
 
 
     def adjust_ED(self, ED: float, save_cfg: bool = True):
