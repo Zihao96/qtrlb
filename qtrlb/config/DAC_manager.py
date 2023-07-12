@@ -22,7 +22,10 @@ class DACManager(Config):
                          suffix='DAC',
                          varman=varman)
         
-        # Connect to instrument. Hardcode name and IP address to accelerate load()
+        # Call parent load once to get name and address in DAC.yaml.
+        super().load()
+
+        # Connect to instrument.
         Cluster.close_all()
         self.test_mode = test_mode
 
@@ -30,7 +33,7 @@ class DACManager(Config):
             dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
             self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         else:
-            self.qblox = Cluster('cluster', '192.168.1.2') 
+            self.qblox = Cluster(self['name'], self['address']) 
 
         self.qblox.reset()
         
