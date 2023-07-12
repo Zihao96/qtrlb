@@ -790,7 +790,7 @@ class JustGate(Scan):
                  lengths: list[int],
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
-                 n_seqloops: int = 1000,
+                 n_seqloops: int = 1,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         
@@ -819,6 +819,15 @@ class JustGate(Scan):
         self.add_gate(self.just_gate, 'JustGate', self.lengths)
 
 
+    def acquire_data(self):
+        """
+        Keep n_seqloops as 1 and use n_pyloop, we will get all the raw trace.
+        The self.measurement[r]['raw_readout'] will have shape (2, n_pyloop, 16384).
+        See DACManager.start_sequencer() for more details.
+        """
+        super().acquire_data(keep_raw=True)
+
+
 class CalibrateTOF(JustGate):
     def __init__(self, 
                  cfg: MetaManager, 
@@ -832,14 +841,6 @@ class CalibrateTOF(JustGate):
                          n_seqloops=1)
         
         self.scan_name = 'CalibrateTOF'
-        
-
-    def run(self, experiment_suffix: str = '', n_pyloops: int = 1000):
-        super().run(experiment_suffix, n_pyloops)
-
-
-    def acquire_data(self):
-        super().acquire_data(keep_raw=True)
 
 
     def plot_main(self, start: int = 0, stop: int = 16384, savefig: bool = True):
