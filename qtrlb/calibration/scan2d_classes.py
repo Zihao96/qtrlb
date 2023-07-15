@@ -734,12 +734,12 @@ class DRAGWeightScan(Scan2D):
 
         YpiXhalf:
                     set_ph_delta     {round(750e6)}
-                    set_awg_gain     R13,R12
+                    set_freq         {ssb_freq_4}
+                    set_awg_gain     R11,R6
                     play             0,1,{self.qubit_pulse_length_ns}
                     set_ph_delta     {round(250e6)}
 
-                    set_freq         {ssb_freq_4}
-                    set_awg_gain     R11,R6
+                    set_awg_gain     R13,R12
                     play             0,1,{self.qubit_pulse_length_ns} 
 
                     jmp              @end_main

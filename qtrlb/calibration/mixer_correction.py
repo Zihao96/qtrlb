@@ -107,11 +107,11 @@ class MixerCorrection:
 
 
     def create_ipywidget(self, 
-                         widget_width: str = '600px', 
                          offset0_min: float = -84.0,
                          offset0_max: float = +73.0,
                          offset1_min: float = -84.0,
-                         offset1_max: float = +73.0) -> None:
+                         offset1_max: float = +73.0,
+                         widget_width: str = '600px', ) -> None:
         """
         Start sequencer once and create ipywidget.
         Allow user to change min/max of the FloatSlider for DC offset. 
