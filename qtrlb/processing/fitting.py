@@ -49,7 +49,7 @@ def sin_func(x, freq, phase, A, C):
     return C + A * sin(2*PI*freq*x + phase)
 
 def gaussian1d_func(x, mean, std, A, C):
-    return C + A * exp( ((x-mean) / std)**2 / 2 )
+    return C + A * exp( -0.5 * ((x-mean) / std)**2 )
 
 def exp_func2(x, r, A, C):
     return C + A * (r ** x)
