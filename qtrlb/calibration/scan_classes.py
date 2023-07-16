@@ -792,7 +792,8 @@ class JustGate(Scan):
                  main_tones: str | list[str] = None,
                  n_seqloops: int = 1,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = None,
+                 keep_raw: bool = False):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -813,6 +814,7 @@ class JustGate(Scan):
         
         self.just_gate = just_gate
         self.lengths = lengths
+        self.keep_raw = keep_raw
 
 
     def add_main(self):
@@ -825,7 +827,7 @@ class JustGate(Scan):
         The self.measurement[r]['raw_readout'] will have shape (2, n_pyloop, 16384).
         See DACManager.start_sequencer() for more details.
         """
-        super().acquire_data(keep_raw=True)
+        super().acquire_data(keep_raw=self.keep_raw)
 
 
 class CalibrateTOF(JustGate):
