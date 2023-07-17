@@ -1,8 +1,8 @@
 import os
+import numpy as np
 from copy import deepcopy
 from ruamel.yaml import YAML
 from ruamel.yaml.main import round_trip_dump
-from numpy import ndarray
 
 
 class Config:
@@ -212,9 +212,16 @@ class Config:
         """
         keys_list = self.slashed_string_to_list(key)
         
-        # There is a bug in pyyaml load which fails for ndarrays.
-        # We can just cast them to a list, which improves readability as well.
-        if isinstance(value, ndarray): value = value.tolist()
+        # Note from Zihao(20230717):
+        # Yamls are designed to use language independent data type.
+        # So we convert common numpy data type to python built-in type here.
+        # Isinstance takes ~0.1s for running 1 millon times. Very small performance overhead.
+        if isinstance(value, np.ndarray): 
+            value = value.tolist()
+        elif isinstance(value, np.floating):
+            value = float(value)
+        elif isinstance(value, np.integer):
+            value = int(value)
         
         if which == 'dict':
             self.recursively_set(self.config_dict, keys_list, value)
