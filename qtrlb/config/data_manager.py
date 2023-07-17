@@ -192,3 +192,34 @@ class DataManager(Config):
 
         return sorted(data_paths)
 
+
+    @staticmethod
+    def get_time_lengths(datetime_stamp_start: str, datetime_stamp_stop: str, 
+                         time_points: int, time_unit: str = 'hrs') -> np.ndarray:
+        """
+        Get a numpy array of equally spaced relative time values based on start, stop time and points.
+        Only days, seconds and microseconds are stored internally in datetime.timedelta object.
+        It's very useful for making plot of overnight scan.
+
+        Example:
+        datetime_stamp_start = '20230716/203000'
+        datetime_stamp_stop = '20230717/153000'
+        Return to [0, 1, 2, ..., 19]
+        """
+        datetime_start = datetime.datetime.strptime(datetime_stamp_start, '%Y%m%d/%H%M%S')
+        datetime_stop = datetime.datetime.strptime(datetime_stamp_stop, '%Y%m%d/%H%M%S')
+        datetime_delta = datetime_stop - datetime_start
+        total_time_sec = (datetime_delta.days * 24 * 3600 
+                        + datetime_delta.seconds 
+                        + datetime_delta.microseconds / 1000)
+
+        if time_unit.lower().startswith('s'):
+            total_time = total_time_sec
+        elif time_unit.lower().startswith('min'):
+            total_time = total_time_sec / 60
+        elif time_unit.lower().startswith('h'):
+            total_time = total_time_sec / 3600
+        else:
+            raise ValueError(f"DataManager: Doesn't support time_unit [{time_unit}] yet")
+
+        return np.linspace(0, total_time, time_points)
