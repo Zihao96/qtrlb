@@ -80,6 +80,24 @@ def resonator_hanger_transmission_func(x, f0, Q, Qc, theta, A, phi, ED, PCC):
     return A * exp(1j * (2*PI * (x-f0) * ED + phi)) * (1 + PCC * (x-f0)) * S21
 
 
+def double_exp_sin_func(x, C0, C1, tau1, tau2R, A_0, A_1, freq_0, freq_1, phase_0, phase_1):
+    """ 
+    Ref: https://doi.org/10.1103/PhysRevLett.114.010501, Eq.(7) in Supplment Material.
+    The function here is more general and can give better fit with T1 and separated amp.
+    """
+    return (C0 + C1 * exp(-x / tau1) 
+            + exp(-x / tau2R) * (A_0 * sin(2*PI * freq_0 * x + phase_0) 
+                                + A_1 * sin(2*PI * freq_1 * x + phase_1)))
+
+
+def triple_exp_sin_func(x, C0, C1, tau1, tau2R, A_0, A_1, A_2, 
+                        freq_0, freq_1, freq_2, phase_0, phase_1, phase_2):
+    return (C0 + C1 * exp(-x / tau1) 
+            + exp(-x / tau2R) * (A_0 * sin(2*PI * freq_0 * x + phase_0) 
+                                + A_1 * sin(2*PI * freq_1 * x + phase_1)
+                                + A_2 * sin(2*PI * freq_2 * x + phase_2)))
+
+
 class ExpSinModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=exp_sin_func, *args, **kwargs)
