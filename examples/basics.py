@@ -54,10 +54,23 @@ rs = qtb.RabiScan(cfg, drive_qubits, readout_resonators,
                   subspace='12', level_to_fit=1, n_seqloops=2000)
 rs.run('example_MoreParam')
 
+# Our RabiScan will keep freq/amp while changing drive pulse length before readout.
+# The length we will scan over will be np.linspace(start, stop, points).
+# Here the length is the only variables and we call it a 1D Scan where length is our x-axis.
+# In fact, for universality, the attribute name is rs.x_start, rs.x_stop, rs.x_points, rs.x_values.
 
-# TODO: what are these, the 131072, they will become attribute but x/y instead of length/amp.
+# The subspace specify which subspace the experiment is working on. 
+# A 'X180_01' gate will be added to beginning automatically.
+# The level_to_fit should be one of the readout levels associated to a readout_resonators.
+# If we don't use classification, then 0 is I, 1 is Q.
 
-
+# The experiment here will repeat 2000 times.
+# The iteration of n_seqloops is implemented in Q1ASM sequence program, not python.
+# However, one sequence can acquire at most 131072 readout data on each I-Q path.
+# Here, our readout points will be 51 * 2000 = 102000.
+# If we need to do more repetition, we can specify n_pyloops in run() method.
+# n_pyloops is implemented in python and slightly slower.
+# In that case, the total repetition will be n_seqloops * n_pyloops.
 
 
 
@@ -66,4 +79,8 @@ rs.run('example_MoreParam')
 rs = qtb.RabiScan(cfg, drive_qubits=['Q2', 'Q4'], readout_resonators=['R2', 'R4'])
 rs.run('example_multiplexing')
 
-# TODO: Also tell user everything is list/dict here, the subspace/level_to_fit should map each other, and main_tone.
+# To run multi-qubit/resonator experiment, we can pass a list to these arguments.
+# In fact, everything in Scan is either list of dict.
+# It's for multiplexing and also to make a synchronized quantum circuit.
+# In this example, the two rabi drive with come out at same time with their own freq/amp.
+# And our readout will have two I+jQ pair for each single shot.

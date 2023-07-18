@@ -131,3 +131,34 @@ tof.run('example', n_pyloops=1000)
 
 mxc = qtb.MixerCorrection(cfg, 'Q4', subspace='01', amp=0.4, waveform_length=40)
 mxc.run()
+
+# To stop and save parameter.
+mxc.stop(save_cfg=True)
+
+# To narrow down the range of DC offset.
+mxc.stop(save_cfg=False)
+mxc.create_ipywidget(offset0_min=-5, offset0_max=5, offset1_min=-6, offset1_max=6)
+
+
+#%% Conditional Ramsey for measuring static ZZ coupling.
+
+# We can switch control and target to see the difference.
+# Also change gate to 'I' for comparison.
+control = 'Q3'
+target = 'Q2'
+resonators = ['R2', 'R3']
+pre_gate = {control: ['X180_01']}  
+
+ramsp = qtb.RamseyScan(cfg, drive_qubits=[control, target], readout_resonators=resonators, 
+                       length_start=0, length_stop=1.6*u.us, length_points=41, 
+                       artificial_detuning=+3*u.MHz, main_tones=[f'{target}/01'], pre_gate=pre_gate)
+
+ramsn = qtb.RamseyScan(cfg, drive_qubits=[control, target], readout_resonators=resonators, 
+                       length_start=0, length_stop=1.6*u.us, length_points=41, 
+                       artificial_detuning=-3*u.MHz, main_tones=[f'{target}/01'], pre_gate=pre_gate)
+
+ramsp.run('AD+3MHz_PreXGate')
+ramsn.run('AD-3MHz_PreXGate')
+
+
+#%% Run autotune
