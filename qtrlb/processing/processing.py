@@ -113,7 +113,7 @@ def correct_population(input_data, corr_matrix: list | np.ndarray):
     Correct population based on a correction matrix (modification of confusion matrix).
     The element (row i, column j) in corr_matrix is P(predicted as state i | actually in state j).
     Thus, the corr_matrix times actual population gives predicted population.
-    We have predicted by GMM and want to know hte actual result, so we use np.linalg.solve here.
+    We have predicted by GMM and want to know the actual result, so we use np.linalg.solve here.
     Unfortunately, if corr_matrix has shape (M, M), the shape of data can only be (M,) or (M, K).
     It means data with (M, K, N) etc will cause ValueError.
     So I choose to flat all other dimonsion and shape them back later.
@@ -193,3 +193,35 @@ def two_tone_predict(input_data_0: list | np.ndarray,
     # For masked data, it doesn't matter :)
     result = input_data_0 + input_data_1 - intersection_array
     return result, mask
+
+
+def two_tone_normalize(input_data_0: list | np.ndarray, 
+                       input_data_1: list | np.ndarray, 
+                       levels_0: list | np.ndarray, 
+                       levels_1: list | np.ndarray,
+                       axis: int = 0, 
+                       mask: np.ndarray = None) -> np.ndarray:
+    """
+    Count population (a pair of interger) based on all possible outcome pairs along a given axis.
+    Return to normalized population (counts of appearing) with shape (n_possible_pairs, x_points).
+    Allow a mask to pick entries in input_data to be normalized.
+    Require levels_0 to be smaller than levels_1 and only one intersection state.
+
+    Example: levels_0 = [0, 1, 2, 3], levels_1 = [3, 4, 5, 6]
+    There will be 16 different outcome (0-15), and we map them to: 1 * (x1 - 3) + 4 * x0
+    The returned result will have shape (16, x_points)
+    The later corr_matrix will be expected to have shape (16, 7)
+    """
+    
+    input_data_0 = np.array(input_data_0) 
+    input_data_1 = np.array(input_data_1)
+    levels_0 = np.array(levels_0)
+    levels_1 = np.array(levels_1)
+
+    # Find intersection and check it's unique.
+    intersection = np.intersect1d(levels_0, levels_1)
+    assert len(intersection) == 1, 'More than one state are reading out by both tone!'
+
+    flatten_data = (input_data_1 - intersection) + len(levels_1) * input_data_0
+    levels = len(levels_0) * len(levels_1) - 1
+    return normalize_population(flatten_data, levels, axis, mask)
