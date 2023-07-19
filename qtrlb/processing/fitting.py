@@ -16,6 +16,7 @@ import numpy as np
 from lmfit import Model
 from lmfit.models import SineModel, QuadraticModel
 from numpy import exp, sin
+from scipy.signal import find_peaks
 PI = np.pi
 
 
@@ -194,7 +195,7 @@ class ResonatorHangerTransmissionModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=resonator_hanger_transmission_func, *args, **kwargs)
 
-    def guess(self, data, x):
+    def guess(self, data: np.ndarray, x: np.ndarray):
         amplitude = np.abs(data)
         phase = np.angle(data)
 
@@ -220,3 +221,106 @@ class ResonatorHangerTransmissionModel(Model):
         self.set_param_hint('Qc', value=f0_guess/full_width/(1-np.min(amplitude)), min=0)
 
         return self.make_params()  
+    
+
+class DoubleExpSinModel(Model):
+    """ Designed to fit Ramsey experiment with two possible frequency adding together.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(func=double_exp_sin_func, *args, **kwargs)
+        
+    def guess(self, data: np.ndarray, x: np.ndarray, **fitting_kwargs):
+        """
+        fitting_kwargs take:
+            height: float. Specify the minimal height to be identified as peak.
+            fixed_params: dict. The parameters to fix during fitting.
+                Example: {'phase_0': -PI/2, 'phase_1': -PI/2}
+        """
+        # Substract DC signal.
+        data_mean = np.mean(data)
+        data = data - data_mean  # Do not use -= or += here! It will change array in place.
+        rfft_freqs = np.fft.rfftfreq(len(x), abs(x[-1] - x[0]) / (len(x) - 1))
+        freq_step = rfft_freqs[1] - rfft_freqs[0]
+
+        # DFT
+        rfft = abs(np.fft.rfft(data))
+
+        # Find peaks
+        height = fitting_kwargs['height'] if 'height' in fitting_kwargs else 10 * max(rfft) / len(rfft)
+        peaks, _ = find_peaks(rfft, height)
+        assert len(peaks) == 2, f'fitting: Cannot fit {len(peaks)} peaks'
+
+        # Set initial guess of parameters.
+        f_0 = rfft_freqs[peaks[0]]
+        f_1 = rfft_freqs[peaks[1]]
+        A_0 = rfft[peaks[0]] / len(rfft)
+        A_1 = rfft[peaks[1]] / len(rfft)
+        tau = x[-1] - x[0]
+
+        self.set_param_hint('freq_0', value=f_0, min=f_0-freq_step, max=f_0+freq_step)
+        self.set_param_hint('freq_1', value=f_1, min=f_1-freq_step, max=f_1+freq_step)
+        self.set_param_hint('A_0', value=A_0, min=A_0/10)
+        self.set_param_hint('A_1', value=A_1, min=A_1/10)
+        self.set_param_hint('C_0', value=data_mean/2)
+        self.set_param_hint('C_1', value=data_mean/2)
+        self.set_param_hint('tau1', value=tau, min=tau/10)
+        self.set_param_hint('tau2R', value=tau, min=tau/10)
+        self.set_param_hint('phase_0', value=0, min=-PI, max=PI)
+        self.set_param_hint('phase_1', value=0, min=-PI, max=PI)
+
+        if 'fixed_params' in fitting_kwargs:
+            for param, value in fitting_kwargs['fixed_params'].items():
+                self.set_param_hint(param, value=value, vary=False)
+
+        return self.make_params() 
+    
+
+class TripleExpSinModel(Model):
+    """ Designed to fit Ramsey experiment with three possible frequency adding together.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(func=triple_exp_sin_func, *args, **kwargs)
+        
+    def guess(self, data, x, **fitting_kwargs):
+        # Substract DC signal.
+        data_mean = np.mean(data)
+        data = data - data_mean  # Do not use -= or += here! It will change array in place.
+        rfft_freqs = np.fft.rfftfreq(len(x), abs(x[-1] - x[0]) / (len(x) - 1))
+        freq_step = rfft_freqs[1] - rfft_freqs[0]
+
+        # DFT
+        rfft = abs(np.fft.rfft(data))
+
+        # Find peaks
+        height = fitting_kwargs['height'] if 'height' in fitting_kwargs else 15 * max(rfft) / len(rfft)
+        peaks, _ = find_peaks(rfft, height)
+        assert len(peaks) == 3, f'fitting: Cannot fit {len(peaks)} peaks'
+
+        # Set initial guess of parameters.
+        f_0 = rfft_freqs[peaks[0]]
+        f_1 = rfft_freqs[peaks[1]]
+        f_2 = rfft_freqs[peaks[2]]
+        A_0 = rfft[peaks[0]] / len(rfft)
+        A_1 = rfft[peaks[1]] / len(rfft)
+        A_2 = rfft[peaks[2]] / len(rfft)
+        tau = x[-1] - x[0]
+
+        self.set_param_hint('freq_0', value=f_0, min=f_0-freq_step, max=f_0+freq_step)
+        self.set_param_hint('freq_1', value=f_1, min=f_1-freq_step, max=f_1+freq_step)
+        self.set_param_hint('freq_2', value=f_2, min=f_2-freq_step, max=f_2+freq_step)
+        self.set_param_hint('A_0', value=A_0, min=A_0/10)
+        self.set_param_hint('A_1', value=A_1, min=A_1/10)
+        self.set_param_hint('A_2', value=A_2, min=A_2/10)
+        self.set_param_hint('C_0', value=data_mean/2)
+        self.set_param_hint('C_1', value=data_mean/2)
+        self.set_param_hint('tau1', value=tau, min=tau/10)
+        self.set_param_hint('tau2R', value=tau, min=tau/10)
+        self.set_param_hint('phase_0', value=0, min=-PI, max=PI)
+        self.set_param_hint('phase_1', value=0, min=-PI, max=PI)
+        self.set_param_hint('phase_2', value=0, min=-PI, max=PI)
+
+        if 'fixed_params' in fitting_kwargs:
+            for param, value in fitting_kwargs['fixed_params'].items():
+                self.set_param_hint(param, value=value, vary=False)
+
+        return self.make_params() 
