@@ -223,5 +223,5 @@ def two_tone_normalize(input_data_0: list | np.ndarray,
     assert len(intersection) == 1, 'More than one state are reading out by both tone!'
 
     flatten_data = (input_data_1 - intersection) + len(levels_1) * input_data_0
-    levels = len(levels_0) * len(levels_1) - 1
+    levels = np.arange(len(levels_0) * len(levels_1))
     return normalize_population(flatten_data, levels, axis, mask)
