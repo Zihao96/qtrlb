@@ -56,7 +56,7 @@ def plot_overnightscan_result(total_tau_dict: dict, time_list: list | np.ndarray
                 weights = np.ones_like(tau_list) / len(tau_list)
                 
                 # Plot the histogram. The default bins is 10, "normed" argument doesn't work here.
-                n, bins, patches = axes[i][j].hist(tau_list, weights=weights, c='indigo', alpha=0.35, rwidth=0.8, zorder=0)   
+                n, bins, patches = axes[i][j].hist(tau_list, weights=weights, color='indigo', alpha=0.35, rwidth=0.8, zorder=0)   
             
                 # Plot the Gaussian fit scatter
                 area = 0
@@ -68,7 +68,7 @@ def plot_overnightscan_result(total_tau_dict: dict, time_list: list | np.ndarray
                 # Plot the Gaussian fit line
                 x = np.linspace(min(tau_list), max(tau_list), 100)
                 y = Gaussian_norm(x, mean, std) * area 
-                axes[i][j].plot(x, y, c='lightsteelblue', linewidth=1.5, label=f'mean={mean:.3g} [us],\nstd={std:.3g} [us]')   
+                axes[i][j].plot(x, y, color='lightsteelblue', linewidth=1.5, label=f'mean={mean:.3g} [us],\nstd={std:.3g} [us]')   
                 axes[i][j].set(xlabel=f'{scan} [us]', ylabel='Probability', title=f'{scan}_{qubit}/{subspace}')
                 axes[i][j].legend(loc='upper left')
                 
