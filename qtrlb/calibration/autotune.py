@@ -17,6 +17,7 @@ def autotune(
         level_to_fit: int | list[int], 
         rams_length: float, 
         rams_AD: float,
+        normalize_subspace: bool = True,
         show_plot: bool = False,
         verbose: bool = False,
         **autotune_kwargs) -> tuple[Scan]:
@@ -54,6 +55,11 @@ def autotune(
     
     ramsp.run(f'AD+{round(rams_AD/u.kHz)}kHz_autotune')
     ramsn.run(f'AD-{round(rams_AD/u.kHz)}kHz_autotune')
+    if normalize_subspace:
+        plt.close(ramsp.figures[readout_resonators])
+        plt.close(ramsn.figures[readout_resonators])
+        ramsp.normalize_subspace_population()
+        ramsn.normalize_subspace_population()
     freq_p = ramsp.fit_result[readout_resonators].params['freq'].value
     freq_n = ramsn.fit_result[readout_resonators].params['freq'].value
     cfg[f'variables.{main_tone}/freq'] -= round((freq_p - freq_n) / 2)
