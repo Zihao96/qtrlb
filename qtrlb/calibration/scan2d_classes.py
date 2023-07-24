@@ -585,10 +585,10 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
             self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
             self.acquire_data()
-            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.save_data()
             self.process_data()
             self.fit_data()
-            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.save_data()
             self.plot()
             self.measurements.append(self.measurement)
             

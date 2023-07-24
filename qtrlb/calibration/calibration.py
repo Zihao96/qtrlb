@@ -144,10 +144,10 @@ class Scan:
         self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
-        self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+        self.save_data()
         self.process_data()
         self.fit_data()
-        self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+        self.save_data()
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
@@ -644,7 +644,14 @@ class Scan:
         for i in range(self.n_pyloops):
             self.cfg.DAC.start_sequencer(self.tones, self.measurement, keep_raw, self.heralding_enable)
             print(f'Scan: Pyloop {i} finished!')
-            
+
+
+    def save_data(self):
+        """
+        Save the measurement dictionary along with attributes of the Scan to measurement.hdf5 under self.data_path.
+        """
+        self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+
             
     def process_data(self):
         """
@@ -830,6 +837,45 @@ class Scan:
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level for all resonators.'
         self.fit_data()
         self.plot_main()
+
+
+    def normalize_subspace_population(self, subspace: str | list[str] = None, dpi: int = 150):
+        """
+        Allow user to fit and plot only the population inside main subspace to compensate overall decay.
+        It will overwrite the self.fit_result and self.figures, but not the saved plot and fit_result in hdf5.
+        """
+        subspace = self.make_it_list(subspace, self.subspace)
+        assert self.classification_enable, 'This function only work when enabling classification.'
+        assert len(subspace) == len(self.readout_resonators), 'Please specify fitting subspace for each resonator.'
+
+        for i, r in enumerate(self.readout_resonators):
+            # Normalization.
+            level_low, level_high = int(subspace[i][0]), int(subspace[i][1])
+            P_low = self.measurement[r]['to_fit'][level_low - self.cfg[f'variables.{r}/lowest_readout_levels']]
+            P_high = self.measurement[r]['to_fit'][level_high - self.cfg[f'variables.{r}/lowest_readout_levels']]
+            self.measurement[r]['to_fit_SubspaceNormalized'] = P_high / (P_high + P_low)
+
+            # Fitting
+            self.fit_result[r] = fit(self.measurement[r]['to_fit_SubspaceNormalized'], self.x_values, self.fitmodel)
+
+            params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
+            self.measurement[r]['fit_result_SubspaceNormalized'] = params
+            self.save_data()
+
+            # Plot    
+            fig, ax = plt.subplots(1, 1, dpi=dpi)
+            ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit_SubspaceNormalized'], 'k.')
+            ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', 
+                   ylabel=fr'$\frac{{P_{level_high}}}{{P_{level_high} + P_{level_low}}}$',
+                   title=f'{self.datetime_stamp}, {self.scan_name}, {r}')
+            
+            x3 = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
+            ax.plot(x3 / self.x_unit_value, self.fit_result[r].eval(x=x3), 'm-')
+            fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+            ax.add_artist(AnchoredText(fit_text, loc='upper right', prop={'color':'m'}))
+
+            fig.savefig(os.path.join(self.data_path, f'{r}_SubspaceNormalized.png'))
+            self.figures[r] = fig
         
         
     @staticmethod
@@ -1024,16 +1070,13 @@ class Scan2D(Scan):
 
 
     def plot(self):
-        # TODO: Finish it.
         self.plot_main()
 
 
-    def plot_main(self, text_loc: str = 'upper right', dpi: int = 150):
+    def plot_main(self, dpi: int = 150):
         """
         Plot population for all levels. 
         If we disable classification, plot both quadrature.
-        
-        # TODO add fit to the corresponding level, or add interface for adding fit.
         """
         self.figures = {}
 

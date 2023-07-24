@@ -75,9 +75,9 @@ class RB1QB(Scan):
             self.save_sequence()
             self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
             self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
-            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.save_data()
             self.process_data()
-            self.cfg.data.save_measurement(self.data_path, self.measurement, self.attrs)
+            self.save_data()
             self.n_runs += 1
             self.measurements.append(self.measurement)
             self.plot_IQ()

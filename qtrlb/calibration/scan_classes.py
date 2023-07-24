@@ -488,7 +488,7 @@ class EchoScan(Scan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = ExpModel,
+                 fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65528,
                  artificial_detuning: float = 0.0,
                  AD_sign: int = None,
