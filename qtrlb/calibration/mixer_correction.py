@@ -233,7 +233,7 @@ class MixerAutoCorrection(MixerCorrection):
         self.sa = sa
 
         # Get the exact frequency for convenience.
-        lo_key = 'qubit_lo' if self.qudit.startswith('Q') else 'resonator_lo'
+        lo_key = 'qubit_LO' if self.qudit.startswith('Q') else 'resonator_LO'
         self.main_freq = self.cfg[f'variables.{self.tone}/freq']
         self.lo_freq = self.cfg[f'variables.{self.qudit}/{lo_key}']
         self.sb_freq = self.lo_freq * 2 - self.main_freq
