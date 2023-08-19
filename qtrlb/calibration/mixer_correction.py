@@ -290,6 +290,7 @@ class MixerAutoCorrection(MixerCorrection):
         else:
             raise ValueError(f'MixerAutoCorrection: The "which" argument can only take "both", "lo", "sb".')
 
+        self.set_sa()
         self.new_spectrum = self.sa.data
         self.stop(save_cfg)
         self.plot()
@@ -297,7 +298,7 @@ class MixerAutoCorrection(MixerCorrection):
 
     def set_sa(self):
         """
-        Set up instrument before doing optimization.
+        Set up instrument before/after doing optimization.
         """
         # A wide span with all three peaks on screen.
         self.sa.set('freq_center', self.lo_freq)
@@ -327,8 +328,12 @@ class MixerAutoCorrection(MixerCorrection):
         # self.sa.set_marker('peak_right', peak_right)
 
         # Set up the proper reference level
-        peak_highest = np.max([float(self.sa.get_marker('y', i+1)) for i in range(3)])
-        ref_level = np.round(peak_highest) + 5
+        self.sa.set_marker(4, 'ON')
+        self.sa.set_marker(4, 'max_peak')
+        ref_level = round(float(self.sa.get_marker(4, 'y'))) + 5
+        self.sa.set_marker(4, 'OFF')
+        # peak_highest = np.max([float(self.sa.get_marker(i, 'y')) for i in range(1, 4)])
+        # ref_level = np.round(peak_highest) + 5
         self.sa.set('ref_level', ref_level)
 
 
@@ -356,7 +361,7 @@ class MixerAutoCorrection(MixerCorrection):
         self.set_offset1(x[1])
         time.sleep(self.readout_delay_time)
 
-        return np.mean([float(self.sa.get_marker('y', 2)) for _ in range(self.readout_avg_num)])
+        return np.mean([float(self.sa.get_marker(2, 'y')) for _ in range(self.readout_avg_num)])
     
 
     def minimize_sb(self):
@@ -384,7 +389,7 @@ class MixerAutoCorrection(MixerCorrection):
         self.set_phase_offset(x[1])
         time.sleep(self.readout_delay_time)
 
-        return np.mean([float(self.sa.get_marker('y', 3)) for _ in range(self.readout_avg_num)])
+        return np.mean([float(self.sa.get_marker(3, 'y')) for _ in range(self.readout_avg_num)])
     
 
     def plot(self):
