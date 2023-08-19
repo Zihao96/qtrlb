@@ -310,16 +310,21 @@ class MixerAutoCorrection(MixerCorrection):
         self.sa.set_marker(1, 'ON')
         self.sa.set_marker(2, 'ON')
         self.sa.set_marker(3, 'ON')
-        self.sa.set_marker_center(1)
-        self.sa.set_marker_center(2)
-        self.sa.set_marker_center(3)
+        self.sa.set_marker(1, 'x', self.main_freq)
+        self.sa.set_marker(2, 'x', self.lo_freq)
+        self.sa.set_marker(3, 'x', self.sb_freq)
 
-        # Maddy leave the 0.1 second delay here and probably has her reason.
-        peak_left, peak_right = 3, 1 if self.mod_freq > 0 else 1, 3
-        time.sleep(0.1)
-        self.sa.set_marker('peak_left', peak_left)
-        time.sleep(0.1)
-        self.sa.set_marker('peak_right', peak_right)
+
+        # self.sa.set_marker_center(1)
+        # self.sa.set_marker_center(2)
+        # self.sa.set_marker_center(3)
+
+        # # Maddy leave the 0.1 second delay here and probably has her reason.
+        # (peak_left, peak_right) = (3, 1) if self.mod_freq > 0 else (1, 3)
+        # time.sleep(0.1)
+        # self.sa.set_marker('peak_left', peak_left)
+        # time.sleep(0.1)
+        # self.sa.set_marker('peak_right', peak_right)
 
         # Set up the proper reference level
         peak_highest = np.max([float(self.sa.get_marker('y', i+1)) for i in range(3)])
