@@ -243,16 +243,20 @@ class MixerAutoCorrection(MixerCorrection):
     def run(self,
             which: str = 'both',
             save_cfg: bool = False,
-            method: str = 'Powell',
-            readout_delay_time: float = 0.02,
+            readout_delay_time: float = 0.06,
             readout_avg_num: int = 5,
             lo_maxiter: int = 3,
-            sb_maxiter: int = 2):
+            sb_maxiter: int = 3,
+            method: str = 'Powell'):
         """
         Run optimization on specified tones.
+        If the optimization keep failing, then increase the readout_delay_time may help.
+        0.06 here is a conservative value. Sometime it just need 0.02 second.
 
         Parameters:
-        readout_delay_time: The time 
+        readout_delay_time: The time between change parameter on Qblox and read result on SA.
+        readout_avg_num: Number of repetitive readout counts when getting one result.
+        maxiter: Option in scipy minimize for saving time.
         """
         
         self.minimize_method = method
@@ -299,41 +303,49 @@ class MixerAutoCorrection(MixerCorrection):
     def set_sa(self):
         """
         Set up instrument before/after doing optimization.
+
+        Note from Zihao(2023/08/19):
+
+        About Maker:
+        When zoom out, the three markers are at correct frequency but may not on the peak.
+        This is because the finite distance between two sampling frequency.
+        It won't become a problem when we zoom in and really do optimization.
+        That's why we use marker 4 here for find reasonable reference level.
+        In old design, we also tried to use 'peak_left' and 'peak_right' for marker 1 & 3.
+        That will also cause problem when initial parameter already null the mixer.
+
+        About 0.1 second:
+        Maddy add them in her original code and probably has her reason.
+        I won't recommend to remove it before it become performance bottleneck.
+
+        About experience value:
+        span = 2.4 mod_freq give us good looking. 
+        RBW = SPAN / 2e4 usually give us fast measurement and low noise. Here I'm conservative.
+        ref_level = -3 is because I don't want to frequently switch the internal mechanical switch of SA.
+        It will be triggered when we change ref_level from 0 dBm to higher.
         """
         # A wide span with all three peaks on screen.
         self.sa.set('freq_center', self.lo_freq)
         self.sa.set('freq_span', 2.4 * abs(self.mod_freq))
-        self.sa.set('res_bw', abs(self.mod_freq) * 1e-4)
+        self.sa.set('res_bw', abs(self.mod_freq) * 2e-4)
         self.sa.set('vid_bw_auto')
-        self.sa.set('ref_level', '15')
+        self.sa.set('ref_level', '-3')
 
         # Set three markers on three peaks.
         self.sa.set_marker(1, 'ON')
         self.sa.set_marker(2, 'ON')
         self.sa.set_marker(3, 'ON')
         self.sa.set_marker(1, 'x', self.main_freq)
+        time.sleep(0.1)
         self.sa.set_marker(2, 'x', self.lo_freq)
+        time.sleep(0.1)
         self.sa.set_marker(3, 'x', self.sb_freq)
 
-
-        # self.sa.set_marker_center(1)
-        # self.sa.set_marker_center(2)
-        # self.sa.set_marker_center(3)
-
-        # # Maddy leave the 0.1 second delay here and probably has her reason.
-        # (peak_left, peak_right) = (3, 1) if self.mod_freq > 0 else (1, 3)
-        # time.sleep(0.1)
-        # self.sa.set_marker('peak_left', peak_left)
-        # time.sleep(0.1)
-        # self.sa.set_marker('peak_right', peak_right)
-
-        # Set up the proper reference level
+        # Set up the proper reference level by using the forth marker.
         self.sa.set_marker(4, 'ON')
+        time.sleep(0.1)
         self.sa.set_marker(4, 'max_peak')
         ref_level = round(float(self.sa.get_marker(4, 'y'))) + 5
-        self.sa.set_marker(4, 'OFF')
-        # peak_highest = np.max([float(self.sa.get_marker(i, 'y')) for i in range(1, 4)])
-        # ref_level = np.round(peak_highest) + 5
         self.sa.set('ref_level', ref_level)
 
 
@@ -396,10 +408,10 @@ class MixerAutoCorrection(MixerCorrection):
         """
         Plot the spectrum before/after mixer correction for user to compare them.
         """
-        fig, ax = plt.subplots(2, 1, figsize=(8,8))
+        fig, ax = plt.subplots(2, 1, figsize=(8, 12))
         ax[0].plot(self.old_spectrum[0]/u.GHz, self.old_spectrum[1], alpha=0.8)
         ax[1].plot(self.new_spectrum[0]/u.GHz, self.new_spectrum[1], alpha=0.8)
-        ax[0].set(xlabel='Frequency [GHz]', ylabel='Power [dBm]', title='Before optimization')
-        ax[1].set(xlabel='Frequency [GHz]', ylabel='Power [dBm]', title='After optimization')
+        ax[0].set(xlabel='Frequency [GHz]', ylabel='Power [dBm]', ylim=(-100, None), title='Before optimization')
+        ax[1].set(xlabel='Frequency [GHz]', ylabel='Power [dBm]', ylim=(-100, None), title='After optimization')
         self.fig = fig
 
