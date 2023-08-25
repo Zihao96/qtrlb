@@ -39,6 +39,8 @@ class ProcessManager(Config):
         default compatible matrices will be generated without saving.
         """
         for r in self['resonators']:
+            self.set(f'{r}/lowest_readout_levels', self[f'{r}/readout_levels'][0], which='dict')
+            self.set(f'{r}/highest_readout_levels', self[f'{r}/readout_levels'][-1], which='dict')
             self.set(f'{r}/n_readout_levels', len(self[f'{r}/readout_levels']), which='dict')
             
             try:
@@ -82,15 +84,15 @@ class ProcessManager(Config):
                 data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
                                                              angle=self[f'{r}/IQ_rotation_angle'])
                 
-                data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+                data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                                  means=self[f'{r}/IQ_means'], 
-                                                                 covariances=self[f'{r}/IQ_covariances'])
-                                                     + self[f'{r}/readout_levels'][0])
+                                                                 covariances=self[f'{r}/IQ_covariances'],
+                                                                 lowest_level=self[f'{r}/lowest_readout_levels'])
                 
-                data_dict['GMMpredicted_heralding'] = (gmm_predict(data_dict['IQrotated_heralding'], 
+                data_dict['GMMpredicted_heralding'] = gmm_predict(data_dict['IQrotated_heralding'], 
                                                                    means=self[f'{r}/IQ_means'], 
-                                                                   covariances=self[f'{r}/IQ_covariances'])
-                                                       + self[f'{r}/readout_levels'][0])
+                                                                   covariances=self[f'{r}/IQ_covariances'],
+                                                                   lowest_level=self[f'{r}/lowest_readout_levels'])
                 
             heralding_mask = self.heralding_test(measurement=measurement)
             
@@ -114,10 +116,10 @@ class ProcessManager(Config):
                 data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
-                data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+                data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                                  means=self[f'{r}/IQ_means'], 
-                                                                 covariances=self[f'{r}/IQ_covariances'])
-                                                     + self[f'{r}/readout_levels'][0])
+                                                                 covariances=self[f'{r}/IQ_covariances'],
+                                                                 lowest_level=self[f'{r}/lowest_readout_levels'])
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
                                                                                  levels=self[f'{r}/readout_levels'])
@@ -206,10 +208,10 @@ class ProcessManager(Config):
             data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                        angle=self[f'{r}/IQ_rotation_angle'])
             
-            data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+            data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                              means=self[f'{r}/IQ_means'], 
-                                                             covariances=self[f'{r}/IQ_covariances'])
-                                                 + self[f'{r}/readout_levels'][0])
+                                                             covariances=self[f'{r}/IQ_covariances'],
+                                                             lowest_level=self[f'{r}/lowest_readout_levels'])
             # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
             # Values are integers as state assignment result.
 
@@ -265,10 +267,10 @@ class ProcessManager(Config):
             data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
                                                        angle=self[f'{r}/IQ_rotation_angle'])
             
-            data_dict['GMMpredicted_readout'] = (gmm_predict(data_dict['IQrotated_readout'], 
+            data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
                                                              means=self[f'{r}/IQ_means'], 
-                                                             covariances=self[f'{r}/IQ_covariances'])
-                                                 + self[f'{r}/readout_levels'][0])
+                                                             covariances=self[f'{r}/IQ_covariances'],
+                                                             lowest_level=self[f'{r}/lowest_readout_levels'])
             # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
             # Values are integers as state assignment result.
 
