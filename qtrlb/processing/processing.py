@@ -15,6 +15,7 @@
 # =============================================================================
 
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture
 from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
 PI = np.pi
@@ -161,6 +162,29 @@ def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:
     """
     fidelity = np.mean(np.diagonal(confusion_matrix))
     return float(fidelity)
+
+
+def plot_corr_matrix(corr_matrix: list | np.ndarray) -> plt.Figure:
+    """
+    A pretty way to visualize correction matrix.
+    """
+    corr_matrix = np.array(corr_matrix)
+    n_levels = len(corr_matrix)
+
+    # Plot matrix in shaded orange color.
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6), dpi=400)
+    ax.matshow(corr_matrix, cmap=plt.cm.Oranges)
+    ax.xaxis.set_ticks_position('bottom')
+    ax.set(xlabel='Prepared State', ylabel='Assigned State', 
+           title=f'{n_levels}-state Readout Fidelity: {np.mean(corr_matrix.diagonal()) * 100: 0.3g}%')
+
+    # Add value as text to that grid.
+    for col in range(n_levels):
+        for row in range(n_levels):
+            value = corr_matrix[row, col]
+            text, fontsize = (f'{value :0.1e}', 6) if value < 0.01 else (f'{value :0.2g}', 10)
+            ax.text(col, row, text, va='center', ha='center', fontsize=fontsize)
+    return fig
 
 
 def two_tone_predict(input_data_0: list | np.ndarray, 
