@@ -238,8 +238,17 @@ class RabiScan(Scan):
         ideal_rabi_freq = 1 / 2 / self.cfg['variables.common/qubit_pulse_length']
         
         for tone in self.main_tones:
-            r = 'R' + tone.split('/')[0][1:]
-            fit_rabi_freq = self.fit_result[r].params['freq'].value if hasattr(self, 'fit_result') else 1
+            try:
+                r = 'R' + tone.split('/')[0][1:]
+                fit_rabi_freq = self.fit_result[r].params['freq'].value 
+            except AttributeError:
+                print('RabiScan: Fitting failed. Please check fitting process.')
+                return
+            except KeyError:
+                # In case we don't readout its resonator but still expect Rabi oscillation.
+                # We will just use whatever first element in self.fit_result
+                fit_rabi_freq = next(iter(self.fit_result.values())).params['freq'].value 
+
             pi_pulse_amp = (ideal_rabi_freq / fit_rabi_freq * self.cfg[f'variables.{tone}/amp_rabi'])
             pi_amp[f'{tone}_180'] = pi_pulse_amp
             pi_amp[f'{tone}_90'] = pi_pulse_amp / 2
