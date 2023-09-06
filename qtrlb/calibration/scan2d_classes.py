@@ -351,7 +351,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         super().process_data(compensate_ED=True)
 
 
-    def fit_resonator(self, level_to_fit: int | list[int], fitmodel: Model = ResonatorHangerTransmissionModel):
+    def fit_resonator(self, level_to_fit: int | list[int], text_loc: str = 'lower right',
+                      fitmodel: Model = ResonatorHangerTransmissionModel):
         """
         Fit frequency and quality factor of resonators for a given level, then plot results.
         """
@@ -365,6 +366,10 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             data_to_fit = self.measurement[r]['IQEDcompensated_readout'][:, level]
             x = self.y_values + self.cfg[f'variables.{r}/freq']
             result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
+
+            # Add fitting result to self.measurement
+            params = {v.name: {'value': v.value, 'stderr': v.stderr} for v in result.params.values()}
+            self.measurement[r][f'fit_result_level{level}'] = params
             
             # Plot
             data_reeval = result.eval(x=x)
@@ -379,14 +384,18 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             ax[0].plot(self.y_values / self.y_unit_value, np.angle(data_reeval), 'm-', label=f'|{level}>, Fit')
             ax[1].plot(self.y_values / self.y_unit_value, np.abs(data_to_fit), 'k.', label=f'|{level}>')
             ax[1].plot(self.y_values / self.y_unit_value, np.abs(data_reeval), 'm-', label=f'|{level}>, Fit')
-            ax[0].legend()
-            ax[1].legend()
+
+            # Add label/legend to figure.
+            fit_text = '\n'.join([f'{v.name} = {v.value:0.2g}' 
+                                  for v in result.params.values() if v.name.startswith('Q')])
+            anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
+            ax[0].legend(loc=text_loc)
+            ax[1].add_artist(anchored_text)
             
             fig.savefig(os.path.join(self.data_path, f'{r}_level{level}_fit.png'))
             results[r] = result
 
-        print('RFS: Use results[r].params in Jupyter to show parameters.')
-        return results
+        self.save_data()
     
 
     def plot_resonator(self, results: dict):
