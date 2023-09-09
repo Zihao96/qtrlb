@@ -129,19 +129,17 @@ class Scan:
         I didn't use ** on these kwargs. I believe dict bring us better encapsulation.
         Pass in a whole dictionary can be more general than just pass 'something = somevalue'.
         It's because the key doen't need to be string anymore.
-        """
-        self.experiment_suffix = experiment_suffix
-        self.n_pyloops = n_pyloops
-        self.n_reps = self.n_seqloops * self.n_pyloops
 
-        self.process_kwargs = process_kwargs if process_kwargs is not None else {}
-        self.fitting_kwargs = fitting_kwargs if fitting_kwargs is not None else {}
-        self.plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
-        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
-        
+        Note from Zihao(09/09/2023):
+        The first time one read this method may think some parts are overpackaging.
+        It turns out after half year I end up at this form for a lot reasons.
+        One reason is I want users to be able to run every line here without call self.run() itself.
+        This will bring huge flexibility when running special/complicated experiments.
+        """
+        self.set_running_attributes(experiment_suffix, n_pyloops, process_kwargs, fitting_kwargs, plot_kwargs)
         self.make_sequence() 
         self.save_sequence()
-        self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
+        self.upload_sequence() 
         self.make_exp_dir()  # It also save a copy of yamls and jsons there.
         self.acquire_data()  # This is really run the thing and return to the IQ data in self.measurement.
         self.save_data()
@@ -207,6 +205,27 @@ class Scan:
         if self.main_tones == []: self.main_tones = [f'{q}/{ss}' for q, ss in zip(self.drive_qubits, self.subspace)]
         self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
         self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
+
+
+    def set_running_attributes(
+            self,             
+            experiment_suffix: str = '',
+            n_pyloops: int = 1,
+            process_kwargs: dict = None,
+            fitting_kwargs: dict = None,
+            plot_kwargs: dict = None):
+        """
+        Set input arguments as object attributes when calling self.run().
+        It's useful when we overload self.run() method and still need to use these attributes.
+        """
+        self.experiment_suffix = experiment_suffix
+        self.n_pyloops = n_pyloops
+        self.n_reps = self.n_seqloops * self.n_pyloops
+
+        self.process_kwargs = process_kwargs if process_kwargs is not None else {}
+        self.fitting_kwargs = fitting_kwargs if fitting_kwargs is not None else {}
+        self.plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
+        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
 
 
     ##################################################
@@ -601,6 +620,13 @@ class Scan:
             txt_file_path = os.path.join(jsons_path, f'{tone_}_sequence_program.txt')
             with open(txt_file_path, 'w', encoding='utf-8') as txt:
                 txt.write(sequence_dict['program'])
+
+
+    def upload_sequence(self):
+        """
+        Setup the hardware instrument and upload json files of sequence to the instrument.
+        """
+        self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
             
     
     def make_exp_dir(self):
@@ -609,10 +635,10 @@ class Scan:
         Then save a copy of jsons and yamls to experiment directory.
         
         Note from Zihao(02/14/2023):
-        If sequence program has problem, then self.cfg.DAC.implement_parameters will raise Error.
+        If sequence program has problem, then self.upload_sequence() will raise Error.
         In that case we won't create the junk experiment folder.
         If problem happen after we start_sequencer, then it worth to create the experiment folder.
-        Because we may already get some data and want to save it by manually calling save_measurement().
+        Because we may already get some data and want to save it by manually calling save_data().
         """
         self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.main_tones_, self.scan_name]),
                                    experiment_suffix=self.experiment_suffix)

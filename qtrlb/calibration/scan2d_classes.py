@@ -574,11 +574,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         I believe the functionality here is well done but not the code structure and its readibility.
         Code for making folder can be better encapsulated, but I want to save my time.
         """
-        # Assign attribute as usual
-        self.experiment_suffix = experiment_suffix
-        self.n_pyloops = n_pyloops
-        self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
+        # Set attributes as usual
+        self.set_running_attributes(experiment_suffix, n_pyloops)
 
         # Make the main folder, but not save sequence here since we don't have it yet.
         self.cfg.data.make_exp_dir(experiment_type='_'.join([*self.main_tones_, self.scan_name]),
@@ -603,7 +600,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
             self.make_sequence() 
             self.save_sequence()
             self.save_sequence(jsons_path=os.path.join(self.data_path, 'Jsons'))
-            self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
+            self.upload_sequence()
             self.acquire_data()
             self.save_data()
             self.process_data()

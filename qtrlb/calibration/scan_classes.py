@@ -933,10 +933,7 @@ class CheckBlobShift(CalibrateClassification):
         
 
     def run(self, n_rounds: int, sleep_seconds: int, experiment_suffix: str = '', n_pyloops: int = 1):
-        self.experiment_suffix = experiment_suffix
-        self.n_pyloops = n_pyloops
-        self.n_reps = self.n_seqloops * self.n_pyloops
-        self.attrs = {k: v for k, v in self.__dict__.items() if not k.startswith(('cfg', 'measurement'))}
+        self.set_running_attributes(experiment_suffix, n_pyloops)
         self.make_sequence() 
         self.save_sequence()
         self.cfg.DAC.implement_parameters(self.tones, self.jsons_path) 
