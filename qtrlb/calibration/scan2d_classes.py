@@ -365,7 +365,11 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             level = level_to_fit[i]
             data_to_fit = self.measurement[r]['IQEDcompensated_readout'][:, level]
             x = self.y_values + self.cfg[f'variables.{r}/freq']
-            result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
+            try:
+                result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
+            except Exception:
+                print(f'ReadoutFrequencyScan: Failed to fit {r} resonator.')
+                continue
 
             # Add fitting result to self.measurement
             params = {v.name: {'value': v.value, 'stderr': v.stderr} for v in result.params.values()}
@@ -504,13 +508,12 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
     """ Run ReadoutAmplitudeScan with different readout and integration length.
         In principle it should be a 3D scan, but we can only change these integration length \
         in QCoDeS layer, so the easiest way is to make length at the outermost layer. 
-        We achieve it by extending 'run' method.
-        The plot and possible fit result will be saved in last experiment folder.
+        We achieve it by extending self.run() method and use measurement-measurements tricks.
         
         Note from Zihao(04/04/2023):
         I do so since I believe the readout length and amplitude have a relatively wide range \
         so that all values within these range can give a reasonable result. 
-        Even if noise change the optimal point, it will not be too much.
+        Even if noise change the optimal point, it won't be a lot.
     """
     def __init__(self,
                  cfg: MetaManager, 
@@ -563,6 +566,13 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         """
         Disassemble the Scan.run() method to save all data into one folder.
         self.data_path will be dynamically changed during loop.
+
+        Note from Zihao(09/09/2023):
+        Because we have used measurement-measurements tricks here, if we call self.run() twice, \
+        the plot_full_result won't be correct.
+        The better way to repeat scan is to redo instantiation and call self.run() of new object. 
+        I believe the functionality here is well done but not the code structure and its readibility.
+        Code for making folder can be better encapsulated, but I want to save my time.
         """
         # Assign attribute as usual
         self.experiment_suffix = experiment_suffix
@@ -579,7 +589,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         
         # Loop over each length
         for i, length in enumerate(self.length_values):
-            # Change length
+            # Change RO length attribute. It will also be used to generate RO pulse.
+            # We don't save cfg here. See the code after this for loop.
             self.resonator_pulse_length_ns = round(length * 1e9)
             self.cfg['variables.common/integration_length'] = float(length)
 
@@ -614,17 +625,13 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
     def plot_full_result(self):
         """
         Combine all data with different length and make the 2D plot.
-        The figure will be saved in the last experiment folder.
         """
         self.data_all_lengths = {}
         self.figures = {}
         
         for r in self.readout_resonators:
-            self.data_all_lengths[r] = []
-            
-            for measurement in self.measurements:
-                self.data_all_lengths[r].append(measurement[r]['to_fit'][0])
-                # Index 0 is from process_data in ReadoutTemplateScan.
+            self.data_all_lengths[r] = [measurement[r]['to_fit'][0] for measurement in self.measurements]
+            # Index 0 is from process_data in ReadoutTemplateScan.
                 
             title = f'{self.datetime_stamp}, Readout Length-Amp Scan, {r}'  
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
