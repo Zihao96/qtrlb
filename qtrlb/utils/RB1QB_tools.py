@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Mar 30 10:38:29 2023
-
-@author: Z
-
-I'm very sorry to tell you if you want to implement RB on higher subspace than\
-'01', the best way is to replace all '01' in these page to the target subspace.
-I plan to make it better after I map sequencer to each subspace, which is hard.
-"""
-
 import secrets
 import numpy as np
 from copy import deepcopy
@@ -18,7 +6,68 @@ from qiskit import BasicAer
 from qiskit.compiler import transpile
 from qiskit.quantum_info.operators import Operator
 from cirq.linalg.predicates import allclose_up_to_global_phase
+
 PI = np.pi
+
+CLIFFORD_SET_1QB = {
+    'I': {'theta': 0, 'axis': (0, 0, 1)}, 
+    'X': {'theta': PI, 'axis': (1, 0, 0)}, 
+    'Y': {'theta': PI, 'axis': (0, 1, 0)}, 
+    'Z': {'theta': PI, 'axis': (0, 0, 1)}, 
+    'V': {'theta': PI/2, 'axis': (1, 0, 0)}, 
+    '-V': {'theta': -PI/2, 'axis': (1, 0, 0)}, 
+    'h': {'theta': -PI/2, 'axis': (0, 1, 0)}, 
+    '-h': {'theta': PI/2, 'axis': (0, 1, 0)}, 
+    'S': {'theta': PI/2, 'axis': (0, 0, 1)}, 
+    '-S': {'theta': -PI/2, 'axis': (0, 0, 1)},
+    'H_xy': {'theta': PI, 'axis': (1, 1, 0)}, 
+    'H_xz': {'theta': PI, 'axis': (1, 0, 1)}, 
+    'H_yz': {'theta': PI, 'axis': (0, 1, 1)}, 
+    'H_-xy': {'theta': PI, 'axis': (-1, 1, 0)}, 
+    'H_x-z': {'theta': PI, 'axis': (1, 0, -1)}, 
+    'H_-yz': {'theta': PI, 'axis': (0, -1, 1)},
+    'C_xyz': {'theta': 2*PI/3, 'axis': (1, 1, 1)}, 
+    '-C_xyz': {'theta': -2*PI/3, 'axis': (1, 1, 1)}, 
+    'C_-xyz': {'theta': 2*PI/3, 'axis': (-1, 1, 1)}, 
+    '-C_-xyz': {'theta': -2*PI/3, 'axis': (-1, 1, 1)}, 
+    'C_x-yz': {'theta': 2*PI/3, 'axis': (1, -1, 1)}, 
+    '-C_x-yz': {'theta': -2*PI/3, 'axis': (1, -1, 1)},
+    'C_xy-z': {'theta': 2*PI/3, 'axis': (1, 1, -1)}, 
+    '-C_xy-z': {'theta': -2*PI/3, 'axis': (1, 1, -1)}
+}
+
+# Notes from Zihao(03/30/2023):
+# Primitive gate in list should be in time order which will be excuted left to right.
+# I generate these decomposition by 'transpile_unitary_to_circuit' and actually looking at the circuit.
+# The primitive gate set here is ['X180', 'X90', 'X-90', 'Z180', 'Z90', 'Z270', 'I'].
+CLIFFORD_TO_PRIMITIVE = {
+    'I': ['I'],
+    'X': ['X180'],
+    'Y': ['Z180', 'X180'],
+    'Z': ['Z180'],
+    'V': ['X90'],
+    '-V': ['X-90'],
+    'h': ['Z90', 'X90', 'Z270'],
+    '-h': ['Z270', 'X90', 'Z90'],
+    'S': ['Z90'],
+    '-S': ['Z270'],
+    'H_xy': ['Z270', 'X180'],
+    'H_xz': ['Z90', 'X90', 'Z90'],
+    'H_yz': ['X90', 'Z180'],
+    'H_-xy': ['Z90', 'X180'],
+    'H_x-z': ['Z270', 'X90', 'Z270'],
+    'H_-yz': ['Z180', 'X90'],
+    'C_xyz': ['X90', 'Z90'],
+    '-C_xyz': ['Z270', 'X-90'],
+    'C_-xyz': ['Z90', 'X-90'],
+    '-C_-xyz': ['X90', 'Z270'],
+    'C_x-yz': ['Z90', 'X90'],
+    '-C_x-yz': ['X-90', 'Z270'],
+    'C_xy-z': ['Z270', 'X90'],
+    '-C_xy-z': ['X-90', 'Z90']                
+}
+
+
 
 
 def unitary(theta: float, axis: tuple, eliminate_float_error: bool = True) -> np.ndarray:
@@ -53,10 +102,10 @@ def transpile_unitary_to_circuit(U: np.ndarray,
     return circ
     
     
-def calculate_combined_unitary(U_list: list | np.ndarray,
+def calculate_combined_unitary(U_list: list[np.ndarray] | np.ndarray,
                                eliminate_float_error: bool = True) -> np.ndarray:
     """
-    Expect to get a list of unitary (ndarray) in time order (left one happen first).
+    Expect to get a list/ndarray of unitary (ndarray) in time order (left one happen first).
     Using numpy.matmul to calculate the result.
     The unitaries should have correct shape for doing multiplication.
     """
@@ -82,196 +131,121 @@ def calculate_combined_operator(U_list: list | np.ndarray) -> Operator:
     return Operator(circ)
 
 
-def find_Clifford_gate(U: np.ndarray, Clifford_gates: dict) -> str:
+def find_Clifford_gate(U: np.ndarray, Clifford_set: dict) -> str:
     """
     Given an expression of unitary, find the name of its corresponding Clifford gate.
     Allow a difference with global phase.
     """
-    for k, v in Clifford_gates.items():
+    for k, v in Clifford_set.items():
         if allclose_up_to_global_phase(v['unitary'], U): return k
     
-    raise ValueError('There is no such Cliford gate!')
+    raise ValueError('There is no such Clifford gate!')
     
     
-def generate_RB_Clifford_sequences(Clifford_gates: dict, n_gates: int, 
-                                   n_random: int = 30) -> list:
+def generate_RB_Clifford_gates(n_gates: int, Clifford_set: dict = CLIFFORD_SET_1QB) -> list[str]:
     """
-    Generate n_random different RB sequence where each sequence has n_gates Clifford gates.
-    Return to a ndarray with shape (n_random, n_gates+1), and each entry is a string.
-    Notice the dictionary Clifford_gates will be changed in situ.
+    Generate a list of n_gates Clifford gates. Each entry is a string of Clifford gate names..
+    Notice the dictionary Clifford_sets will be changed in situ (calculate its unitary).
     """
-    for v in Clifford_gates.values():
+    # Calculate unitary if it's not in Clifford_set.
+    for v in Clifford_set.values():
         if 'unitary' in v: continue
         v['unitary'] = unitary(v['theta'], v['axis'])
         
-    if n_gates == 0: return [ [] for i in range(n_random) ]
+    if n_gates == 0: return []
         
-    Clifford_sequences = np.zeros(shape=(n_random, n_gates+1), dtype='U7')
-    Clifford_sequences_mat = np.zeros(shape=(n_random, n_gates, 2, 2), dtype='complex128')
+    Clifford_gates = []
+    Clifford_gates_mat = np.zeros(shape=(n_gates, 2, 2), dtype='complex128')
     
-    for i in range(n_random):
-        for j in range(n_gates):
-            key_random = secrets.choice(list(Clifford_gates.keys()))
-            Clifford_sequences[i, j] = key_random
-            Clifford_sequences_mat[i, j] = Clifford_gates[key_random]['unitary']
-            
-        total_U = calculate_combined_unitary(Clifford_sequences_mat[i])
-        inverse = find_Clifford_gate(total_U.T.conj(), Clifford_gates)
-        Clifford_sequences[i, -1] = inverse
+    # Random choice from Clifford_set
+    for i in range(n_gates):
+        key_random = secrets.choice(list(Clifford_set.keys()))
+        Clifford_gates.append(key_random)
+        Clifford_gates_mat[i] = Clifford_set[key_random]['unitary']
         
-    return Clifford_sequences.tolist()
+    # Find the inverse gate and add it to the end of gate list.
+    total_U = calculate_combined_unitary(Clifford_gates_mat)
+    inverse = find_Clifford_gate(total_U.T.conj(), Clifford_set)
+    Clifford_gates.append(inverse)
+        
+    return Clifford_gates
 
 
-def generate_RB_primitive_sequences(Clifford_sequences: list,
-                                    Clifford_to_primitive: dict) -> list:
+def generate_RB_primitive_gates(Clifford_gates: list[str],
+                                Clifford_to_primitive: dict = CLIFFORD_TO_PRIMITIVE) -> list[str]:
     """
-    Transpile all Clifford gate in sequences into primitive_gate.
-    Return list since we can't guarantee the length are same for all sequences.
+    Transpile all Clifford gate in a gate list into primitive_gate.
+    Return list with uncertain length.
     """
-    sequences = deepcopy(Clifford_sequences)
-    for i, seq in enumerate(sequences):
-        sequences[i] = []
-        for Clifford in seq:
-            sequences[i] += Clifford_to_primitive[Clifford]
-            # Iterable unpacking cannot be used in comprehension.
-            
-        # A temporary code to simplify circuit for qblox.
-        sequences[i] = optimize_circuit(sequences[i])
+    # Iterable unpacking cannot be used in comprehension.
+    primitive_gates = []
+    for Clifford_gate in Clifford_gates:
+        primitive_gates.extend(Clifford_to_primitive[Clifford_gate])
         
-    return sequences
+    return optimize_circuit(primitive_gates)
     
 
-def optimize_circuit(sequence: list) -> None:
+def optimize_circuit(gates: list[str]) -> list[str]:
     """
     Remove all Identity and combine all adjacent Z gates.
-    I'm sorry. Hopefully this is fast enough.
+    I'm sorry. This is for Qblox. Hopefully it's fast enough.
     """
-    sequence = [gate for gate in sequence if gate != 'I']
-    optimized_sequence = []
+    gates = [gate for gate in gates if gate != 'I']
+    optimized_gates = []
     
     i = 0
-    while i < len(sequence):
-        if sequence[i].startswith('X'): 
-            optimized_sequence.append(sequence[i])
+    while i < len(gates):
+        # If it's X gate, when we just keep it
+        if gates[i].startswith('X'): 
+            optimized_gates.append(gates[i])
             i += 1
             
-        elif sequence[i].startswith('Z'):
+        # If it's Z gate, we want to know how much consecutive Z we have here.
+        elif gates[i].startswith('Z'):
             
-            for j, sub_gate in enumerate(sequence[i:]):
-                if sub_gate.startswith('X'): break
+            # This j tells number of consecutive Z gates.
+            for j, gate in enumerate(gates[i:]):
+                if gate.startswith('X'): break
             
+            # If we only find one Z gate, keep it
             if j <= 1: 
-                optimized_sequence.append(sequence[i])
+                optimized_gates.append(gates[i])
                 i += 1
+
+            # If there is more than one, we calculate angle and keep only one gate.
             else:
-                optimized_sequence.append( combine_Z_gates(sequence[i:i+j]) ) 
+                angle = np.sum([int(gate[1:]) for gate in gates[i:i+j]]) % 360
+                combined_gate = f'Z{angle}' if angle != 0 else 'I'
+                optimized_gates.append(combined_gate) 
                 i += j
             
-    optimized_sequence = [gate for gate in optimized_sequence if gate != 'I']
-    return optimized_sequence
-    
-
-def combine_Z_gates(sequence: list) -> str:
-    """
-    Combine a list of Z gates into one single Z gate.
-    """
-    angle = 0
-    for gate in sequence:
-        angle += int(gate.split('_')[0][1:]) 
-        
-    angle = angle % 360
-    return f'Z{angle}_01' if angle != 0 else 'I'
-    
+    optimized_gates = [gate for gate in optimized_gates if gate != 'I']
+    return optimized_gates
 
 
 
-    
-#%% Definition of single qubit Clifford.
-# Notice the definition of 'h' may not be what you expect as Y90.
 
-primitive_gates = ['X180_01', 'X90_01', 'X-90_01',
-                   'Z180_01', 'Z90_01', 'Z270_01', 'I']
-
-Clifford_gates = {
-    'I': {'theta': 0, 'axis': (0, 0, 1)}, 
-    'X': {'theta': PI, 'axis': (1, 0, 0)}, 
-    'Y': {'theta': PI, 'axis': (0, 1, 0)}, 
-    'Z': {'theta': PI, 'axis': (0, 0, 1)}, 
-    'V': {'theta': PI/2, 'axis': (1, 0, 0)}, 
-    '-V': {'theta': -PI/2, 'axis': (1, 0, 0)}, 
-    'h': {'theta': -PI/2, 'axis': (0, 1, 0)}, 
-    '-h': {'theta': PI/2, 'axis': (0, 1, 0)}, 
-    'S': {'theta': PI/2, 'axis': (0, 0, 1)}, 
-    '-S': {'theta': -PI/2, 'axis': (0, 0, 1)},
-    'H_xy': {'theta': PI, 'axis': (1, 1, 0)}, 
-    'H_xz': {'theta': PI, 'axis': (1, 0, 1)}, 
-    'H_yz': {'theta': PI, 'axis': (0, 1, 1)}, 
-    'H_-xy': {'theta': PI, 'axis': (-1, 1, 0)}, 
-    'H_x-z': {'theta': PI, 'axis': (1, 0, -1)}, 
-    'H_-yz': {'theta': PI, 'axis': (0, -1, 1)},
-    'C_xyz': {'theta': 2*PI/3, 'axis': (1, 1, 1)}, 
-    '-C_xyz': {'theta': -2*PI/3, 'axis': (1, 1, 1)}, 
-    'C_-xyz': {'theta': 2*PI/3, 'axis': (-1, 1, 1)}, 
-    '-C_-xyz': {'theta': -2*PI/3, 'axis': (-1, 1, 1)}, 
-    'C_x-yz': {'theta': 2*PI/3, 'axis': (1, -1, 1)}, 
-    '-C_x-yz': {'theta': -2*PI/3, 'axis': (1, -1, 1)},
-    'C_xy-z': {'theta': 2*PI/3, 'axis': (1, 1, -1)}, 
-    '-C_xy-z': {'theta': -2*PI/3, 'axis': (1, 1, -1)}
-}
-
-# Notes from Zihao(03/30/2023):
-# Primitive gate in list should be in time order which will be excuted left to right.
-# I generate these decomposition by 'transpile_unitary_to_circuit' and look at the circuit,
-# which actually should be better automated.
-Clifford_to_primitive = {
-    'I': ['I'],
-    'X': ['X180_01'],
-    'Y': ['Z180_01', 'X180_01'],
-    'Z': ['Z180_01'],
-    'V': ['X90_01'],
-    '-V': ['X-90_01'],
-    'h': ['Z90_01', 'X90_01', 'Z270_01'],
-    '-h': ['Z270_01', 'X90_01', 'Z90_01'],
-    'S': ['Z90_01'],
-    '-S': ['Z270_01'],
-    'H_xy': ['Z270_01', 'X180_01'],
-    'H_xz': ['Z90_01', 'X90_01', 'Z90_01'],
-    'H_yz': ['X90_01', 'Z180_01'],
-    'H_-xy': ['Z90_01', 'X180_01'],
-    'H_x-z': ['Z270_01', 'X90_01', 'Z270_01'],
-    'H_-yz': ['Z180_01', 'X90_01'],
-    'C_xyz': ['X90_01', 'Z90_01'],
-    '-C_xyz': ['Z270_01', 'X-90_01'],
-    'C_-xyz': ['Z90_01', 'X-90_01'],
-    '-C_-xyz': ['X90_01', 'Z270_01'],
-    'C_x-yz': ['Z90_01', 'X90_01'],
-    '-C_x-yz': ['X-90_01', 'Z270_01'],
-    'C_xy-z': ['Z270_01', 'X90_01'],
-    '-C_xy-z': ['X-90_01', 'Z90_01']                
-}
-
-
-#%% Example of generate RB sequeneces
-
+####################################################################################################
+# Example of generate RB gates
 if __name__ == '__main__':
+
+    Clifford_gates = generate_RB_Clifford_gates(n_gates=400)
+    primitive_gates = generate_RB_primitive_gates(Clifford_gates)
     
-    seq_Clifford = generate_RB_Clifford_sequences(Clifford_gates, n_gates=400, n_random=30)
-    seq_primitive = generate_RB_primitive_sequences(seq_Clifford, Clifford_to_primitive)
-    
-    # If you want to check whether the Clifford_sequences is correct.
+    # If you want to check whether the Clifford_gates is correct.
     seq_index_to_check = 0
-    U_list = [Clifford_gates[g]['unitary'] for g in seq_Clifford[seq_index_to_check]]
+    U_list = [CLIFFORD_SET_1QB[gate]['unitary'] for gate in Clifford_gates[seq_index_to_check]]
     result = calculate_combined_unitary(U_list)
     print(result)
 
 
-#%% Example of decomposing a Clifford gate
-
+# Example of decomposing a single Clifford gate
 if __name__ == '__main__':
-    
+
     gate = 'H_x-z'
-    if 'unitary' not in Clifford_gates[gate]: 
-        Clifford_gates[gate]['unitary'] = unitary(**Clifford_gates[gate])
-    circ = transpile_unitary_to_circuit(Clifford_gates[gate]['unitary'])
+    if 'unitary' not in CLIFFORD_SET_1QB[gate]: 
+        CLIFFORD_SET_1QB[gate]['unitary'] = unitary(**CLIFFORD_SET_1QB[gate])
+    circ = transpile_unitary_to_circuit(CLIFFORD_SET_1QB[gate]['unitary'])
     print(circ.draw())
     # See what it print. 
+

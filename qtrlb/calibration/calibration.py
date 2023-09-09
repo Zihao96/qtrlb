@@ -268,7 +268,7 @@ class Scan:
         self.start_loop()
         
         self.add_relaxation()
-        if self.cfg.variables['common/heralding']: self.add_heralding()
+        if self.heralding_enable: self.add_heralding()
         self.add_gate(self.subspace_gate, 'Subspace')
         self.add_gate(self.pre_gate, 'Pregate')
         self.add_main()
