@@ -106,8 +106,9 @@ class RB1QB(Scan):
             if self.classification_enable: self.plot_populations()
             print(f'Random {i} finished!')
 
-        # Fit and plot full result after all measurement.
+        # Fit, save and plot full result after all measurements.
         self.fit_data()
+        self.cfg.data.save_measurement(self.main_data_path, self.measurement, self.attrs)
         self.plot_full_result()
         self.n_runs += 1
 
@@ -208,17 +209,20 @@ class RB1QB(Scan):
         Combine result of all randoms and fit it.
         
         Note from Zihao (04/03/2023):
-        I overwrite the LAST measurement[r]['to_fit'] to reuse Scan.fit_data. 
+        I overwrite the LAST measurement[r] to reuse Scan.fit_data and save it to main_data_path.
+        However, the last measurement.hdf5 still keep last random data correctly.
+        It's because there is no self.save_data() after self.fit_data() 
         I believe this Scan is special and specific enough to treat it differetly without \
         considering too much of generality.
         """
-        self.data_all_randoms = {}
-
         for r in self.readout_resonators:
             # It will have shape (n_random, n_levels, x_points).
-            self.data_all_randoms[r] = [measurement[r]['to_fit'] for measurement in self.measurements]
-            self.measurement[r]['to_fit'] = np.mean(self.data_all_randoms[r], axis=0)
-        
+            data_all_random = np.array([measurement[r]['to_fit'] for measurement in self.measurements])
+
+            self.measurement[r] = {
+                'all_random': data_all_random,
+                'to_fit': np.mean(data_all_random, axis=0)
+            }
         super().fit_data()
 
 
@@ -234,7 +238,7 @@ class RB1QB(Scan):
             
             for i in range(self.n_random):
                 ax.plot(self.x_values / self.x_unit_value, 
-                        self.data_all_randoms[r][i][self.level_to_fit[j]], 
+                        self.measurement[r]['all_random'][i][self.level_to_fit[j]], 
                         'r.', alpha=0.1)
 
             self.figures[r].savefig(os.path.join(self.main_data_path, f'{r}.png'))
