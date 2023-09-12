@@ -104,7 +104,8 @@ class ProcessManager(Config):
                                                                                  mask=heralding_mask)
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
-                                                                              self[f'{r}/corr_matrix'])
+                                                                              self[f'{r}/corr_matrix'],
+                                                                              self['corr_method'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
             
@@ -117,15 +118,16 @@ class ProcessManager(Config):
                                                            angle=self[f'{r}/IQ_rotation_angle'])
                 
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                                 means=self[f'{r}/IQ_means'], 
-                                                                 covariances=self[f'{r}/IQ_covariances'],
-                                                                 lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                means=self[f'{r}/IQ_means'], 
+                                                                covariances=self[f'{r}/IQ_covariances'],
+                                                                lowest_level=self[f'{r}/lowest_readout_levels'])
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
                                                                                  levels=self[f'{r}/readout_levels'])
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
-                                                                              self[f'{r}/corr_matrix'])
+                                                                              self[f'{r}/corr_matrix'],
+                                                                              self['corr_method'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
 

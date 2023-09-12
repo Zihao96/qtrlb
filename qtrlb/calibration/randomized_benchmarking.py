@@ -107,8 +107,9 @@ class RB1QB(Scan):
             print(f'Random {i} finished!')
 
         # Fit, save and plot full result after all measurements.
+        self.data_path = self.main_data_path
         self.fit_data()
-        self.cfg.data.save_measurement(self.main_data_path, self.measurement, self.attrs)
+        self.save_data()
         self.plot_full_result()
         self.n_runs += 1
 

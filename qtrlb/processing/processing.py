@@ -16,6 +16,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
 from sklearn.mixture import GaussianMixture
 from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
 PI = np.pi
@@ -109,19 +110,52 @@ def normalize_population(input_data, levels: list | np.ndarray, axis: int = 0, m
     return np.array(result)
 
 
-def correct_population(input_data, corr_matrix: list | np.ndarray):
+def correct_population(input_data, corr_matrix: list | np.ndarray, corr_method: str = None):
     """
     Correct population based on a correction matrix (modification of confusion matrix).
     The element (row i, column j) in corr_matrix is P(predicted as state i | actually in state j).
     Thus, the corr_matrix times actual population gives predicted population.
-    We have predicted by GMM and want to know the actual result, so we use np.linalg.solve here.
-    Unfortunately, if corr_matrix has shape (M, M), the shape of data can only be (M,) or (M, K).
-    It means data with (M, K, N) etc will cause ValueError.
-    So I choose to flat all other dimonsion and shape them back later.
+    Least squares method works even if corr_matrix is not square matrix.
+
+    Note from Zihao(09/12/2023):
+    We must reshape the input data to two dimension, and the zero-th axis is different population.
+    It's because np.linalg.solve only support this shape and more dimension cause ValueError.
+    It's also because in least_squares, we need to manually loop over all other axis.
+    When developing, keep mind to reshape the result back before return.
     """
     input_data = np.array(input_data)
     flat_data = input_data.reshape(input_data.shape[0], -1)
-    result = np.linalg.solve(corr_matrix, flat_data).reshape(input_data.shape)
+
+    # No correction.
+    if corr_method is None:
+        result = input_data
+
+    # Inverse correction matrix.
+    elif corr_method == 'pseudo_inverse':
+        result = np.linalg.solve(corr_matrix, flat_data).reshape(input_data.shape)
+
+    # Least squares minimization without bounds.
+    elif corr_method == 'least_squares':
+        # To support corr_matrix with arbitrary shape, I didn't use flat_data.shape.
+        corrected_population = np.zeros((corr_matrix.shape[-1], flat_data[-1]))
+
+        for j in range(flat_data.shape[-1]):
+            predicted_population = flat_data[:, j]  # Population vector for single x/y point.
+            x0 = np.random.rand(corr_matrix.shape[-1])  # Unnormalized initial guess.
+
+            corrected_population[:, j] = minimize(
+                fun = lambda x: sum((np.dot(corr_matrix, x) - predicted_population) ** 2), 
+                x0 = x0 / sum(x0), 
+                method = "SLSQP", 
+                constraints = {'type': 'eq', 'fun': lambda x: 1 - sum(x)}, 
+                # bounds=((0, 1) for _ in x0),  # Intentionally leaved commented.
+                tol=1e-6
+            ).x
+        result = corrected_population.reshape((corr_matrix.shape[-1], *input_data.shape[1:]))
+
+    else:
+        raise ValueError(f'correct_population: corr_method {corr_method} is not supported.')
+    
     return result
 
 
