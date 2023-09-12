@@ -85,14 +85,14 @@ class ProcessManager(Config):
                                                              angle=self[f'{r}/IQ_rotation_angle'])
                 
                 data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                                 means=self[f'{r}/IQ_means'], 
-                                                                 covariances=self[f'{r}/IQ_covariances'],
-                                                                 lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                means=self[f'{r}/IQ_means'], 
+                                                                covariances=self[f'{r}/IQ_covariances'],
+                                                                lowest_level=self[f'{r}/lowest_readout_levels'])
                 
                 data_dict['GMMpredicted_heralding'] = gmm_predict(data_dict['IQrotated_heralding'], 
-                                                                   means=self[f'{r}/IQ_means'], 
-                                                                   covariances=self[f'{r}/IQ_covariances'],
-                                                                   lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                  means=self[f'{r}/IQ_means'], 
+                                                                  covariances=self[f'{r}/IQ_covariances'],
+                                                                  lowest_level=self[f'{r}/lowest_readout_levels'])
                 
             heralding_mask = self.heralding_test(measurement=measurement)
             
@@ -211,9 +211,9 @@ class ProcessManager(Config):
                                                        angle=self[f'{r}/IQ_rotation_angle'])
             
             data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                             means=self[f'{r}/IQ_means'], 
-                                                             covariances=self[f'{r}/IQ_covariances'],
-                                                             lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                            means=self[f'{r}/IQ_means'], 
+                                                            covariances=self[f'{r}/IQ_covariances'],
+                                                            lowest_level=self[f'{r}/lowest_readout_levels'])
             # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
             # Values are integers as state assignment result.
 
@@ -227,7 +227,9 @@ class ProcessManager(Config):
                                                                  levels=np.union1d(self[f'{tone_0}/readout_levels'],
                                                                                    self[f'{tone_1}/readout_levels']),
                                                                  mask=mask_twotone)
-            population_corrected_readout = correct_population(population_normalized_readout, corr_matrix)
+            population_corrected_readout = correct_population(population_normalized_readout, 
+                                                              corr_matrix, 
+                                                              self['corr_method'])
 
             measurement[tone_0]['Mask_twotone'] = mask_twotone
             measurement[tone_1]['Mask_twotone'] = mask_twotone
@@ -270,9 +272,9 @@ class ProcessManager(Config):
                                                        angle=self[f'{r}/IQ_rotation_angle'])
             
             data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
-                                                             means=self[f'{r}/IQ_means'], 
-                                                             covariances=self[f'{r}/IQ_covariances'],
-                                                             lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                            means=self[f'{r}/IQ_means'], 
+                                                            covariances=self[f'{r}/IQ_covariances'],
+                                                            lowest_level=self[f'{r}/lowest_readout_levels'])
             # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
             # Values are integers as state assignment result.
 
@@ -283,7 +285,9 @@ class ProcessManager(Config):
                                                            self[f'{tone_0}/readout_levels'],
                                                            self[f'{tone_1}/readout_levels'])
 
-            population_corrected_readout = correct_population(twotonenormalized_readout, corr_matrix)
+            population_corrected_readout = correct_population(twotonenormalized_readout, 
+                                                              corr_matrix, 
+                                                              self['corr_method'])
 
             measurement[tone_0]['PopulationNormalized_readout'] = twotonenormalized_readout
             measurement[tone_1]['PopulationNormalized_readout'] = twotonenormalized_readout
@@ -292,6 +296,4 @@ class ProcessManager(Config):
             measurement[tone_0]['to_fit'] = population_corrected_readout
             measurement[tone_1]['to_fit'] = population_corrected_readout  
 
-
-    def two_tone_readout_forc(self, measurement: dict, shape: tuple, process_kwargs: dict):
-        raise NotImplementedError("ProcessManager: I'm Zihao. I'm sorry.")         
+    
