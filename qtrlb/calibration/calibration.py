@@ -89,6 +89,7 @@ class Scan:
         self.qudits = self.drive_qubits + self.readout_resonators
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
+        self.customized_data_process = self.cfg.variables['common/customized_data_process']
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
         self.x_step = (self.x_stop - self.x_start) / (self.x_points-1) if self.x_points != 1 else 0 
         self.num_bins = self.n_seqloops * self.x_points
