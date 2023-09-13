@@ -137,7 +137,7 @@ def correct_population(input_data, corr_matrix: list | np.ndarray, corr_method: 
     # Least squares minimization without bounds.
     elif corr_method == 'least_squares':
         # To support corr_matrix with arbitrary shape, I didn't use flat_data.shape.
-        corrected_population = np.zeros((corr_matrix.shape[-1], flat_data[-1]))
+        corrected_population = np.zeros((corr_matrix.shape[-1], flat_data.shape[-1]))
 
         for j in range(flat_data.shape[-1]):
             predicted_population = flat_data[:, j]  # Population vector for single x/y point.
