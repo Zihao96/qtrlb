@@ -1116,5 +1116,6 @@ class TwoToneROCalibration(LevelScan):
         Here we just plot the self.twoton_corr_matrix and IQ.
         """
         self.figure = plot_corr_matrix(self.twotone_corr_matrix)
+        self.figure.savefig(os.path.join(self.data_path, f'TwoTone_corr_matrix.png'))
         super().plot_IQ(c_key='GMMpredicted_new')
 
