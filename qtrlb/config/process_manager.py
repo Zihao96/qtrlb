@@ -233,8 +233,8 @@ class ProcessManager(Config):
 
             measurement[tone_0]['Mask_twotone'] = mask_twotone
             measurement[tone_1]['Mask_twotone'] = mask_twotone
-            measurement[tone_0]['TwoTonepredicted_readout'] = twotonepredicted_readout
-            measurement[tone_1]['TwoTonepredicted_readout'] = twotonepredicted_readout
+            measurement[tone_0]['TwoTonePredicted_readout'] = twotonepredicted_readout
+            measurement[tone_1]['TwoTonePredicted_readout'] = twotonepredicted_readout
             measurement[tone_0]['PopulationNormalized_readout'] = population_normalized_readout
             measurement[tone_1]['PopulationNormalized_readout'] = population_normalized_readout
             measurement[tone_0]['PopulationCorrected_readout'] = population_corrected_readout

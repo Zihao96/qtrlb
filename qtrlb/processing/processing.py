@@ -203,18 +203,22 @@ def plot_corr_matrix(corr_matrix: list | np.ndarray) -> plt.Figure:
     A pretty way to visualize correction matrix.
     """
     corr_matrix = np.array(corr_matrix)
-    n_levels = len(corr_matrix)
+    is_square = (corr_matrix.shape[0] == corr_matrix.shape[1])
+
+    if is_square is True:
+        title = f'{len(corr_matrix)}-state Readout Fidelity: {get_readout_fidelity(corr_matrix) * 100: 0.3g}%'
+    else:
+        title = 'Readout Correction Matrix'
 
     # Plot matrix in shaded orange color.
-    fig, ax = plt.subplots(1, 1, figsize=(6, 6), dpi=400)
+    fig, ax = plt.subplots(1, 1, figsize=(corr_matrix.shape[1], corr_matrix.shape[0]), dpi=400)
     ax.matshow(corr_matrix, cmap=plt.cm.Oranges)
     ax.xaxis.set_ticks_position('bottom')
-    ax.set(xlabel='Prepared State', ylabel='Assigned State', 
-           title=f'{n_levels}-state Readout Fidelity: {np.mean(corr_matrix.diagonal()) * 100: 0.3g}%')
+    ax.set(xlabel='Prepared State', ylabel='Assigned State', title=title)
 
     # Add value as text to that grid.
-    for col in range(n_levels):
-        for row in range(n_levels):
+    for row in range(corr_matrix.shape[0]):
+        for col in range(corr_matrix.shape[1]):
             value = corr_matrix[row, col]
             text, fontsize = (f'{value :0.1e}', 6) if value < 0.01 else (f'{value :0.2g}', 10)
             ax.text(col, row, text, va='center', ha='center', fontsize=fontsize)

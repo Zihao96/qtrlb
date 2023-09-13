@@ -7,8 +7,9 @@ from lmfit import Model
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
-from qtrlb.processing.processing import gmm_fit, gmm_predict, normalize_population, \
-                                        get_readout_fidelity, correct_population
+from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
+                                        get_readout_fidelity, plot_corr_matrix, correct_population, \
+                                        two_tone_predict, two_tone_normalize
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
@@ -971,3 +972,149 @@ class CheckBlobShift(CalibrateClassification):
         ax[1].legend(loc='right', framealpha=0.3)
 
         self.figures = {r: fig}
+
+
+class TwoToneROCalibration(LevelScan):
+    """ This class is designed for calibrating classification of twotone readout.
+        We will generate new GMM parameters with single tone corr_matrix for each tone.
+        We will also use them to generate self.twotone_corr_matrix whose shape depends on data process method.
+        The readout levels should has same length as readout resonators.
+        Each sublist in this list is the readout levels corresponds to that resonators.
+
+        Note from Zihao(09/12/2023):
+        The larger matrix will be returned but not saved to yaml file.
+        This is because I want to do it fast and I haven't get a nice structure for process yaml.
+    """
+    def __init__(self, 
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: list[str],
+                 level_start: int, 
+                 level_stop: int,
+                 readout_levels_dict: dict[str: list[int]],  
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 save_cfg: bool = True):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='TwoToneROCalibration',
+                         level_start=level_start, 
+                         level_stop=level_stop, 
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops)
+        
+        self.readout_levels_dict = readout_levels_dict
+        self.save_cfg = save_cfg
+        assert self.classification_enable, 'Please turn on classification.'
+        assert not self.heralding_enable, 'This Scan do not support heralding yet.'
+        assert self.customized_data_process is not None, 'Please specify customized data process.'
+        assert len(self.readout_levels) == len(self.readout_resonators) == 2, \
+                'Please specify two resonators and their own readout levels.'
+
+
+    def process_data(self):
+        """
+        Overload parent method since we cannot use those customized process here.
+        It can become a possible position to implement heralding for this scan.
+        """
+        return
+    
+
+    def fit_data(self):
+        """
+        Fit GMM parameters for each tone and calculate corr_matrix.
+        Also generate the self.twotone_corr_matrix.
+        Please see CalibrateClassification.fit_data() for reference.
+        Or maybe try ProcessManager first if you haven't read it.
+        """
+        shape = (2, self.n_reps, self.x_points)
+
+        for r, readout_levels in self.readout_levels_dict.items():
+            # Initial process
+            data_dict = self.measurement[r]
+            data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+            data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
+                                                       angle=self.cfg.process[f'{r}/IQ_rotation_angle'])
+            
+            # GMM fitting
+            means = np.zeros((len(readout_levels), 2))
+            covariances = np.zeros(len(readout_levels))
+
+            for i, l in enumerate(readout_levels):
+                data = data_dict['IQrotated_readout'][..., l]
+                mean, covariance = gmm_fit(data, n_components=1)
+                means[i] = mean[0]
+                covariances[i] = covariance[0]
+                # Because the default form is one more layer nested.
+
+            # Using fitting result to re-predict state.
+            data_dict['means_new'] = means
+            data_dict['covariances_new'] = covariances
+            data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                        means=means, 
+                                                        covariances=covariances,
+                                                        lowest_level=readout_levels[0])
+
+            # Find single tone corr_matrix. Not all data should be used here!
+            corr_matrix = normalize_population(data_dict['GMMpredicted_new'][:, readout_levels],
+                                               levels=readout_levels)
+
+            # Set it to self.measurement and cfg.
+            data_dict['confusionmatrix_new'] = corr_matrix
+            data_dict['ReadoutFidelity'] = get_readout_fidelity(corr_matrix)
+            self.cfg[f'process.{r}/IQ_means'] = means
+            self.cfg[f'process.{r}/IQ_covariances'] = covariances
+            self.cfg[f'process.{r}/corr_matrix'] = corr_matrix
+
+        if self.save_cfg: self.cfg.save()
+        tone_0, tone_1 = self.readout_resonators
+
+        if self.customized_data_process == 'two_tone_readout_mask':
+            # Predict result and generate mask for confliction.
+            twotonepredicted_readout, mask_twotone = two_tone_predict(
+                self.measurement[tone_0]['GMMpredicted_new'],
+                self.measurement[tone_1]['GMMpredicted_new'],
+                self.readout_levels_dict[tone_0],
+                self.readout_levels_dict[tone_1]
+            )
+            self.twotone_corr_matrix = normalize_population(
+                twotonepredicted_readout,
+                levels=np.union1d(self.readout_levels_dict[tone_0], self.readout_levels_dict[tone_1]),
+                mask=mask_twotone
+            )
+            twotone_fidelity = get_readout_fidelity(self.twotone_corr_matrix)
+            print(f'TTROCal: TwoTone Readout Fidelity: {twotone_fidelity}')
+            
+            # Save it to self.measurement
+            for r, data_dict in self.measurement.items():
+                data_dict['TwoTonePredicted_readout'] = twotonepredicted_readout
+                data_dict['Mask_twotone'] = mask_twotone
+                data_dict['TwoTone_corr_matrix'] = self.twotone_corr_matrix
+                data_dict['TwoTone_ReadoutFidelity'] = twotone_fidelity
+
+        elif self.customized_data_process == 'two_tone_readout_corr':
+            self.twotone_corr_matrix = two_tone_normalize(
+                self.measurement[tone_0]['GMMpredicted_new'],
+                self.measurement[tone_1]['GMMpredicted_new'],
+                self.readout_levels_dict[tone_0],
+                self.readout_levels_dict[tone_1]
+            )
+            # Save it to self.measurement
+            for r, data_dict in self.measurement.items():
+                data_dict['TwoTone_corr_matrix'] = self.twotone_corr_matrix
+
+        else:
+            raise NotImplementedError(f'TTROCal: Cannot fit data for {self.customized_data_process} process.')
+        
+
+    def plot(self):
+        """
+        Here we just plot the self.twoton_corr_matrix and IQ.
+        """
+        self.figure = plot_corr_matrix(self.twotone_corr_matrix)
+        super().plot_IQ(c_key='GMMpredicted_new')
+
