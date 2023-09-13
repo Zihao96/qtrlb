@@ -1012,7 +1012,7 @@ class TwoToneROCalibration(LevelScan):
         assert self.classification_enable, 'Please turn on classification.'
         assert not self.heralding_enable, 'This Scan do not support heralding yet.'
         assert self.customized_data_process is not None, 'Please specify customized data process.'
-        assert len(self.readout_levels) == len(self.readout_resonators) == 2, \
+        assert len(self.readout_levels_dict) == len(self.readout_resonators) == 2, \
                 'Please specify two resonators and their own readout levels.'
 
 
