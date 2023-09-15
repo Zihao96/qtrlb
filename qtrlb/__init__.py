@@ -6,8 +6,9 @@ from qtrlb.calibration.calibration import Scan, Scan2D
 from qtrlb.calibration.scan_classes import DriveAmplitudeScan, RabiScan, DebugRabi, T1Scan, RamseyScan, EchoScan, LevelScan, CalibrateClassification, JustGate, CalibrateTOF, CheckBlobShift, TwoToneROCalibration
 from qtrlb.calibration.scan2d_classes import ChevronScan, ReadoutFrequencyScan, ReadoutAmplitudeScan, ReadoutLengthAmpScan, DRAGWeightScan
 from qtrlb.calibration.mixer_correction import MixerCorrection, MixerAutoCorrection
-from qtrlb.calibration.randomized_benchmarking import RB1QB
 from qtrlb.calibration.autotune import autotune
+
+from qtrlb.benchmark.randomized_benchmarking import RB1QB
 
 from qtrlb.processing.fitting import QuadModel, ChevronModel, ResonatorHangerTransmissionModel
 

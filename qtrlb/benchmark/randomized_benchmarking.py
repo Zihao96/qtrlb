@@ -5,7 +5,7 @@ from lmfit import Model
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.processing.fitting import ExpModel2
-from qtrlb.utils.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
+from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
     
     
     
