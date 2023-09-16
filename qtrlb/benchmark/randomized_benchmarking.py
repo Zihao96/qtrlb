@@ -175,22 +175,6 @@ class RB1QB(Scan):
             self.add_sequence_end()
 
 
-    def add_relaxation(self, label: str | int):
-        """
-        Overload add_relaxation of parent class.
-        It's because any two labels cannot be same in Q1ASM program.
-        """
-        relaxation_time_s = self.cfg.variables['common/relaxation_time']
-        relaxation_time_us = int( np.ceil(relaxation_time_s*1e6) )
-        relaxation = f"""
-                #-----------Relaxation-----------
-                    move             {relaxation_time_us},R2
-        rlx_loop{label}:   wait             1000
-                    loop             R2,@rlx_loop{label}
-        """
-        for tone in self.tones: self.sequences[tone]['program'] += relaxation
-
-
     def save_sequence(self, jsons_path: str = None):
         """
         Save Q1ASM sequences and also each randomized gates sequence to their sub folders.

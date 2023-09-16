@@ -4,6 +4,23 @@ from scipy.linalg import sqrtm
 
 
 
+TOMOGRAPHY_GATE_SETS = {
+    'yurtalan': {'d': 3,
+                 'gates': ['I',
+                           'X180_01', 
+                           'X90_01', 
+                           'Y90_01', 
+                           ('X180_01', 'X90_12'), 
+                           ('X180_01', 'Y90_12'), 
+                           ('X180_01', 'X90_12', 'X180_01'), 
+                           ('X180_01', 'Y90_12', 'X180_01'), 
+                           ('X180_01', 'X180_12', 'X180_01')]
+                 },
+}
+
+
+
+
 def generalized_Gell_Mann_matrices(d: int) -> list[np.ndarray]:
     """
     Return the generalized Gell Mann matrices with dimension d.

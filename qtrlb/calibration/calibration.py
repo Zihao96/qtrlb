@@ -423,9 +423,10 @@ class Scan:
         """
             
         
-    def add_relaxation(self):
+    def add_relaxation(self, label: str | int = ''):
         """
         Add relaxation to sequence program.
+        Allow an optional label to avoid label repeat in Q1ASM.
         
         Note from Zihao(03/31/2023):
         Although we can use add_wait to achieve same effect,
@@ -436,8 +437,8 @@ class Scan:
         relaxation = f"""
                 #-----------Relaxation-----------
                     move             {relaxation_time_us},R2
-        rlx_loop:   wait             1000
-                    loop             R2,@rlx_loop
+        rlx_loop{label}:   wait             1000
+                    loop             R2,@rlx_loop{label}
         """
         for tone in self.tones: self.sequences[tone]['program'] += relaxation
         
