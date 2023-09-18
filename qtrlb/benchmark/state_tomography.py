@@ -178,3 +178,4 @@ class SingleQuditStateTomography(StateTomography):
         ax.bar3d(x, y, z, dx, dy, dz)
         ax.set(title=f'{self.datetime_stamp}, Magnitude of Density Matrix', xlabel='row', ylabel='column')
         fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
+

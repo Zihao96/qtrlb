@@ -1,5 +1,8 @@
 import numpy as np
-from scipy.linalg import sqrtm
+from functools import reduce
+from scipy.linalg import sqrtm, inv
+from qtrlb.benchmark.RB1QB_tools import unitary
+PI = np.pi
 
 
 
@@ -73,6 +76,60 @@ def state_fidelity(density_matrix: np.ndarray, ideal_density_matrix: np.ndarray)
     return fidelity
 
 
+def gate_str_to_matrix(gate_str: str, d: int = 2) -> np.ndarray:
+    """
+    Given a gate string and its dimension, return the matrix.
+    Example: 'X180_12', d = 4, the result will be:
+    [[1,  0,  0,  0],
+     [0,  0, -1j, 0],
+     [0, -1j, 0,  0],
+     [0,  0,  0,  1]]
+    """
+    # Start from Identity
+    matrix = np.eye(d, dtype=complex)
+    if gate_str == 'I': return matrix
+
+    try:
+        gate, subspace = gate_str.split('_')
+        l = int(subspace[0])  # The lower level in this subspace.
+        axis, angle = gate[0], float(gate[1:]) / 180 * PI
+    except ValueError:
+        raise ValueError(f'STomo_tools: Cannot translate gate {gate_str} into matrix!')
+
+    axis_dict = dict(zip(('X', 'Y', 'Z'), np.eye(3)))
+    sub_matrix = unitary(angle, axis_dict[axis])
+    matrix[l:l+2, l:l+2] = sub_matrix
+    return matrix
+
+
+def calculate_tomography_gates(tomography_gates_list: list[dict[str: list[str]]], d: int) -> list[np.ndarray]:
+    """
+    For a list of gate dict, calculate their actual tensor-producted matrix value.
+    There won't be missing qudit or gate in each dict. Even Identity is explicit here.
+    It supports multiple qudits.
+    """
+    tomography_gates_values = []
+
+    # Loop over each gate dict in this gates list
+    for gate_dict in tomography_gates_list:
+        gate_arrays = []
+        
+        # Loop over each qudit in gate_dict
+        for gate_list in gate_dict.values():
+            matrix = np.eye(d)
+
+            # Loop over each gate string in gate_list:
+            for gate_str in gate_list:
+                matrix = gate_str_to_matrix(gate_str, d) @ matrix
+
+            gate_arrays.append(matrix)
+
+        tensor_product_matrix = reduce(np.kron, gate_arrays)
+        tomography_gates_values.append(tensor_product_matrix)
+
+    return tomography_gates_values
+
+
 def calculate_single_qudit_density_matrix(populations: np.ndarray, 
                                           tomography_gates_list: list[dict[str: list[str]]]) -> np.ndarray:
     """
@@ -94,40 +151,81 @@ def calculate_single_qudit_density_matrix(populations: np.ndarray,
     # Later comprehension is at inner layer. So loop g first, then m.
     measurement_opeators_tomo = [g.H @ m @ g for m in measurement_opeators_native for g in tomography_gates_values]
 
+    # ndarray.flatten() is deep copy.
     density_matrix = reconstruct_dm_linreg(populations.flatten(), measurement_opeators_tomo, d)
     return density_matrix
 
 
-def calculate_tomography_gates(tomography_gates_list: list[dict[str: list[str]]], d: int) -> list[np.ndarray]:
-    """
-    For a list of gate dict, calculate their actual matrix value.
-    There won't be missing qudit or gate in each dict. Even Identity is explicit here.
-    """
-    tomography_gates_values = []
-
-    for gate in tomography_gates_list:
-        gate_strings = list(gate.values())  
-        # Each element is a single gate string or a list of such string for single qudit.
-
-        # A tensor-producted ndarray.
-        gate_values = tensor_product_gates(gate_strings, d)
-        tomography_gates_values.append(gate_values)
-
-    return tomography_gates_values
-
-
-def tensor_product_gates(gate_string: list, d: int) -> np.ndarray:
-    """
-    Give a list of string, return their tensor-producted value.
-    Each element can either be string or a list of string.
-    """
-    return
-
-
-def reconstruct_dm_linreg(result: np.ndarray, operators: list[np.ndarray], d: int):
+def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: int):
     """
     Reconstruct density matrix based on measurement results and measurement operators.
+    Both of them follow same order where tomography gates inside different measurement outcome.
     Ref: https://www.nature.com/articles/srep03496
+
+    Note from Zihao(09/18/2023):
+    I intentionally use for loop instead of list comprehension / array operation.
+    This is for readibility and debugging. 
+    When it become performance bottleneck, I will change it.
     """
-    return
+    Omegas = np.array(generalized_Gell_Mann_matrices(d))  # Shape (d**2 - 1, d, d)
+
+    xTx = np.zeros((len(Omegas), len(Omegas)))
+    sum = np.zeros((len(Omegas), 1))
+
+    for i, m in enumerate(operators):
+        # Equation below Eq.(2)
+        psi = np.array([np.trace(m @ Omega_i) for Omega_i in Omegas]).reshape(len(Omegas), -1)
+        # Equation below Eq.(8)
+        xTx += psi * psi.T
+        # Eq.(8), summation part.
+        sum += psi * (results[i] - 1 / d)
+
+    # Eq.(8)
+    theta_ls = inv(xTx) @ sum
+
+    # Eq.(1).
+    dm = np.eye(d)
+    for i, theta in enumerate(theta_ls):
+        dm += theta * Omegas[i]
+    return dm
+
+
+# def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: int):
+#     """
+#     Reconstruct density matrix based on measurement results and measurement operators.
+#     Both of them follow same order where tomography gates inside different measurement outcome.
+#     Ref: https://www.nature.com/articles/srep03496
+
+#     Note from Zihao(09/18/2023):
+#     I intentionally use for loop instead of list comprehension / array operation.
+#     This is for readibility and debugging. 
+#     When it become performance bottleneck, I will change it.
+#     """
+#     Omegas = np.array(generalized_Gell_Mann_matrices(d))  # Shape (d**2 - 1, d, d)
+
+#     # Equation below Eq.(2). 
+#     # Each measurement operator has a psi with shape (d**2 - 1, 1) as column vector.
+#     # Intentionally didn't use list comprehension for readibility.
+#     psi_all = []
+#     for m in operators:
+#         psi = np.array([np.trace(m @ Omega_i) for Omega_i in Omegas]).reshape(len(Omegas), -1)
+#         psi_all.append(psi)
+#     psi_all = np.array(psi_all)  # Shape (len(operators), d**2 - 1, 1)
+
+#     # Equation below Eq.(8).
+#     xTx = np.zeros((len(Omegas), len(Omegas))) # Shape (d**2 - 1, d**2 -1)
+#     for psi in psi_all:
+#         xTx += psi @ psi.T
+
+#     # Eq.(8). Need to reshape input data to make '*' work as expected.
+#     sum = np.zeros((len(Omegas), 1))
+#     for i, psi in enumerate(psi_all):
+#         sum += psi * (results[i] - 1/d)
+#     theta_ls = inv(xTx) @ sum
+
+#     # Eq.(1).
+#     dm = np.eye(d)
+#     for i, theta in enumerate(theta_ls):
+#         dm += theta * Omegas[i]
+#     return dm
 
