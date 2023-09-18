@@ -1,9 +1,10 @@
-from itertools import product
-
+import os
 import numpy as np
+import matplotlib.pyplot as plt
+from itertools import product
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
-from qtrlb.benchmark.state_tomography_tools import TOMOGRAPHY_GATE_SETS
+from qtrlb.benchmark.state_tomography_tools import TOMOGRAPHY_GATE_SETS, calculate_single_qudit_density_matrix
 
 
 
@@ -41,9 +42,11 @@ class StateTomography(Scan):
             post_gate=post_gate,
             n_seqloops=n_seqloops)
         
-        self.gate_set_name = gate_set_name
+        assert self.classification_enable, 'STomo: Please turn on classification.'
         assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
+        self.gate_set_name = gate_set_name
         self.generate_tomography_gates()
+        self.x_points = self.n_tomography_gates
 
 
     def generate_tomography_gates(self) -> None:
@@ -122,5 +125,56 @@ class StateTomography(Scan):
             self.add_sequence_end()
 
 
+    def process_data(self):
+        """
+        Multiplexing readout for qudits (A, B, C ...) is represented by measurement operators:
+        M_ijk = Mi_A ⊗ Mj_B ⊗ Mk_C,
+        where i j k is each possible measurement outcome.
+        It means we need to find probability under each possible M_ijk, not individual measurement operator.
+        We will further process data and find these probabilities here.
+
+        Note from Zihao(09/17/2023):
+        Multiple qudit tomography requires multiplexed single shot qudit readout result \
+        BEFORE normalization and correction.
+        For example, for two qutrits, we need P_00, P_01, P_02, P_10, P_11, P_12, P_20, P_21, P_22, \
+        not P_0_A, P_1_A, P_2_A, P_0_B, P_1_B, P_2_B.
+        However, I didn't realize that my twotone_mask and twotone_MLE has problem until today.
+        Both of them gives biased single shot and biased normalized result.
+        It's the corr_matrix and readout correction process help to keep final population unbiased.
+        For now, we can only do single qudit tomography.
+        """
+        return super().process_data()
+
+
+
+
+class SingleQuditStateTomography(StateTomography):
+    """ State tomography for single qudit system.
+        It should be compatible with any currect twotone readout problem
+    """
     def fit_data(self):
-        return
+        # Consider only single qudit and first tone has same index as the qudit.
+        # populations will have shape (n_readout_levels, n_tomograhy_gates).
+        populations = self.measurement[f'R{self.drive_qubits[0][1:]}']['to_fit']
+        self.density_matrix = calculate_single_qudit_density_matrix(populations, self.tomography_gates_list)
+
+
+    def plot_main(self):
+        """
+        Plot single qudit density matrix.
+        Ref: https://stackoverflow.com/questions/53590227/3d-histogram-from-a-matrix-of-z-value
+        """
+        matrix = np.abs(self.density_matrix)
+        d = matrix.shape[0]
+
+        fig = plt.figure(figsize=(d, d), dpi=400)
+        ax = fig.add_subplot(111, projection='3d')
+
+        x = [i for i in range(d) for _ in range(d)]  # The last 'for' generate inner layer. 
+        y = [i for _ in range(d) for i in range(d)]
+        z = np.zeros((d**2))
+        dx = dy = 0.5 * np.ones((d**2))
+        dz = matrix.flatten()
+        ax.bar3d(x, y, z, dx, dy, dz)
+        ax.set(title=f'{self.datetime_stamp}, Magnitude of Density Matrix', xlabel='row', ylabel='column')
+        fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
