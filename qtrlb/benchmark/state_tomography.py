@@ -80,7 +80,7 @@ class StateTomography(Scan):
         
         # Create tomography gates list.
         self.tomography_gates_list = []
-        for single_combination in product(gate_set_dict['gate'], repeat=len(self.drive_qubits)):
+        for single_combination in product(gate_set_dict['gates'], repeat=len(self.drive_qubits)):
             self.tomography_gates_list.append(
                 {q: single_combination[i] for i, q in enumerate(self.drive_qubits)}
             )

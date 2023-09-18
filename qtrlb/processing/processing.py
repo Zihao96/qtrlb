@@ -124,6 +124,7 @@ def correct_population(input_data, corr_matrix: list | np.ndarray, corr_method: 
     When developing, keep mind to reshape the result back before return.
     """
     input_data = np.array(input_data)
+    corr_matrix = np.array(corr_matrix)
     flat_data = input_data.reshape(input_data.shape[0], -1)
 
     # No correction.
