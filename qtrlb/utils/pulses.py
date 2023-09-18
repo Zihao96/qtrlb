@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from copy import deepcopy
 from warnings import simplefilter
 
 PI = np.pi
@@ -20,6 +21,7 @@ def dict_to_DataFrame(dic: dict, name: str, rows: list, padding: object = 'I'):
         name: 'pregate'
         rows: ['Q3', 'Q4', 'R3', 'R4']
     """
+    dic = deepcopy(dic)
     for row in rows:
         if row not in dic: dic[row] = []
         

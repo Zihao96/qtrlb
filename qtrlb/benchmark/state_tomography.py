@@ -46,7 +46,11 @@ class StateTomography(Scan):
         assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
         self.gate_set_name = gate_set_name
         self.generate_tomography_gates()
+
+        # Change attribute for making process_data, set_acquisition and plot_population work.
         self.x_points = self.n_tomography_gates
+        self.num_bins = self.n_seqloops * self.x_points
+        self.x_values = np.arange(self.x_points)
 
 
     def generate_tomography_gates(self) -> None:
@@ -177,5 +181,9 @@ class SingleQuditStateTomography(StateTomography):
         dz = matrix.flatten()
         ax.bar3d(x, y, z, dx, dy, dz)
         ax.set(title=f'{self.datetime_stamp}, Magnitude of Density Matrix', xlabel='row', ylabel='column')
+        ax.title.set_size(8)
         fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
+
+        r = f'R{self.drive_qubits[0][1:]}'
+        self.figures = {r: fig}
 

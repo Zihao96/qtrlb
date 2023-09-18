@@ -1,6 +1,6 @@
 import numpy as np
 from functools import reduce
-from scipy.linalg import sqrtm, inv
+from scipy.linalg import sqrtm
 from qtrlb.benchmark.RB1QB_tools import unitary
 PI = np.pi
 
@@ -149,7 +149,8 @@ def calculate_single_qudit_density_matrix(populations: np.ndarray,
     # The order here is C order which is default order of ndarray.flatten.
     # We will later flatten populations in same order.
     # Later comprehension is at inner layer. So loop g first, then m.
-    measurement_opeators_tomo = [g.H @ m @ g for m in measurement_opeators_native for g in tomography_gates_values]
+    measurement_opeators_tomo = [g.T.conj() @ m @ g 
+                                 for m in measurement_opeators_native for g in tomography_gates_values]
 
     # ndarray.flatten() is deep copy.
     density_matrix = reconstruct_dm_linreg(populations.flatten(), measurement_opeators_tomo, d)
@@ -169,8 +170,8 @@ def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: i
     """
     Omegas = np.array(generalized_Gell_Mann_matrices(d))  # Shape (d**2 - 1, d, d)
 
-    xTx = np.zeros((len(Omegas), len(Omegas)))
-    sum = np.zeros((len(Omegas), 1))
+    xTx = np.zeros((len(Omegas), len(Omegas)), dtype=complex)
+    sum = np.zeros((len(Omegas), 1), dtype=complex)
 
     for i, m in enumerate(operators):
         # Equation below Eq.(2)
@@ -181,51 +182,11 @@ def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: i
         sum += psi * (results[i] - 1 / d)
 
     # Eq.(8)
-    theta_ls = inv(xTx) @ sum
+    theta_ls = np.linalg.pinv(xTx, hermitian=True) @ sum
 
     # Eq.(1).
-    dm = np.eye(d)
+    dm = np.eye(d, dtype=complex) / d
     for i, theta in enumerate(theta_ls):
         dm += theta * Omegas[i]
     return dm
-
-
-# def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: int):
-#     """
-#     Reconstruct density matrix based on measurement results and measurement operators.
-#     Both of them follow same order where tomography gates inside different measurement outcome.
-#     Ref: https://www.nature.com/articles/srep03496
-
-#     Note from Zihao(09/18/2023):
-#     I intentionally use for loop instead of list comprehension / array operation.
-#     This is for readibility and debugging. 
-#     When it become performance bottleneck, I will change it.
-#     """
-#     Omegas = np.array(generalized_Gell_Mann_matrices(d))  # Shape (d**2 - 1, d, d)
-
-#     # Equation below Eq.(2). 
-#     # Each measurement operator has a psi with shape (d**2 - 1, 1) as column vector.
-#     # Intentionally didn't use list comprehension for readibility.
-#     psi_all = []
-#     for m in operators:
-#         psi = np.array([np.trace(m @ Omega_i) for Omega_i in Omegas]).reshape(len(Omegas), -1)
-#         psi_all.append(psi)
-#     psi_all = np.array(psi_all)  # Shape (len(operators), d**2 - 1, 1)
-
-#     # Equation below Eq.(8).
-#     xTx = np.zeros((len(Omegas), len(Omegas))) # Shape (d**2 - 1, d**2 -1)
-#     for psi in psi_all:
-#         xTx += psi @ psi.T
-
-#     # Eq.(8). Need to reshape input data to make '*' work as expected.
-#     sum = np.zeros((len(Omegas), 1))
-#     for i, psi in enumerate(psi_all):
-#         sum += psi * (results[i] - 1/d)
-#     theta_ls = inv(xTx) @ sum
-
-#     # Eq.(1).
-#     dm = np.eye(d)
-#     for i, theta in enumerate(theta_ls):
-#         dm += theta * Omegas[i]
-#     return dm
 
