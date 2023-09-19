@@ -13,6 +13,7 @@ class StateTomography(Scan):
     """ State tomography for multiple qudit system.
         Require all drive_qubits to use same subspace.
         Any state preparation or special gate before tomography can done by pre_gate.
+        Allow passing in a gate_set with minimal key 'd' and 'gates', or a string of built-in gate_set.
     """
     def __init__(
             self,
@@ -20,7 +21,7 @@ class StateTomography(Scan):
             drive_qubits: str | list[str],
             readout_resonators: str | list[str],
             subspace: str | list[str],
-            gate_set_name: str,
+            gate_set: str | dict,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
             post_gate: dict[str: list[str]] = None,
@@ -44,10 +45,11 @@ class StateTomography(Scan):
         
         assert self.classification_enable, 'STomo: Please turn on classification.'
         assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
-        self.gate_set_name = gate_set_name
+        self.gate_set = gate_set
         self.generate_tomography_gates()
 
-        # Change attribute for making process_data, set_acquisition and plot_population work.
+        # Set attributes for making process_data, set_acquisition and plot_population work.
+        self.n_tomography_gates = len(self.tomography_gates_list)
         self.x_points = self.n_tomography_gates
         self.num_bins = self.n_seqloops * self.x_points
         self.x_values = np.arange(self.x_points)
@@ -56,7 +58,7 @@ class StateTomography(Scan):
     def generate_tomography_gates(self) -> None:
         """
         Generate all tomography gates which will be added to sequence.
-        The specific gates depend on self.gate_set_name, and len(self.drive_qubits).
+        The specific gates depend on self.gate_set, and len(self.drive_qubits).
         We will return self.tomography_gates_list, which is a list of dictionary.
         Each dictionary is one of the all possible qubit-gate combination.
 
@@ -78,20 +80,20 @@ class StateTomography(Scan):
             It also helps to pop error earlier when get_set and subspace is not consistent.
         """
         # Get gate set and check dimension.
-        gate_set_dict = TOMOGRAPHY_GATE_SETS[self.gate_set_name]
-        assert int(self.subspace[0][-1]) + 1 == gate_set_dict['d'], \
-            f"STomo: gate set {self.gate_set_name} only work on {gate_set_dict['d']} levels. Please check subspace."
+        if isinstance(self.gate_set, str): self.gate_set = TOMOGRAPHY_GATE_SETS[self.gate_set]
+        assert int(self.subspace[0][-1]) + 1 == self.gate_set['d'], \
+            f"STomo: This gate set only work on {self.gate_set['d']} levels. Please check subspace."
         
         # Create tomography gates list.
         self.tomography_gates_list = []
-        for single_combination in product(gate_set_dict['gates'], repeat=len(self.drive_qubits)):
+        for single_combination in product(self.gate_set['gates'], repeat=len(self.drive_qubits)):
             self.tomography_gates_list.append(
                 {q: single_combination[i] for i, q in enumerate(self.drive_qubits)}
             )
-        self.n_tomography_gates = len(self.tomography_gates_list)
+
 
         # Reference: Original syntax by Berkeley and Ray.
-        # [dict(zip(qubits, p)) for p in product(gate_set_dict['gate'], repeat=len(qubits))]
+        # [dict(zip(qubits, p)) for p in product(self.gate_set['gate'], repeat=len(qubits))]
 
 
     def make_sequence(self):
