@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from functools import reduce
 from scipy.linalg import sqrtm
 from qtrlb.benchmark.RB1QB_tools import unitary
@@ -177,6 +178,27 @@ def state_fidelity(density_matrix: np.ndarray, ideal_density_matrix: np.ndarray)
     return fidelity
 
 
+def plot_density_matrix(density_matrix: np.ndarray, dpi=150) -> plt.Figure:
+    """
+    Plot the magnitude of each element in given density matrix.
+    """
+    matrix = np.abs(density_matrix)
+    d = matrix.shape[0]
+
+    fig = plt.figure(figsize=(d, d), dpi=dpi)
+    ax = fig.add_subplot(111, projection='3d')
+
+    x = [i for i in range(d) for _ in range(d)]  # The last 'for' generate inner layer. 
+    y = [i for _ in range(d) for i in range(d)]
+    z = np.zeros((d**2))
+    dx = dy = 0.5 * np.ones((d**2))
+    dz = matrix.flatten()
+
+    ax.bar3d(x, y, z, dx, dy, dz)
+    ax.set(xlabel='row', ylabel='column')
+    return fig
+
+
 def gate_str_to_matrix(gate_str: str, d: int = 2) -> np.ndarray:
     """
     Given a gate string and its dimension, return the matrix.
@@ -236,6 +258,7 @@ def calculate_single_qudit_density_matrix(populations: np.ndarray,
     """
     Give a measured population with shape (n_readout_levels, n_tomography_gates) and a gates list, \
     return a density matrix.
+    Whethere the matrix is positive semi-definite is not guaranteed here.
     """
     d = populations.shape[0]
 
@@ -291,3 +314,39 @@ def reconstruct_dm_linreg(results: np.ndarray, operators: list[np.ndarray], d: i
         dm += theta * Omegas[i]
     return dm
 
+
+def make_dm_physical(dm: np.ndarray) -> np.ndarray:
+    """
+    Given a Hermitian density matrix, make it physical (positive and semi-definite).
+
+    Ref: https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.108.070502
+    See Fast algorithm above Fig.(2)
+
+    Note from Zihao(09/20/2023):
+    This is implemented in original Berkeley code assuming Gaussian noise in Ref above.
+    I cann't guarantee this is compatible with our linear regression algorithm.
+    """
+    dm /= np.trace(dm)
+
+    # Step 1: Calculate eigenvalues and eigenvectors. Eigenvalues are in ascending order by default.
+    eigvals, eigvecs = np.linalg.eigh(dm)
+    eigvals = eigvals[::-1]
+    if eigvals[-1] >= 0: return dm
+
+    # Step 2: Initialize lambda, i, a. 
+    eigvals_new = np.zeros(eigvals.shape)
+    i, a = len(eigvals), 0
+
+    # Step 3: calculate a and i.
+    while eigvals[i-1] + a / i < 0:
+        a += eigvals[i-1]
+        i -= 1
+
+    # Step 4: calculate new eigenvalues.
+    eigvals_new[:i] = eigvals[:i] + a / i
+
+    # Step 5: construct new density matrix.
+    eigvals_new = eigvals_new[::-1]
+    dm_new = eigvecs @ np.diag(eigvals_new) @ eigvecs.T.conj()
+
+    return dm_new

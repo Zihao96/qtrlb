@@ -1,10 +1,10 @@
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from itertools import product
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
-from qtrlb.benchmark.state_tomography_tools import TOMOGRAPHY_GATE_SETS, calculate_single_qudit_density_matrix
+from qtrlb.benchmark.state_tomography_tools import TOMOGRAPHY_GATE_SETS, calculate_single_qudit_density_matrix, \
+                                                    make_dm_physical, plot_density_matrix
 
 
 
@@ -162,7 +162,12 @@ class SingleQuditStateTomography(StateTomography):
         # Consider only single qudit and first tone has same index as the qudit.
         # populations will have shape (n_readout_levels, n_tomograhy_gates).
         populations = self.measurement[f'R{self.drive_qubits[0][1:]}']['to_fit']
-        self.density_matrix = calculate_single_qudit_density_matrix(populations, self.tomography_gates_list)
+        self.density_matrix_raw = calculate_single_qudit_density_matrix(populations, self.tomography_gates_list)
+        self.density_matrix = make_dm_physical(self.density_matrix_raw)
+
+        for data_dict in self.measurement.values():
+            data_dict['density_matrix_raw'] = self.density_matrix_raw
+            data_dict['density_matrix'] = self.density_matrix
 
 
     def plot_main(self):
@@ -170,22 +175,12 @@ class SingleQuditStateTomography(StateTomography):
         Plot single qudit density matrix.
         Ref: https://stackoverflow.com/questions/53590227/3d-histogram-from-a-matrix-of-z-value
         """
-        matrix = np.abs(self.density_matrix)
-        d = matrix.shape[0]
+        fig = plot_density_matrix(self.density_matrix)
 
-        fig = plt.figure(figsize=(d, d), dpi=400)
-        ax = fig.add_subplot(111, projection='3d')
-
-        x = [i for i in range(d) for _ in range(d)]  # The last 'for' generate inner layer. 
-        y = [i for _ in range(d) for i in range(d)]
-        z = np.zeros((d**2))
-        dx = dy = 0.5 * np.ones((d**2))
-        dz = matrix.flatten()
-        ax.bar3d(x, y, z, dx, dy, dz)
-        ax.set(title=f'{self.datetime_stamp}, Magnitude of Density Matrix', xlabel='row', ylabel='column')
+        ax = fig.get_axes()[0]
+        ax.set_title(f'{self.datetime_stamp}, Magnitude of Density Matrix')
         ax.title.set_size(8)
-        fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
 
-        r = f'R{self.drive_qubits[0][1:]}'
-        self.figures = {r: fig}
+        fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
+        self.figures = {r: fig for r in self.readout_resonators}
 
