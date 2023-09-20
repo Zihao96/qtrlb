@@ -400,13 +400,6 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             results[r] = result
 
         self.save_data()
-    
-
-    def plot_resonator(self, results: dict):
-        """
-        Plot the spectrum of resonators 
-        """
-        pass
 
 
     def adjust_ED(self, ED: float, save_cfg: bool = True):

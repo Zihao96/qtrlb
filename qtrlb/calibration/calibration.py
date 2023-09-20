@@ -832,28 +832,52 @@ class Scan:
         """
         Plot populations for all levels, both with and without readout correction.
         """
+        if self.customized_data_process.startswith('two_tone_readout'): return self.plot_two_tone_populations()
+            
         for r in self.readout_resonators:
-            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
-            ylabel = 'Probability'
-            
-            title = f'Uncorrected probability, {self.scan_name}, {r}'
-            fig, ax = plt.subplots(1, 1, dpi=dpi)
+            fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
-                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationNormalized_readout'][i], 
-                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
-            plt.legend()
-            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected.png'))
+                ax[0].plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationNormalized_readout'][i], 
+                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax[1].plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationCorrected_readout'][i], 
+                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+
+            xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
+            ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
+            ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
+            ax[0].legend()
+            ax[1].legend()
+            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {r}')
+            fig.savefig(os.path.join(self.data_path, f'{r}_Population.png'))
             plt.close(fig)
-            
-            title = f'Corrected probability, {self.scan_name}, {r}'
-            fig, ax = plt.subplots(1, 1, dpi=dpi)
-            for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
-                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationCorrected_readout'][i], 
-                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
-            plt.legend()
-            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected.png'))
+
+
+    def plot_two_tone_populations(self, dpi: int = 150):
+        """
+        Plot population of two_tone_readout result.
+        In this case we have all level population under both resonators' key.
+        """
+        only_corr = self.customized_data_process == 'two_tone_readout_corr'
+
+        for r in self.readout_resonators:
+            fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
+
+            # Loop over all levels instead of the given readout_levels in cfg.
+            for level, data in enumerate(self.measurement[r]['PopulationCorrected_readout']):
+                ax[1].plot(self.x_values / self.x_unit_value, data, 
+                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                if not only_corr:
+                    ax[0].plot(self.x_values / self.x_unit_value, 
+                               self.measurement[r]['PopulationNormalized_readout'][level], 
+                               c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+
+            xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
+            ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
+            ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
+            if not only_corr: ax[0].legend()
+            ax[1].legend()
+            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {r}')
+            fig.savefig(os.path.join(self.data_path, f'{r}_Population.png'))
             plt.close(fig)
 
 
