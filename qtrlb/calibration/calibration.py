@@ -832,7 +832,9 @@ class Scan:
         """
         Plot populations for all levels, both with and without readout correction.
         """
-        if self.customized_data_process.startswith('two_tone_readout'): return self.plot_two_tone_populations()
+        if (self.customized_data_process is not None) and \
+            (self.customized_data_process.startswith('two_tone_readout')): 
+            return self.plot_two_tone_populations()
             
         for r in self.readout_resonators:
             fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
