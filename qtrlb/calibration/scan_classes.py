@@ -886,7 +886,8 @@ class CalibrateTOF(JustGate):
                          readout_resonators=readout_resonators, 
                          just_gate={drive_qubits: ['I']}, 
                          lengths=None, 
-                         n_seqloops=1)
+                         n_seqloops=1,
+                         keep_raw=True)
         
         self.scan_name = 'CalibrateTOF'
 

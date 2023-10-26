@@ -11,7 +11,7 @@ from qtrlb.calibration.autotune import autotune
 from qtrlb.benchmark.randomized_benchmarking import RB1QB
 from qtrlb.benchmark.state_tomography import StateTomography, SingleQuditStateTomography
 
-from qtrlb.processing.fitting import QuadModel, ChevronModel, ResonatorHangerTransmissionModel
+from qtrlb.processing.fitting import QuadModel, SineModel, ChevronModel, ResonatorHangerTransmissionModel
 
 from qtrlb.config.variable_manager import VariableManager
 from qtrlb.config.DAC_manager import DACManager

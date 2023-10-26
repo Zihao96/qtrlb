@@ -17,7 +17,7 @@ def autotune(
         level_to_fit: int | list[int], 
         rams_length: float, 
         rams_AD: float,
-        normalize_subspace: bool = True,
+        normalize_subspace: bool = False,
         show_plot: bool = False,
         verbose: bool = False,
         **autotune_kwargs) -> tuple[Scan]:
@@ -34,6 +34,7 @@ def autotune(
         main_tone = f'{drive_qubits}/{subspace}'
 
     amp_180 = cfg[f'variables.{main_tone}/amp_180']
+    weight = cfg[f'variables.{main_tone}/DRAG_weight']
 
     # Instantiate the classes.
     ramsp = RamseyScan(cfg, drive_qubits, readout_resonators, subspace=subspace, 
@@ -50,7 +51,7 @@ def autotune(
                              level_to_fit=level_to_fit, **autotune_kwargs)
     
     dws = DRAGWeightScan(cfg, drive_qubits, readout_resonators, subspace=subspace, 
-                         weight_start=-0.3, weight_stop=0.3, weight_points=41, 
+                         weight_start=weight-0.3, weight_stop=weight+0.3, weight_points=41, 
                          level_to_fit=level_to_fit, **autotune_kwargs)
     
     ramsp.run(f'AD+{round(rams_AD/u.kHz)}kHz_autotune')
