@@ -58,15 +58,23 @@ class MixerCorrection:
         Reference: 
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/tutorials/cont_wave_mode.html
         """
-        sequence = {'waveforms': {'waveform':{'data': np.ones(self.waveform_length, dtype=float).tolist(), 
-                                              'index': 0}}, 
+        freq = round(self.cfg[f'variables.{self.tone}/mod_freq'] * 4)
+        gain = round(self.amp * 32768)
+        
+        sequence = {'waveforms': {
+                        'waveform':{'data': np.ones(self.waveform_length, dtype=float).tolist(), 
+                                    'index': 0}
+                                  }, 
                     'weights': {}, 
                     'acquisitions': {}, 
                     'program': f"""
-                        wait_sync   4
+                        wait_sync       4
+                        set_freq        {freq}
+                        set_awg_gain    {gain},0
+                        reset_ph
 
-                        loop:       play    0,0,{self.waveform_length}
-                                    jmp     @loop
+                        loop:           play    0,0,{self.waveform_length}
+                                        jmp     @loop
                         """
                     }
 
@@ -82,8 +90,6 @@ class MixerCorrection:
         self.sequencer.mod_en_awg(True)
         self.sequencer.marker_ovr_en(True)   
         self.sequencer.marker_ovr_value(15)
-        self.sequencer.gain_awg_path0(self.amp)
-        self.sequencer.gain_awg_path1(self.amp)
 
         if self.qudit.startswith('Q'):
             # Because the name of attribute depends on which output port.
@@ -95,7 +101,6 @@ class MixerCorrection:
             getattr(self.module, f'out{self.out}_att')(self.att)
             getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
             getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')(True)
-            self.sequencer.nco_freq(self.cfg[f'variables.{self.tone}/mod_freq'])
 
         elif self.qudit.startswith('R'):
             self.out = 0
@@ -104,10 +109,9 @@ class MixerCorrection:
             time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
             self.module.out0_in0_lo_freq(self.cfg[f'variables.{self.qudit}/resonator_LO'])
             self.module.out0_att(self.att)
+            self.sequencer.nco_prop_delay_comp_en(True)
             self.sequencer.channel_map_path0_out0_en(True)
             self.sequencer.channel_map_path1_out1_en(True)
-            self.sequencer.nco_freq(self.cfg[f'variables.{self.qudit}/mod_freq'])
-            self.sequencer.nco_prop_delay_comp_en(True)
 
 
     def create_ipywidget(self, 
@@ -155,7 +159,7 @@ class MixerCorrection:
         )
 
 
-    def stop(self, save_cfg: bool = False):
+    def stop(self, save_cfg: bool = False, verbose: bool = False):
         """
         Stop sequencer and store all the current value into cfg if asked.
         """
@@ -170,7 +174,7 @@ class MixerCorrection:
             self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path1'] = offset1
             self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio'] = gain_ratio
             self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree'] = phase_offset
-            self.cfg.save()
+            self.cfg.save(verbose=verbose)
             self.cfg.load()
             
             
@@ -243,6 +247,7 @@ class MixerAutoCorrection(MixerCorrection):
     def run(self,
             which: str = 'both',
             save_cfg: bool = False,
+            verbose: bool = False,
             readout_delay_time: float = 0.06,
             readout_avg_num: int = 5,
             lo_maxiter: int = 3,
@@ -296,7 +301,7 @@ class MixerAutoCorrection(MixerCorrection):
 
         self.set_sa()
         self.new_spectrum = self.sa.data
-        self.stop(save_cfg)
+        self.stop(save_cfg, verbose)
         self.plot()
 
 
@@ -321,7 +326,7 @@ class MixerAutoCorrection(MixerCorrection):
         About experience value:
         span = 2.4 mod_freq give us good looking. 
         RBW = SPAN / 2e4 usually give us fast measurement and low noise. Here I'm conservative.
-        ref_level = -3 is because I don't want to frequently switch the internal mechanical switch of SA.
+        ref_level = 20 is a conservative choice. Change ref_level may trigger the internal switch.
         It will be triggered when we change ref_level from 0 dBm to higher.
         """
         # A wide span with all three peaks on screen.
@@ -329,7 +334,7 @@ class MixerAutoCorrection(MixerCorrection):
         self.sa.set('freq_span', 2.4 * abs(self.mod_freq))
         self.sa.set('res_bw', abs(self.mod_freq) * 2e-4)
         self.sa.set('vid_bw_auto')
-        self.sa.set('ref_level', '-3')
+        self.sa.set('ref_level', '20')
 
         # Set three markers on three peaks.
         self.sa.set_marker(1, 'ON')
