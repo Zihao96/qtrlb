@@ -63,10 +63,6 @@ class DACManager(Config):
         Implement the setting/parameters onto Qblox.
         This function should be called after we know which specific tones will be used.
         The tones should be list of string like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
-        
-        Right now it's just a temporary way to null the mixer.
-        We need to manually get each parameter and save it to DAC.yaml file.
-        In future we should have automatic mixer nulling from Spectral Analyzer feedback. --Zihao(04/12/2023)
         """
         self.qblox.reset()
         self.disconnect_existed_map()
@@ -74,7 +70,7 @@ class DACManager(Config):
         
         for tone in tones:
             tone_ = tone.replace('/', '_')
-            qudit = tone.split('/')[0]
+            qudit = self.tone_to_qudit(tone)
             module_idx = self.varman[f'{qudit}/module']  # Just an interger. It's for convenience.
             sequencer_idx = self.varman[f'{tone}/sequencer']
 
@@ -87,7 +83,7 @@ class DACManager(Config):
             if qudit.startswith('Q'):
                 out = self.varman[f'{qudit}/out']
                 getattr(self.module[qudit], f'out{out}_lo_en')(True)
-                time.sleep(0.005)  # This sleep is important to make LO work correctly. 1ms doesn't work.
+                time.sleep(0.005)  # This 5ms sleep is important to make LO work correctly. 1ms doesn't work.
                 getattr(self.module[qudit], f'out{out}_lo_freq')(self.varman[f'{qudit}/qubit_LO']) 
 
                 self.sequencer[tone].sync_en(True)
@@ -99,7 +95,7 @@ class DACManager(Config):
             # Implement QRM-RF specific parameters.
             elif qudit.startswith('R'):
                 self.module[qudit].out0_in0_lo_en(True)
-                time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
+                time.sleep(0.005)  # This 5ms sleep is important to make LO work correctly. 1ms doesn't work.
                 self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
                 self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  
                 # Last sequencer to triger acquire.
@@ -114,10 +110,10 @@ class DACManager(Config):
 
             self.sequencer[tone].mixer_corr_gain_ratio(
                 self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_gain_ratio']
-                )           
+            )           
             self.sequencer[tone].mixer_corr_phase_offset_degree(
                 self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_phase_offset_degree']
-                )
+            )
             
             file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
             self.sequencer[tone].sequence(file_path)
@@ -225,9 +221,8 @@ class DACManager(Config):
                     measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
         # In case of the sequencers don't stop correctly.
-        self.qblox.stop_sequencer()
-        
         # Do not call qblox.reset() here since it will make debugging difficult.
+        self.qblox.stop_sequencer()
 
 
     @staticmethod

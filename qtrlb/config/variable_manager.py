@@ -106,7 +106,7 @@ class VariableManager(Config):
                     f'{resonator} and {resonatos} are using same sequencer!'
                     
                     assert self[f'{resonatos}/resonator_LO'] == self[f'{resonator}/resonator_LO'], \
-                    f'{resonatos} and {resonator} are using same output port with different LO frequency!'        
+                    f'{resonatos} and {resonator} are using same output port with different LO frequency!'
 
 
     def transmon_parameters(self, transmon: str, chi_kHz: float = None):
