@@ -15,11 +15,21 @@ PI = np.pi
 
 
 
+# A list of string for commonly used hex color.
 COLOR_LIST = plt.rcParams['axes.prop_cycle'].by_key()['color']
 cmap_set3 = mpl.cm.get_cmap('Set3')
 COLOR_LIST.extend([mpl.colors.rgb2hex(cmap_set3(i)) for i in range(12)])
 
 
+def compare_dict(dict_raw: dict, dict_template: dict, key: str = ''):
+    """
+    Recursively checking the keys of two dictionaries without raising exception.
+    Suffix tells which yaml we are checking.
+    """
+    for k, v in dict_template.items():
+        if not k in dict_raw: print(f'Missing key "{k}" in key "{key}".')
+        if isinstance(v, dict): 
+            compare_dict(dict_raw[k], dict_template[k], k)
 
 
 def plot_overnightscan_result(total_tau_dict: dict, time_list: list | np.ndarray = None) -> dict[str: tuple]:

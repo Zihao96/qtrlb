@@ -6,15 +6,8 @@ from qtrlb.config.variable_manager import VariableManager
 
 
 
-class GateConfig(Config):
-    """ This is a thin wrapper over the Config class to help with individual gate management.
-    """
-    def load_raw(self, check_config: bool = False):
-        super().load_raw(check_config)
-
-
 class GateManager(MetaManager):
-    """ A container for all GateConfig to be accessible through one object.
+    """ A container for all gate Config to be accessible through one object.
         Each of their name will become an attribute of this GateManager.
         And this one itself can become an attribute of MetaManager.
         It also bring high-level interface for load, save, get, set, delete.
@@ -35,7 +28,7 @@ class GateManager(MetaManager):
 
         for file_path in files_path_list:
             gate_name = os.path.basename(file_path).split('.')[0]
-            manager_dict[gate_name] = GateConfig(yamls_path=yamls_path, suffix=gate_name, varman=varman)
+            manager_dict[gate_name] = Config(yamls_path=yamls_path, suffix=gate_name, varman=varman)
 
         super().__init__(manager_dict=manager_dict, working_dir=None, splitter=splitter)
         self.load()

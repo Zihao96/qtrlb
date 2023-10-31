@@ -33,7 +33,7 @@ class Config:
         # Please do not call self.load() here.
         
         
-    def load_raw(self, check_config: bool = True):
+    def load_raw(self):
         """
         Check the structure of the yaml file by comparing with its template.
         Raise error if the structure has inconsistency.
@@ -46,28 +46,8 @@ class Config:
             with open(self.raw_file_path, 'r') as f:
                 self.config_raw = yaml.load(f)
 
-            if check_config:
-                with open(self.template_file_path, 'r') as f:
-                    self.config_template = yaml.load(f)
-
-                # Recursively checking each keys
-                self.compare_dict(self.config_raw, self.config_template, suffix=self.suffix+self.variable_suffix)
-
-        except FileNotFoundError as e:
-            print(f'Config: Missing {self.suffix} Yaml file or its template. Please check your working directory!!!')
-            raise e
-        
-        
-    @staticmethod
-    def compare_dict(dict_raw: dict, dict_template: dict, suffix: str = ''):
-        """
-        Recursively checking the keys of two dictionaries.
-        Suffix tells which yaml we are checking.
-        """
-        for k, v in dict_template.items():
-            assert k in dict_raw, f'There is no key "{k}" in your {suffix}.yaml'
-            if isinstance(v, dict): 
-                Config.compare_dict(dict_raw[k], dict_template[k], suffix=suffix)
+        except FileNotFoundError:
+            print(f'Config: Missing {self.suffix} Yaml file. Please check your working directory!!!')
             
     
     def save(self, yamls_path: str = None, verbose: bool = True):
@@ -87,7 +67,7 @@ class Config:
         with open(file_path, 'w') as f:        
             round_trip_dump(self.config_raw, f)
         
-        if verbose: print(f'Config: The config_raw of {self.suffix} Manager has been saved successfully.')
+        if verbose: print(f'Config: The config_raw of {self.suffix} Manager has been saved.')
         
     
     def load(self):
