@@ -5,11 +5,19 @@
 # =============================================================================
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt 
 import qtrlb.utils.units as u
 from scipy.stats import norm
 from qtrlb.processing.fitting import gaussian1d_func
 PI = np.pi
+
+
+
+
+COLOR_LIST = plt.rcParams['axes.prop_cycle'].by_key()['color']
+cmap_set3 = mpl.cm.get_cmap('Set3')
+COLOR_LIST.extend([mpl.colors.rgb2hex(cmap_set3(i)) for i in range(12)])
 
 
 

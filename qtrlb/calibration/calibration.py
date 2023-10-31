@@ -10,6 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
+from qtrlb.utils.misc import COLOR_LIST
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -45,7 +46,7 @@ class Scan:
             level_to_fit: 0, 1 or [0,1,0,0]. Length should be same as readout_resonators.
             fitmodel: A Model from lmfit. Although it should be better to pick from qtrlb.processing.fitting.
     """
-    color_list = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    color_list = COLOR_LIST
 
 
     def __init__(self, 

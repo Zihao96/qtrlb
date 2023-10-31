@@ -359,7 +359,6 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         level_to_fit = self.make_it_list(level_to_fit)
         assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
 
-        results = {}
         for i, r in enumerate(self.readout_resonators):
             # Fit
             level = level_to_fit[i]
@@ -395,9 +394,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
             ax[0].legend(loc=text_loc)
             ax[1].add_artist(anchored_text)
-            
             fig.savefig(os.path.join(self.data_path, f'{r}_level{level}_fit.png'))
-            results[r] = result
 
         self.save_data()
 
