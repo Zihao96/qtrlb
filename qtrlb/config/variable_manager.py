@@ -67,7 +67,8 @@ class VariableManager(Config):
                     # It can solve subspace like '910' and compare '02' with '01'.
                     if (not subtone.isdecimal()) or subtone == '01': continue
                     level_high = int( subtone[ int(len(subtone)/2) : ] )
-                    anharmonicity = self[f'{tone}/freq'] - self[f'{level_high - 2}{level_high - 1}/freq']
+                    last_tone = f'{qudit}/{level_high - 2}{level_high - 1}'
+                    anharmonicity = self[f'{tone}/freq'] - self[f'{last_tone}/freq']
                     self.set(f'{tone}/anharmonicity', anharmonicity, which='dict')
 
             elif qudit.startswith('R'):
@@ -112,7 +113,7 @@ class VariableManager(Config):
             return
 
         assert transmon.startswith('Q'), 'Transmon has to be string like "Q0", "Q1".'
-        assert transmon.startswith('R'), 'Resonator has to be string like "R3", "R4a".'
+        assert resonator.startswith('R'), 'Resonator has to be string like "R3", "R4a".'
         f01_GHz = self[f'{transmon}/01/freq'] / u.GHz
         alpha_GHz = self[f'{transmon}/12/anharmonicity'] / u.GHz
         fr_GHz = self[f'{resonator}/freq'] / u.GHz
