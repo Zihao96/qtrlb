@@ -26,9 +26,6 @@ class ProcessManager(Config):
         Run the parent load, then check the shape of IQ matrices.
         """
         super().load()
-        
-        resonators_list = [key for key in self.keys() if key.startswith('R')]
-        self.set('resonators', resonators_list, which='dict')  # Keep the new key start with lowercase!
         self.check_IQ_matrices()
         
         
@@ -38,21 +35,20 @@ class ProcessManager(Config):
         If their shapes are not compatible with readout_levels,
         default compatible matrices will be generated without saving.
         """
-        for r in self['resonators']:
+        for r in self.keys():
+            if not r.startswith('R'): continue
+
             self.set(f'{r}/lowest_readout_levels', self[f'{r}/readout_levels'][0], which='dict')
             self.set(f'{r}/highest_readout_levels', self[f'{r}/readout_levels'][-1], which='dict')
             self.set(f'{r}/n_readout_levels', len(self[f'{r}/readout_levels']), which='dict')
             
-            try:
-                assert (self[f'{r}/n_readout_levels'] == len(self[f'{r}/IQ_means']) 
-                        == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix']))
-            except AssertionError:
-                print(f'ProcessManager: The shapes of IQ matrices in {r} are not compatible with its readout_levels. '
-                      +'New matrices has been generated. Please save it by calling cfg.save()')
+            if not (self[f'{r}/n_readout_levels'] == len(self[f'{r}/IQ_means']) 
+                    == len(self[f'{r}/IQ_covariances']) == len(self[f'{r}/corr_matrix'])):
                 
+                print(f'Processman: New IQ matrices of {r} has been generated to be compatible with its readout_levels.')
                 self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels'])
-                self[f'{r}/IQ_covariances'] = [1 for i in range(self[f'{r}/n_readout_levels'])]
-                self[f'{r}/IQ_means'] = [[i*10, i*10] for i in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_covariances'] = [1 for _ in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_means'] = [[i, i] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
     def process_data(self, measurement: dict, shape: tuple, process_kwargs: dict = None):
@@ -64,13 +60,13 @@ class ProcessManager(Config):
         !*-*This function will change measurement in-place*-*!
         
         Note from Zihao(02/17/2023):
-        The customized key should better be the first 'if' condition below.
+        The customized_data_process key should better be the first 'if' condition below.
         Because one may need to keep heralding to be true to add that pulse in sequence,
         while going into the customized process routine.
         """
 
-        if self['customized'] is not None:
-            getattr(self, self['customized'])(measurement, shape, process_kwargs)
+        if self['customized_data_process'] is not None:
+            getattr(self, self['customized_data_process'])(measurement, shape, process_kwargs)
         
         
         elif self['heralding']:

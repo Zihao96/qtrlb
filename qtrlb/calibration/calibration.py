@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.misc import COLOR_LIST
+from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -87,14 +87,13 @@ class Scan:
         
         self.n_runs = 0
         self.measurements = []
-        self.qudits = self.drive_qubits + self.readout_resonators
         self.classification_enable = self.cfg.variables['common/classification']
         self.heralding_enable = self.cfg.variables['common/heralding']
         self.customized_data_process = self.cfg.variables['common/customized_data_process']
         self.x_values = np.linspace(self.x_start, self.x_stop, self.x_points)
         self.x_step = (self.x_stop - self.x_start) / (self.x_points-1) if self.x_points != 1 else 0 
         self.num_bins = self.n_seqloops * self.x_points
-        self.jsons_path=os.path.join(self.cfg.working_dir, 'Jsons')
+        self.jsons_path = os.path.join(self.cfg.working_dir, 'Jsons')
         
         self.check_attribute()
         self.make_tones_list()
@@ -151,30 +150,37 @@ class Scan:
         self.plot()
         self.n_runs += 1
         self.measurements.append(self.measurement)
-        
-        
+
+
+    @property
+    def qudits(self):
+        """
+        As the first step towards dynamical attribute, we make self.qudits property.
+        It allows user to modify self.tones of an instance without worry about the gates dataframe.
+        Such modification usually happen after instantiation and before make_sequence.
+        """
+        return tone_to_qudit(self.tones)
+
+
     def check_attribute(self):
         """
         Check the qubits/resonators are always string with 'Q' or 'R'.
-        Warn user if any drive_qubits are not being readout without raising error.
         Make sure each qubit has subspace and each resonator has level_to_fit.
         Make sure the pre_gate/post_gate is indeed in form of dictionary.
         Check total acquisition point in sequence program.
         Make sure classification is on when heralding is on.
+        Note this method is usually called before we have self.tones and self.qudits.
         """
-        for qudit in self.qudits:
+        for qudit in self.drive_qubits + self.readout_resonators:
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
             assert qudit.startswith(('Q', 'R')), f'The value of {qudit} is invalid.'
-            
-        for qubit in self.drive_qubits:
-            if f'R{qubit[1]}' not in self.readout_resonators: print(f'Scan: The {qubit} will not be readout!')
         
         assert hasattr(u, self.x_plot_unit), f'The plot unit {self.x_plot_unit} has not been defined.'
         assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
         assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
-        assert isinstance(self.pre_gate, dict), 'pre_gate must be dictionary like {"Q0":[gate1, gate2,...]}'
-        assert isinstance(self.post_gate, dict), 'post_gate must to be dictionary like {"Q0":[gate1, gate2,...]}'
+        assert isinstance(self.pre_gate, dict), 'pre_gate must be dictionary like {"Q0": [gate1, gate2,...]}'
+        assert isinstance(self.post_gate, dict), 'post_gate must to be dictionary like {"Q0": [gate1, gate2,...]}'
         assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
 
@@ -533,8 +539,8 @@ class Scan:
         multiple = round(length // divisor_ns)
         remainder = round(length % divisor_ns)
         
-        gate = {qudit: ['I' for i in range(multiple+1)] for qudit in self.qudits}
-        lengths = [divisor_ns for i in range(multiple)] + [remainder]
+        gate = {qudit: ['I' for _ in range(multiple+1)] for qudit in self.qudits}
+        lengths = [divisor_ns for _ in range(multiple)] + [remainder]
         self.add_gate(gate, name, lengths, add_label=add_label, concat_df=concat_df)
     
             

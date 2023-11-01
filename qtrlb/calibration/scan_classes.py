@@ -231,9 +231,8 @@ class RabiScan(Scan):
     @property
     def pi_amp(self):
         """
-        This property is not error-protected. It just improves convenience.
+        Convenience method for daily calibration.
         We assume linear relation between Rabi Frequency and drive amplitude.
-        It should be called only when all qubits are readout.
         """
         pi_amp = {}
         ideal_rabi_freq = 1 / 2 / self.cfg['variables.common/qubit_pulse_length']

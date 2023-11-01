@@ -28,7 +28,6 @@ class DACManager(Config):
         # Connect to instrument.
         Cluster.close_all()
         self.test_mode = test_mode
-
         if self.test_mode:
             dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
             self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
@@ -36,26 +35,21 @@ class DACManager(Config):
             self.qblox = Cluster(self['name'], self['address']) 
 
         self.qblox.reset()
-        
         self.load()
     
     
     def load(self):
         """
-        Run the parent load and add necessary new item in config_dict.
+        Run the parent load and add new dictionary attributes.
+        These attributes contain pointer to real object in instrument driver.
         """
         super().load()
         
-        modules_list = [key for key in self.keys() if key.startswith('Module')]
-        self.set('modules', modules_list, which='dict')  # Keep the new key start with lowercase!
-        
-        # These dictionary contain pointer to real object in instrument driver.
         self.module = {}
         self.sequencer = {}
         for tone in self.varman['tones']:
-            qudit = self.tone_to_qudit(tone)
-            self.module[qudit] = getattr(self.qblox, 'module{}'.format(self.varman[f'{qudit}/module']))
-            self.sequencer[tone] = getattr(self.module[qudit], 'sequencer{}'.format(self.varman[f'{tone}/sequencer']))
+            self.module[tone] = getattr(self.qblox, 'module{}'.format(self.varman[f'{tone}/mod']))
+            self.sequencer[tone] = getattr(self.module[tone], 'sequencer{}'.format(self.varman[f'{tone}/seq']))
              
         
     def implement_parameters(self, tones: list, jsons_path: str):
@@ -70,35 +64,30 @@ class DACManager(Config):
         
         for tone in tones:
             tone_ = tone.replace('/', '_')
-            qudit = self.tone_to_qudit(tone)
-            module_idx = self.varman[f'{qudit}/module']  # Just an interger. It's for convenience.
-            sequencer_idx = self.varman[f'{tone}/sequencer']
+            mod = self.varman[f'{tone}/mod']  # A string of integer index for convenience.
+            out = self.varman[f'{tone}/out']
+            seq = self.varman[f'{tone}/seq']
 
             # Implement common parameters.
-            for attribute in self[f'Module{module_idx}'].keys():
-                if attribute.startswith(('out', 'in', 'scope')):
-                    getattr(self.module[qudit], attribute)(self[f'Module{module_idx}/{attribute}'])
+            for key, value in self[f'Module{mod}'].items():
+                if key.startswith(('out', 'in', 'scope')): getattr(self.module[tone], key)(value)
 
             # Implement QCM-RF specific parameters.
-            if qudit.startswith('Q'):
-                out = self.varman[f'{qudit}/out']
-                getattr(self.module[qudit], f'out{out}_lo_en')(True)
+            if tone.startswith('Q'):
+                getattr(self.module[tone], f'out{out}_lo_en')(True)
                 time.sleep(0.005)  # This 5ms sleep is important to make LO work correctly. 1ms doesn't work.
-                getattr(self.module[qudit], f'out{out}_lo_freq')(self.varman[f'{qudit}/qubit_LO']) 
-
+                getattr(self.module[tone], f'out{out}_lo_freq')(self.varman[f'lo_freq/M{mod}O{out}'])
                 self.sequencer[tone].sync_en(True)
                 self.sequencer[tone].mod_en_awg(True)
-
                 getattr(self.sequencer[tone], f'channel_map_path0_out{out*2}_en')(True)
                 getattr(self.sequencer[tone], f'channel_map_path1_out{out*2+1}_en')(True)
                 
             # Implement QRM-RF specific parameters.
-            elif qudit.startswith('R'):
-                self.module[qudit].out0_in0_lo_en(True)
+            elif tone.startswith('R'):
+                self.module[tone].out0_in0_lo_en(True)
                 time.sleep(0.005)  # This 5ms sleep is important to make LO work correctly. 1ms doesn't work.
-                self.module[qudit].out0_in0_lo_freq(self.varman[f'{qudit}/resonator_LO'])        
-                self.module[qudit].scope_acq_sequencer_select(self.varman[f'{qudit}/sequencer'])  
-                # Last sequencer to triger acquire.
+                self.module[tone].out0_in0_lo_freq(self.varman[f'lo_freq/M{mod}O{out}'])
+                self.module[tone].scope_acq_sequencer_select(seq)  # Last sequencer to triger acquire.
                 self.sequencer[tone].sync_en(True)
                 self.sequencer[tone].mod_en_awg(True)
                 self.sequencer[tone].demod_en_acq(True)
@@ -107,14 +96,15 @@ class DACManager(Config):
                 self.sequencer[tone].channel_map_path0_out0_en(True)
                 self.sequencer[tone].channel_map_path1_out1_en(True)
                   
-
+            # Correct sideband tone of mixer. Nulling LO tone was applied in common parameters.
             self.sequencer[tone].mixer_corr_gain_ratio(
-                self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_gain_ratio']
+                self[f'Module{mod}/Sequencer{seq}/mixer_corr_gain_ratio']
             )           
             self.sequencer[tone].mixer_corr_phase_offset_degree(
-                self[f'Module{module_idx}/Sequencer{sequencer_idx}/mixer_corr_phase_offset_degree']
+                self[f'Module{mod}/Sequencer{seq}/mixer_corr_phase_offset_degree']
             )
             
+            # Upload sequence json file to instrument.
             file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
             self.sequencer[tone].sequence(file_path)
     
@@ -124,24 +114,23 @@ class DACManager(Config):
         Disconnect all existed maps between two output paths of each output port 
         and two output paths of each sequencer.
         """
-        for m in self['modules']:
-            this_module = getattr(self.qblox, f'{m}'.lower())
-            
-            # Steal code from Qblox official tutoirals.
-            if self[f'{m}/type'] == 'QCM-RF':
-                for sequencer in this_module.sequencers:
+        for module in self.qblox.modules:
+            if not (module.present() and module.is_rf_type): continue
+
+            if module.is_qcm_type:
+                for sequencer in module.sequencers:
                     for out in range(0, 4):
                         if hasattr(sequencer, "channel_map_path{}_out{}_en".format(out%2, out)):
                             sequencer.set("channel_map_path{}_out{}_en".format(out%2, out), False)
-                    
-            elif self[f'{m}/type'] == 'QRM-RF':
-                for sequencer in this_module.sequencers:
+
+            elif module.is_qrm_type:
+                for sequencer in module.sequencers:
                     for out in range(0, 2):
                         if hasattr(sequencer, "channel_map_path{}_out{}_en".format(out%2, out)):
                             sequencer.set("channel_map_path{}_out{}_en".format(out%2, out), False)
-                
+
             else:
-                raise ValueError(f'The type of {m} is invalid.')
+                print(f'Failed to disconnect channel map for module type {module.module_type}')
             
 
     def disable_all_lo(self):
@@ -187,8 +176,8 @@ class DACManager(Config):
             # Only loop over resonator.
             if not r.startswith('R'): continue
 
-            timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/module'])]
-            seq_idx = self.varman[f'{r}/sequencer']
+            timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/mod'])]
+            seq_idx = int(self.varman[f'{r}/seq'])
            
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
             self.module[r].get_acquisition_state(seq_idx, timeout)  
@@ -223,37 +212,4 @@ class DACManager(Config):
         # In case of the sequencers don't stop correctly.
         # Do not call qblox.reset() here since it will make debugging difficult.
         self.qblox.stop_sequencer()
-
-
-    @staticmethod
-    def tone_to_qudit(tone: str | list) -> str | list:
-        """
-        Translate the tone to qudit.
-        Accept a string or a list of string.
-        It's because qudit is mapping to module and tone is mapping to sequencer.
-
-        Example:
-        tone_to_qudit('Q2') -> 'Q2'
-        tone_to_qudit('R2') -> 'R2'
-        tone_to_qudit('Q2/12') -> 'Q2'
-        tone_to_qudit(['Q2/01', 'Q2/12', 'R2']) -> ['Q2', 'R2']
-        tone_to_qudit([['Q2/01', 'Q3/12', 'R2'],['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
-        """
-        if isinstance(tone, str):
-            assert tone.startswith(('Q', 'R')), f'DAC: Cannot translate {tone} to qudit.'
-            try:
-                qudit, _ = tone.split('/')
-                return qudit
-            except ValueError:
-                return tone
-            
-        elif isinstance(tone, list):
-            qudit = []
-            for t in tone:
-                q = DACManager.tone_to_qudit(t)
-                if q not in qudit: qudit.append(q)
-            return qudit
-
-        else:
-            raise TypeError(f'DAC: Cannot translate the {tone}. Please check it type.')
 

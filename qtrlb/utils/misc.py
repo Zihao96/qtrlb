@@ -32,6 +32,37 @@ def compare_dict(dict_raw: dict, dict_template: dict, key: str = ''):
             compare_dict(dict_raw[k], dict_template[k], k)
 
 
+def tone_to_qudit(tone: str | list) -> str | list:
+    """
+    Translate the tone to qudit.
+    Accept a string or a list of string.
+
+    Example:
+    tone_to_qudit('Q2') -> 'Q2'
+    tone_to_qudit('R2') -> 'R2'
+    tone_to_qudit('Q2/12') -> 'Q2'
+    tone_to_qudit(['Q2/01', 'Q2/12', 'R2']) -> ['Q2', 'R2']
+    tone_to_qudit([['Q2/01', 'Q3/12', 'R2'], ['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
+    """
+    if isinstance(tone, str):
+        assert tone.startswith(('Q', 'R')), f'Cannot translate {tone} to qudit.'
+        try:
+            qudit, _ = tone.split('/')
+            return qudit
+        except ValueError:
+            return tone
+        
+    elif isinstance(tone, list):
+        qudit = []
+        for t in tone:
+            q = tone_to_qudit(t)
+            if q not in qudit: qudit.append(q)
+        return qudit
+
+    else:
+        raise TypeError(f'DAC: Cannot translate the {tone}. Please check it type.')
+
+
 def plot_overnightscan_result(total_tau_dict: dict, time_list: list | np.ndarray = None) -> dict[str: tuple]:
     """
     Plot the result of an Overnight coherence Scan.
