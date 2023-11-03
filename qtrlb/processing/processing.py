@@ -302,8 +302,18 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tupl
     We need one and only one overlapped element appear in two neighbor levels list.
 
     Example of usage:
-    result = multitone_predict_sequential( (dataA, [0,1,2,3]), (dataB, [3,4,5,6]), (dataC, [6,7,8]) )
-    where dataA = measurement[tone_A]['GMMpredicted_readout'], etc.
+    dataA = [[1, 3], [0, 3]]
+    leakA = [[0, 1], [0, 1]]
+    flipA = [[1, 0], [1, 0]]
+
+    dataB = [[3, 4], [6, 6]]
+    leakB = [[0, 0], [1, 1]]
+    flipB = [[1, 1], [0, 0]]
+
+    dataC = [[6, 7], [7, 8]]
+
+    result = multitone_predict_sequential((dataA, [0,1,2,3]), (dataB, [3,4,5,6]), (dataC, [6,7,8]))
+    result == [[1, 4], [0, 8]]
 
     About this readout strategy: (may be moved to process_manager):
     In this sequential method, we will always trust first tone.
@@ -316,12 +326,12 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tupl
 
     About this algorithm:
     In this method, I perfer to think about it as a water leaking from top layer down to lower layer.
-    Here mask represent which data/position this layer want to leak to next layer.
-    Hence (1-mask) means which data/position this layer are able to kept.
-    The accumulated_mask counts all data/position leaking from all previous layers.
-    Thus, (1-mask) * accumulated_mask are the data we catched from last layer and will kept this layer.
+    Here leak represent which data/position this layer want to leak to next layer.
+    Hence (1-leak) means which data/position this layer are able to kept.
+    The accumulated_leak counts all data/position leaking from all previous layers.
+    Thus, (1-leak) * accumulated_leak are the data we catched from last layer and will kept this layer.
     """
-    accumulated_mask = 1
+    accumulated_leak = 1
     result = 0
     for (data_0, levels_0), (data_1, levels_1) in zip(data_levels_tuple[:-1], data_levels_tuple[1:]):
 
@@ -329,12 +339,50 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tupl
         intersection = np.intersect1d(levels_0, levels_1)
         assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
 
-        # Element of the mask where data_0 equal to intersection will be 1, else 0.
-        mask = (data_0 == intersection).astype(int)
-        result += data_0 * (1 - mask) * accumulated_mask
-        accumulated_mask *= mask
+        # Element of the leak where data_0 equal to intersection will be 1 (leak), else 0 (keep).
+        leak = (data_0 == intersection).astype(int)
+        result += data_0 * (1 - leak) * accumulated_leak
+        accumulated_leak *= leak
 
     # data_1 will be kept as last input data even after for loop finished.
     # The iterator reaches end, but these local variables in function frame get kept.
-    result += data_1 * accumulated_mask
+    result += data_1 * accumulated_leak
     return result
+
+
+def multitone_predict_mask(*data_levels_tuple: tuple) -> np.ndarray | tuple[np.ndarray]:
+    """
+    Classify the single qudit state based on result of GMM prediction from multitones.
+    For requirement of the arguments and usage, please refer to multitone_predict_sequential.
+    This function generate exactly same classification result with a mask showing contradiction.
+
+    About this algorithm:
+    For each tone, we now need to know the position of upward leak and downward leak.
+    For a given tone, there is two case.
+    First, if itself doesn't leak, we require the tone below it to leak up and tone above it to leak down.
+    Second, the tone leak. Then we are good, the mask at other layer will worry about it.
+    Otherwise, there is contradiction, we will generate such mask of this layer.
+    The returned mask is the OR operation among all these masks.
+    """
+    result = multitone_predict_sequential(*data_levels_tuple)
+
+    # Correctness are protected by multitone_predict_sequential.
+    intersections = [levels[-1] for _, levels in data_levels_tuple[:-1]]
+
+    # Create leak list with length equal to n_tones.
+    leak_low = ([np.zeros_like(result)] 
+                + [data == intersections[i] 
+                   for i, (data, _) in enumerate(data_levels_tuple[1:])])
+    leak_high = ([data == intersections[i] 
+                  for i, (data, _) in enumerate(data_levels_tuple[:-1])] 
+                 + [np.zeros_like(result)])
+
+    # In this mask, problematic data will be labeled as 1, others as 0.
+    mask = 0
+    for i in range(len(data_levels_tuple)):
+        leak_others = [h for h in leak_high[:i]] + [l for l in leak_low[i+1:]]
+        leak_prod = np.prod(leak_others, axis=0)
+        mask = mask | 1 - (leak_low[i] | leak_high[i] | leak_prod) 
+
+    return result, mask
+
