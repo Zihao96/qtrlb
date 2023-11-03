@@ -18,7 +18,7 @@ def autotune(
         rams_length: float, 
         rams_AD: float,
         normalize_subspace: bool = False,
-        show_plot: bool = False,
+        show_plot: bool = True,
         verbose: bool = False,
         **autotune_kwargs) -> tuple[Scan]:
     """

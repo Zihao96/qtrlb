@@ -288,3 +288,53 @@ def two_tone_normalize(input_data_0: list | np.ndarray,
     flatten_data = (input_data_1 - intersection) + len(levels_1) * input_data_0
     levels = np.arange(len(levels_0) * len(levels_1))
     return normalize_population(flatten_data, levels, axis, mask)
+
+
+def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tuple[np.ndarray]:
+    """
+    Classify the single qudit state based on result of GMM prediction from multitones.
+    The arguments (data_levels_args) passed in here should be tuples.
+    The number of arguments should equal to the number of tones.
+    Each tuples has two element where the first one is the GMM_predicted data (ndarray) of that tone.
+    The second element is list of all possible readout assignment levels of corresponding tone.
+    We required the arguments passed in here are in ascdending order.
+    The first tones should readout lowest level and the last tone should readout highest level. 
+    We need one and only one overlapped element appear in two neighbor levels list.
+
+    Example of usage:
+    result = multitone_predict_sequential( (dataA, [0,1,2,3]), (dataB, [3,4,5,6]), (dataC, [6,7,8]) )
+    where dataA = measurement[tone_A]['GMMpredicted_readout'], etc.
+
+    About this readout strategy: (may be moved to process_manager):
+    In this sequential method, we will always trust first tone.
+    Only when first tone gives its highest result, we will look at the second tone, and so on.
+    It works well when even higher states, which is higher than the highest possible state of this tone, 
+    won't change IQ Gaussian out of the highest Gaussian and hence won't have too much miss classification.
+    Pros: all data are used, always have single shot result, support realtime feedback.
+    Cons: result might be slightly biased to lower level because the problem mentioned above.
+    It usually works better we have further Gaussian separation and high single tone readout fidelity. 
+
+    About this algorithm:
+    In this method, I perfer to think about it as a water leaking from top layer down to lower layer.
+    Here mask represent which data/position this layer want to leak to next layer.
+    Hence (1-mask) means which data/position this layer are able to kept.
+    The accumulated_mask counts all data/position leaking from all previous layers.
+    Thus, (1-mask) * accumulated_mask are the data we catched from last layer and will kept this layer.
+    """
+    accumulated_mask = 1
+    result = 0
+    for (data_0, levels_0), (data_1, levels_1) in zip(data_levels_tuple[:-1], data_levels_tuple[1:]):
+
+        # Find intersection and check it's unique.
+        intersection = np.intersect1d(levels_0, levels_1)
+        assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
+
+        # Element of the mask where data_0 equal to intersection will be 1, else 0.
+        mask = (data_0 == intersection).astype(int)
+        result += data_0 * (1 - mask) * accumulated_mask
+        accumulated_mask *= mask
+
+    # data_1 will be kept as last input data even after for loop finished.
+    # The iterator reaches end, but these local variables in function frame get kept.
+    result += data_1 * accumulated_mask
+    return result
