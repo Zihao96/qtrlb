@@ -89,6 +89,38 @@ def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
     return gmm.means_, gmm.covariances_
 
 
+def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndarray:
+    """
+    Generate the ndarray mask with shape (n_reps, x_points).
+    The input data should be arbitrary numbers of GMM predicted result with same data shape.
+    The entries of mask will be 0 only if all input data is 0 at that position(index).
+    It means for that specific repetition and x_point, all resonators pass heralding test.
+    We then trim data to make sure all x_point has same amount of available repetition.
+    Data trim doesn't Support 2D scan result.
+    
+    Note from Zihao(02/21/2023):
+    The code here is stolen from original version of qtrl where we can only test ground state.
+    However, ground state has most population and if our experiment need to start from |1>, pi pulse it.
+    """
+    mask = 0
+    for data in input_data: mask = mask | data
+    if trim is not True: return mask
+
+    assert len(mask.shape) == 2, 'Process: Do not support trim other than 2D data yet.'
+
+    # Old qtrl code for trim data.
+    n_pass_min = np.min(np.sum(mask == 0, axis=0))  
+
+    for i in range(mask.shape[1]):  # Loop over each x_point
+        j = 0
+        while np.sum(mask[:, i] == 0) > n_pass_min:
+            n_short = np.sum(mask[:, i] == 0) - n_pass_min
+            mask[j : j + n_short, i] = -1
+            j += n_short
+            
+    return mask
+
+
 def normalize_population(input_data, levels: list | np.ndarray, axis: int = 0, mask: np.ndarray = None):
     """
     Count population (specific interger) for different levels along a given axis.
