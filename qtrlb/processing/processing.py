@@ -322,7 +322,7 @@ def two_tone_normalize(input_data_0: list | np.ndarray,
     return normalize_population(flatten_data, levels, axis, mask)
 
 
-def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tuple[np.ndarray]:
+def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray:
     """
     Classify the single qudit state based on result of GMM prediction from multitones.
     The arguments (data_levels_args) passed in here should be tuples.
@@ -373,7 +373,7 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tupl
     return result
 
 
-def multitone_predict_mask(*data_levels_tuple: tuple) -> np.ndarray | tuple[np.ndarray]:
+def multitone_predict_mask(*data_levels_tuple: tuple) -> tuple[np.ndarray]:
     """
     Classify the single qudit state based on result of GMM prediction from multitones.
     For requirement of the arguments and usage, please refer to multitone_predict_sequential.
@@ -409,3 +409,30 @@ def multitone_predict_mask(*data_levels_tuple: tuple) -> np.ndarray | tuple[np.n
 
     return result, mask
 
+
+def multitone_normalize(*data_levels_tuple: tuple, axis: int = 0, mask: np.ndarray = None) -> np.ndarray:
+    """
+    Count population (a pair of interger) based on all possible outcome pairs along a given axis.
+    Return to normalized population (counts of appearing) with shape (n_possible_pairs, x_points).
+    Allow a mask to pick entries in input_data to be normalized.
+    Require levels_0 to be smaller than levels_1 and only one intersection state.
+
+    Example: levels_0 = [0, 1, 2, 3], levels_1 = [3, 4, 5, 6]
+    There will be 16 different outcome (0-15), and we map them to: 1 * x0 + len(levels_0) * (x1 - 3)
+    The returned result will have shape (16, x_points)
+    The later corr_matrix will be expected to have shape (16, 7)
+    """
+    accumulated_length = 1
+    flatten_data = data_levels_tuple[0][0] * accumulated_length  # Nothing but initialize with lowest levels.
+
+    for (data_0, levels_0), (data_1, levels_1) in zip(data_levels_tuple[:-1], data_levels_tuple[1:]):
+        
+        # Find intersection and check it's unique.
+        intersection = np.intersect1d(levels_0, levels_1)
+        assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
+
+        accumulated_length *= len(levels_0)
+        flatten_data += accumulated_length * data_1 
+
+    levels = np.arange(accumulated_length * len(levels_1))
+    return normalize_population(flatten_data, levels, axis, mask)

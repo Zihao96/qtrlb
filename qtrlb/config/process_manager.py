@@ -3,7 +3,7 @@ from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
 from qtrlb.processing.processing import rotate_IQ, gmm_predict, heralding_test, normalize_population, \
     autorotate_IQ, correct_population, two_tone_predict, two_tone_normalize, multitone_predict_sequential, \
-    multitone_predict_mask
+    multitone_predict_mask, multitone_normalize
 
 
 class ProcessManager(Config):
@@ -320,8 +320,9 @@ class ProcessManager(Config):
 
         # Multitone process.
         for tones, corr_matrix in process_kwargs.items():
-            data_levels_tuple = ((measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) 
-                                 for tone in tones)
+            data_levels_tuple = (
+                (measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) for tone in tones
+            )
             levels = np.arange(self[f'{tones[0]}/readout_levels'][0], 
                                self[f'{tone[-1]}/readout_levels'][-1] + 1,
                                step=1, dtype=int)
@@ -375,9 +376,9 @@ class ProcessManager(Config):
 
         # Multitone process readout first.
         for tones, corr_matrix in process_kwargs.items():
-
-            data_levels_tuple = ((measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) 
-                                 for tone in tones)
+            data_levels_tuple = (
+                (measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) for tone in tones
+            )
             levels = np.arange(self[f'{tones[0]}/readout_levels'][0], 
                                self[f'{tone[-1]}/readout_levels'][-1] + 1,
                                step=1, dtype=int)
@@ -416,8 +417,9 @@ class ProcessManager(Config):
             # In this method, we also use mask strategy on heralding measurement.
             # It means we need to do multitone process first before we do heralding test.
             for tones in process_kwargs.keys():
-                data_levels_tuple = ((measurement[tone]['GMMpredicted_heralding'], self[f'{tone}/readout_levels']) 
-                                    for tone in tones)
+                data_levels_tuple = (
+                    (measurement[tone]['GMMpredicted_heralding'], self[f'{tone}/readout_levels']) for tone in tones
+                )
                 multitonepredicted_heralding, mask_multitone_heralding = multitone_predict_mask(*data_levels_tuple)
 
                 # Save to measurement
@@ -446,4 +448,72 @@ class ProcessManager(Config):
                     measurement[tone]['PopulationNormalized_readout'] = population_normalized_readout
                     measurement[tone]['PopulationCorrected_readout'] = population_corrected_readout
                     measurement[tone]['to_fit'] = population_corrected_readout
+
+
+    def multitone_readout_corr(self, measurement: dict, shape: tuple, process_kwargs: dict):
+        """
+        Using multi-tones frequency-multiplexing to readout each resonator.
+        Generate exactly same 'to_fit' value for each tones to avoid later bug.
+        
+        Example of process_kwargs:
+        {
+            ('R0a', 'R0b'): corr_matrix,
+            ('R4a', 'R4b', 'R4c'): corr_matrix,
+        }
+        Here three tone of 'R4' MUST be in ascending order, meaning 'R4a' reading lowest level.
+        
+        About this readout strategy:
+        In this correction method, we don't do any multitone prediction.
+        It means we won't generate a final state assignment for each single shot.
+        We will keep the prediction from each tone and directly apply readout correction on it.
+        We map each combination of these prediction to be a meaningless integer.
+        Mapping rule: A + len(A) * (B - intersection_AB) + len(A) * len(B) * (C - intersection_BC) + ...
+        Pros: If we compare post-correction fidelity, this one should win a little and possibly more stable.
+        Cons: Doesn't have any single shot at all. Only have a normalized-corrected population/probability.
+        """
+        # Normal GMM prediction as classification.
+        for r, data_dict in measurement.items():  
+            data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
+            data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
+                                                       angle=self[f'{r}/IQ_rotation_angle'])
+            data_dict['GMMpredicted_readout'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                            means=self[f'{r}/IQ_means'], 
+                                                            covariances=self[f'{r}/IQ_covariances'],
+                                                            lowest_level=self[f'{r}/lowest_readout_levels'])
+            # GMMpredicted has shape (n_reps, y_points, x_points) for 2D Scan.
+            # Values are integers as state assignment result.
+
+        # All heralding process in this if condition.
+        mask_heralding = None
+        if self['heralding'] is True:
+            for r, data_dict in measurement.items():  
+                data_dict['Reshaped_heralding'] = np.array(data_dict['Heterodyned_heralding']).reshape(shape)
+                data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
+                                                             angle=self[f'{r}/IQ_rotation_angle'])           
+                data_dict['GMMpredicted_heralding'] = gmm_predict(data_dict['IQrotated_heralding'], 
+                                                                  means=self[f'{r}/IQ_means'], 
+                                                                  covariances=self[f'{r}/IQ_covariances'],
+                                                                  lowest_level=self[f'{r}/lowest_readout_levels'])
+
+            # For each resonator, we only use it's first tone for heralding test.
+            # Until here, everything is same as sequential method.
+            heralding_data_list = [measurement[tones[0]]['GMMpredicted_heralding'] for tones in process_kwargs.keys()]
+            mask_heralding = heralding_test(*heralding_data_list)
+            
+
+        # Multitone process.
+        for tones, corr_matrix in process_kwargs.items():
+            data_levels_tuple = (
+                (measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) for tone in tones
+            )
+            population_normalized_readout = multitone_normalize(*data_levels_tuple, mask=mask_heralding)
+            population_corrected_readout = correct_population(population_normalized_readout, 
+                                                              corr_matrix, 
+                                                              self['corr_method'])
+
+            for tone in tones:
+                measurement[tone]['Mask_heralding'] = mask_heralding
+                measurement[tone]['PopulationNormalized_readout'] = population_normalized_readout
+                measurement[tone]['PopulationCorrected_readout'] = population_corrected_readout
+                measurement[tone]['to_fit'] = population_corrected_readout
 
