@@ -347,15 +347,6 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray | tupl
     result = multitone_predict_sequential((dataA, [0,1,2,3]), (dataB, [3,4,5,6]), (dataC, [6,7,8]))
     result == [[1, 4], [0, 8]]
 
-    About this readout strategy: (may be moved to process_manager):
-    In this sequential method, we will always trust first tone.
-    Only when first tone gives its highest result, we will look at the second tone, and so on.
-    It works well when even higher states, which is higher than the highest possible state of this tone, 
-    won't change IQ Gaussian out of the highest Gaussian and hence won't have too much miss classification.
-    Pros: all data are used, always have single shot result, support realtime feedback.
-    Cons: result might be slightly biased to lower level because the problem mentioned above.
-    It usually works better we have further Gaussian separation and high single tone readout fidelity. 
-
     About this algorithm:
     In this method, I perfer to think about it as a water leaking from top layer down to lower layer.
     Here leak represent which data/position this layer want to leak to next layer.
