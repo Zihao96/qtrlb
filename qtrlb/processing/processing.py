@@ -82,7 +82,14 @@ def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
     The input_data should has shape (2, ...) because of two quadratures.
     Return the means and covariances. Means have shape (n_components, 2).
     Covariances have shape (n_components,) for symmetrical 2D distribution.
+
+    Note from Zihao(11/07/2023):
+    Gaussian Mixture doesn't support np.ma.core.MaskedArray.
+    The mask will be dropped in gmm._validate_data().
+    As the result, what ever mask we have will yield same gmm parameters.
+    User must slice the data by themself before sending into this function.
     """
+    assert not hasattr(input_data, 'mask'), 'Processing: MaskedArray are not supported by GaussianMixture.'
     input_data = np.array(input_data)
     gmm = GaussianMixture(n_components, covariance_type=covariance_type)
     gmm.fit(input_data.reshape(2,-1).T)
