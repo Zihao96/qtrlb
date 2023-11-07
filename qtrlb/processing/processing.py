@@ -110,7 +110,7 @@ def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndar
     However, ground state has most population and if our experiment need to start from |1>, pi pulse it.
     """
     mask = 0
-    for data in input_data: mask = mask | data
+    for data in input_data: mask = mask | (data != 0)
     if trim is not True: return mask
 
     assert len(mask.shape) == 2, 'Process: Do not support trim other than 2D data yet.'
@@ -122,7 +122,7 @@ def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndar
         j = 0
         while np.sum(mask[:, i] == 0) > n_pass_min:
             n_short = np.sum(mask[:, i] == 0) - n_pass_min
-            mask[j : j + n_short, i] = -1
+            mask[j : j + n_short, i] = 1
             j += n_short
             
     return mask
