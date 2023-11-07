@@ -1244,6 +1244,7 @@ class MultitoneROCalibration(LevelScan):
 
         elif self.customized_data_process == 'multitone_readout_mask':
             multitonepredicted_readout, mask_multitone_readout = multitone_predict_mask(*data_levels_tuple)
+            if mask_heralding is None: mask_heralding = 0
             mask_union = mask_heralding | mask_multitone_readout
             self.multitone_corr_matrix = normalize_population(
                 multitonepredicted_readout,
