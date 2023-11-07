@@ -17,30 +17,28 @@ class MixerCorrection:
     
         Attributes:
             cfg: A MetaManager
-            qudit: 'Q2', 'Q3', 'R4', 'R1'
-            subspace: '01', '12'. Only work for qubit, not resonator.
+            tone: 'Q2/12', 'Q3/ACStark', 'R4a', 'R4c'
             amp: Float number between 0 and 1.
             waveform_length: Integer between [4,16384]. Don't change.
     """
     def __init__(self, 
                  cfg: MetaManager, 
-                 qudit: str,
-                 subspace: str = '01',
+                 tone: str ,
                  amp: float = 0.1,
                  waveform_length: int = 40):
         self.cfg = cfg
-        self.qudit = qudit
-        self.subspace = subspace
+        self.tone = tone
         self.amp = amp
         self.waveform_length = waveform_length
-        self.tone = f'{qudit}/{subspace}' if qudit.startswith('Q') else qudit
         
-        # There are pointer to actual object in qblox driver.
-        self.module = cfg.DAC.module[self.qudit]
+        # These are pointers to actual object in qblox driver.
+        self.module = cfg.DAC.module[self.tone]
         self.sequencer = cfg.DAC.sequencer[self.tone]
 
-        self.module_idx = self.module._slot_idx
-        self.sequencer_idx = self.sequencer._seq_idx
+        # These are just index based MOS convention.
+        self.mod = self.cfg.variables[f'{tone}/mod']
+        self.out = self.cfg.variables[f'{tone}/out']
+        self.seq = self.cfg.variables[f'{tone}/seq']
         
         
     def run(self):
@@ -78,36 +76,30 @@ class MixerCorrection:
                         """
                     }
 
-        file_path = os.path.join(self.cfg.working_dir, 'Jsons', 'SSB_Calibration.json')
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(sequence, file, indent=4)
-
         self.cfg.DAC.qblox.reset()
         self.cfg.DAC.disconnect_existed_map()
         self.cfg.DAC.disable_all_lo()
-        self.sequencer.sequence(file_path)
+        self.sequencer.sequence(sequence)
         self.sequencer.sync_en(True)
         self.sequencer.mod_en_awg(True)
         self.sequencer.marker_ovr_en(True)   
         self.sequencer.marker_ovr_value(15)
 
         if self.qudit.startswith('Q'):
-            # Because the name of attribute depends on which output port.
-            self.out = self.cfg[f'variables.{self.qudit}/out']
-            self.att = self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_att']
+            # The name of attribute depends on which output port.
+            self.att = self.cfg[f'DAC.Module{self.mod}/out{self.out}_att']
             getattr(self.module, f'out{self.out}_lo_en')(True)
             time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
-            getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.{self.qudit}/qubit_LO'])
+            getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.lo_freq/M{self.mod}O{self.out}'])
             getattr(self.module, f'out{self.out}_att')(self.att)
             getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
             getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')(True)
 
         elif self.qudit.startswith('R'):
-            self.out = 0
-            self.att = self.cfg[f'DAC.Module{self.module_idx}/out0_att']
+            self.att = self.cfg[f'DAC.Module{self.mod}/out0_att']
             self.module.out0_in0_lo_en(True)
             time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
-            self.module.out0_in0_lo_freq(self.cfg[f'variables.{self.qudit}/resonator_LO'])
+            self.module.out0_in0_lo_freq(self.cfg[f'variables.lo_freq/M{self.mod}O{self.out}'])
             self.module.out0_att(self.att)
             self.sequencer.nco_prop_delay_comp_en(True)
             self.sequencer.channel_map_path0_out0_en(True)
@@ -132,28 +124,28 @@ class MixerCorrection:
         ipyw.interact(
             self.set_offset0, 
             offset0=ipyw.FloatSlider(
-                value=self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path0'], 
+                value=self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path0'], 
                 min=offset0_min, max=offset0_max, step=0.001, layout=layout
             )
         )
         ipyw.interact(
             self.set_offset1, 
             offset1=ipyw.FloatSlider(
-                value=self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path1'], 
+                value=self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path1'], 
                 min=offset1_min, max=offset1_max, step=0.001, layout=layout
             )
         )
         ipyw.interact(
             self.set_gain_ratio, 
             gain_ratio=ipyw.FloatSlider(
-                value=self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio'], 
+                value=self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_gain_ratio'], 
                 min=0.7, max=1.3, step=0.001, layout=layout
             )
         )
         ipyw.interact(
             self.set_phase_offset, 
             phase_offset=ipyw.FloatSlider(
-                value=self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree'], 
+                value=self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_phase_offset_degree'], 
                 min=-45.0, max=45.0, step=0.001, layout=layout
             )   
         )
@@ -170,10 +162,10 @@ class MixerCorrection:
             gain_ratio = self.sequencer.mixer_corr_gain_ratio()
             phase_offset = self.sequencer.mixer_corr_phase_offset_degree()
 
-            self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path0'] = offset0
-            self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path1'] = offset1
-            self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio'] = gain_ratio
-            self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree'] = phase_offset
+            self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path0'] = offset0
+            self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path1'] = offset1
+            self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_gain_ratio'] = gain_ratio
+            self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_phase_offset_degree'] = phase_offset
             self.cfg.save(verbose=verbose)
             self.cfg.load()
             
@@ -228,18 +220,16 @@ class MixerAutoCorrection(MixerCorrection):
     def __init__(self, 
                  sa: N9010A,
                  cfg: MetaManager, 
-                 qudit: str,
-                 subspace: str = '01',
+                 tone: str,
                  amp: float = 0.1,
                  waveform_length: int = 40):
         
-        super().__init__(cfg, qudit, subspace, amp, waveform_length)
+        super().__init__(cfg, tone, amp, waveform_length)
         self.sa = sa
 
         # Get the exact frequency for convenience.
-        lo_key = 'qubit_LO' if self.qudit.startswith('Q') else 'resonator_LO'
         self.main_freq = self.cfg[f'variables.{self.tone}/freq']
-        self.lo_freq = self.cfg[f'variables.{self.qudit}/{lo_key}']
+        self.lo_freq = self.cfg[f'variables.lo_freq/M{self.mod}O{self.out}']
         self.sb_freq = self.lo_freq * 2 - self.main_freq
         self.mod_freq = self.main_freq - self.lo_freq
 
@@ -272,18 +262,10 @@ class MixerAutoCorrection(MixerCorrection):
 
         # Start signal output and load current parameter.
         self.make_sequence()
-        self.set_offset0(
-            self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path0']
-        )
-        self.set_offset1(
-            self.cfg[f'DAC.Module{self.module_idx}/out{self.out}_offset_path1']
-        )
-        self.set_gain_ratio(
-            self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_gain_ratio']
-        )
-        self.set_phase_offset(
-            self.cfg[f'DAC.Module{self.module_idx}/Sequencer{self.sequencer_idx}/mixer_corr_phase_offset_degree']
-        )
+        self.set_offset0(self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path0'])
+        self.set_offset1(self.cfg[f'DAC.Module{self.mod}/out{self.out}_offset_path1'])
+        self.set_gain_ratio(self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_gain_ratio'])
+        self.set_phase_offset(self.cfg[f'DAC.Module{self.mod}/Sequencer{self.seq}/mixer_corr_phase_offset_degree'])
 
         # Start optimization.
         self.set_sa()
