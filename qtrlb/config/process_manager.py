@@ -324,7 +324,7 @@ class ProcessManager(Config):
                 (measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) for tone in tones
             )
             levels = np.arange(self[f'{tones[0]}/readout_levels'][0], 
-                               self[f'{tone[-1]}/readout_levels'][-1] + 1,
+                               self[f'{tones[-1]}/readout_levels'][-1] + 1,
                                step=1, dtype=int)
 
             multitonepredicted_readout = multitone_predict_sequential(*data_levels_tuple)
@@ -380,7 +380,7 @@ class ProcessManager(Config):
                 (measurement[tone]['GMMpredicted_readout'], self[f'{tone}/readout_levels']) for tone in tones
             )
             levels = np.arange(self[f'{tones[0]}/readout_levels'][0], 
-                               self[f'{tone[-1]}/readout_levels'][-1] + 1,
+                               self[f'{tones[-1]}/readout_levels'][-1] + 1,
                                step=1, dtype=int)
 
             multitonepredicted_readout, mask_multitone_readout = multitone_predict_mask(*data_levels_tuple)

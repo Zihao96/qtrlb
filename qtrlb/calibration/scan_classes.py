@@ -8,8 +8,8 @@ from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
-                                        get_readout_fidelity, plot_corr_matrix, correct_population, \
-                                        two_tone_predict, two_tone_normalize
+    get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
+    multitone_predict_sequential, multitone_predict_mask, multitone_normalize
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
 
 
@@ -1117,5 +1117,166 @@ class TwoToneROCalibration(LevelScan):
         """
         self.figure = plot_corr_matrix(self.twotone_corr_matrix)
         self.figure.savefig(os.path.join(self.data_path, f'TwoTone_corr_matrix.png'))
+        super().plot_IQ(c_key='GMMpredicted_new')
+
+
+class MultitoneROCalibration(LevelScan):
+    """ This class is designed for calibrating classification of multitone readout.
+        We will generate new GMM parameters with single tone and corr_matrix for each tone.
+        We will also use them to generate self.multitone_corr_matrix whose shape depends on data process method.
+        When call self.run(), process_kwargs is necessary here. 
+        User need to check readout levels in variables.yaml before run this scan.
+
+        Example of readout_levels_dict:
+        {
+        'R4a': [0,1,2,3], 'R4b': [3,4,5,6], 'R4c': [6,7,8]
+        }
+
+        Note from Zihao(11/07/2023):
+        If we don't have previous multitone_corr_matrix, we should pass in identity or zeros if you like.
+        It's for making the process_data work.
+        If we have previous multitone_corr_matrix, then process_data will give old result and heralding mask.
+
+        The multitone_corr_matrix matrix will be returned but not saved to yaml file.
+        This is because I want to do it fast and I haven't get a nice structure for process yaml.
+        Besides, it should allowed to readout more resonators than those we want to fit.
+        But I haven't test it.
+    """
+    def __init__(self, 
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: list[str],
+                 level_start: int, 
+                 level_stop: int,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 save_cfg: bool = True):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='MultitoneROCalibration',
+                         level_start=level_start, 
+                         level_stop=level_stop, 
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops)
+        
+        self.save_cfg = save_cfg
+        assert self.classification_enable, 'Please turn on classification.'
+        assert self.customized_data_process is not None, 'Please specify customized data process.'
+    
+
+    def fit_data(self):
+        """
+        Fit GMM parameters for each tone and calculate corr_matrix.
+        Also generate the self.multitone_corr_matrix.
+        Please see CalibrateClassification.fit_data() for reference.
+        Or maybe try ProcessManager first if you haven't read it.
+        """
+        # Fit new GMM parameter and get corr_matrix for each single tone.
+        for r, data_dict in self.measurement.items():
+            readout_levels = self.cfg.variables[f'{r}/readout_levels']
+            means = np.zeros((len(readout_levels), 2))
+            covariances = np.zeros(len(readout_levels))
+
+            for i, l in enumerate(readout_levels):
+                mask_heralding = None
+                data = data_dict['IQrotated_readout'][..., l]
+                
+                if self.heralding_enbale:
+                    mask_heralding = data_dict['Mask_heralding']
+                    data = data[:, mask_heralding[:, l] == 0]
+                    # Here the data_dict['IQrotated_readout'] has shape (2, n_reps, x_points)
+                    # All mask have shape (n_reps, x_points)
+
+                mean, covariance = gmm_fit(data, n_components=1)
+                means[i] = mean[0]
+                covariances[i] = covariance[0]
+                # Because the default form is one more layer nested.
+
+            # Using fitting result to re-predict state.
+            data_dict['means_new'] = means
+            data_dict['covariances_new'] = covariances
+            data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
+                                                        means=means, 
+                                                        covariances=covariances,
+                                                        lowest_level=readout_levels[0])
+
+            # Find single tone corr_matrix. Not all data should be used here!
+            corr_matrix = normalize_population(data_dict['GMMpredicted_new'][:, readout_levels],
+                                               levels=readout_levels)
+
+            # Set it to self.measurement and cfg.
+            data_dict['confusionmatrix_new'] = corr_matrix
+            single_tone_fidelity = get_readout_fidelity(corr_matrix)
+            data_dict['ReadoutFidelity'] = single_tone_fidelity
+            print(f'MtROCal: {r} Readout Fidelity: {single_tone_fidelity}')
+
+            self.cfg[f'process.{r}/IQ_means'] = means
+            self.cfg[f'process.{r}/IQ_covariances'] = covariances
+            self.cfg[f'process.{r}/corr_matrix'] = corr_matrix
+
+        if self.save_cfg: self.cfg.save()
+
+        data_levels_tuple = (
+            (data_dict['GMMpredicted_new'], self.cfg.process[f'{r}/readout_levels']) 
+            for r, data_dict in self.measurement.items()
+        )
+
+        # Use new GMM predicted result to calculate new multitone_corr_matrix
+        if self.customized_data_process == 'multitone_readout_sequential':
+            multitonepredicted_readout = multitone_predict_sequential(*data_levels_tuple)
+            self.multitone_corr_matrix = normalize_population(
+                multitonepredicted_readout,
+                levels=self.x_values,
+                mask=mask_heralding
+            )
+            multitone_fidelity = get_readout_fidelity(self.multitone_corr_matrix)
+            print(f'MtROCal: Multitone Readout Fidelity: {multitone_fidelity}')
+
+            # Save it to self.measurement
+            for r, data_dict in self.measurement.items():
+                data_dict['MultitonePredicted_readout'] = multitonepredicted_readout
+                data_dict['Multitone_corr_matrix'] = self.multitone_corr_matrix
+                data_dict['Multitone_ReadoutFidelity'] = multitone_fidelity
+
+        elif self.customized_data_process == 'multitone_readout_mask':
+            multitonepredicted_readout, mask_multitone_readout = multitone_predict_mask(*data_levels_tuple)
+            mask_union = mask_heralding | mask_multitone_readout
+            self.multitone_corr_matrix = normalize_population(
+                multitonepredicted_readout,
+                levels=self.x_values,
+                mask=mask_union
+            )
+            multitone_fidelity = get_readout_fidelity(self.multitone_corr_matrix)
+            print(f'MtROCal: Multitone Readout Fidelity: {multitone_fidelity}')
+
+            # Save it to self.measurement
+            for r, data_dict in self.measurement.items():
+                data_dict['MultitonePredicted_readout'] = multitonepredicted_readout
+                data_dict['Mask_multitone_readout'] = mask_multitone_readout
+                data_dict['Mask_union'] = mask_union
+                data_dict['Multitone_corr_matrix'] = self.multitone_corr_matrix
+                data_dict['Multitone_ReadoutFidelity'] = multitone_fidelity
+
+        elif self.customized_data_process == 'multitone_readout_corr':
+            self.multitone_corr_matrix = multitone_normalize(*data_levels_tuple, mask=mask_heralding)
+
+            # Save it to self.measurement
+            for r, data_dict in self.measurement.items():
+                data_dict['Multitone_corr_matrix'] = self.multitone_corr_matrix
+
+        else:
+            raise NotImplementedError(f'MtROCal: Cannot fit data for {self.customized_data_process} process.')
+
+
+    def plot(self):
+        """
+        Here we just plot the self.twoton_corr_matrix and IQ.
+        """
+        self.figure = plot_corr_matrix(self.multitone_corr_matrix)
+        self.figure.savefig(os.path.join(self.data_path, f'Multitone_corr_matrix.png'))
         super().plot_IQ(c_key='GMMpredicted_new')
 
