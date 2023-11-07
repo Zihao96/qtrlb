@@ -1185,7 +1185,7 @@ class MultitoneROCalibration(LevelScan):
                 mask_heralding = None
                 data = data_dict['IQrotated_readout'][..., l]
                 
-                if self.heralding_enbale:
+                if self.heralding_enable:
                     mask_heralding = data_dict['Mask_heralding']
                     data = data[:, mask_heralding[:, l] == 0]
                     # Here the data_dict['IQrotated_readout'] has shape (2, n_reps, x_points)

@@ -85,7 +85,7 @@ class MixerCorrection:
         self.sequencer.marker_ovr_en(True)   
         self.sequencer.marker_ovr_value(15)
 
-        if self.qudit.startswith('Q'):
+        if self.tone.startswith('Q'):
             # The name of attribute depends on which output port.
             self.att = self.cfg[f'DAC.Module{self.mod}/out{self.out}_att']
             getattr(self.module, f'out{self.out}_lo_en')(True)
@@ -95,7 +95,7 @@ class MixerCorrection:
             getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
             getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')(True)
 
-        elif self.qudit.startswith('R'):
+        elif self.tone.startswith('R'):
             self.att = self.cfg[f'DAC.Module{self.mod}/out0_att']
             self.module.out0_in0_lo_en(True)
             time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
@@ -212,8 +212,7 @@ class MixerAutoCorrection(MixerCorrection):
         Attributes:
             sa: A spectrum analyer object.
             cfg: A MetaManager
-            qudit: 'Q2', 'Q3', 'R4', 'R1'
-            subspace: '01', '12'. Only work for qubit, not resonator.
+            tone: 'Q2/12', 'Q3/ACStark', 'R4a', 'R4c'
             amp: Float number between 0 and 1.
             waveform_length: Integer between [4,16384]. Don't change.
     """
