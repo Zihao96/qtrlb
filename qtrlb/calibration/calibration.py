@@ -738,8 +738,31 @@ class Scan:
         """
         self.plot_main()
         if self.cfg.DAC.test_mode: return
-        if self.cfg['variables.common/plot_IQ']: self.plot_IQ()
-        if self.classification_enable: self.plot_populations()
+
+        if self.customized_data_process is not None:
+
+            if self.customized_data_process.endswith('sequential'):
+                self.plot_multitone_populations()
+                self.plot_IQ(c_key='MultiTonePredicted_readout')
+
+            elif self.customized_data_process.endswith('mask'):
+                self.plot_multitone_populations()
+                self.plot_IQ(c_key='MultiTonePredicted_readout', mask_key='Mask_union')
+
+            elif self.customized_data_process.endswith('corr'):
+                self.plot_multitone_populations()
+                self.plot_IQ()
+
+            else:
+                print(f'Scan: Cannot plot population and IQ for {self.customized_data_process}')
+                return
+
+        elif self.classification_enable: 
+            self.plot_populations()
+            self.plot_IQ()
+
+        else:
+            self.plot_IQ()
 
 
     def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
@@ -797,6 +820,8 @@ class Scan:
         With for-for-if three layers nested, this is the best I can do.
         The heralding enable is protected since we have self.check_attribute().
         """
+        if self.cfg['variables.common/plot_IQ'] is False: return
+
         for r in self.readout_resonators:
             Is, Qs = self.measurement[r][IQ_key]
             left, right = (np.min(Is), np.max(Is))
@@ -838,11 +863,7 @@ class Scan:
     def plot_populations(self, dpi: int = 150):
         """
         Plot populations for all levels, both with and without readout correction.
-        """
-        cdp = self.customized_data_process
-        if (cdp is not None) and (cdp.startswith('two_tone_readout') or cdp.startswith('multitone_readout')): 
-            return self.plot_multitone_populations()
-            
+        """           
         for r in self.readout_resonators:
             fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
             for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):

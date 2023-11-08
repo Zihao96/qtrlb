@@ -111,11 +111,24 @@ def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndar
     """
     mask = 0
     for data in input_data: mask = mask | (data != 0)
-    if trim is not True: return mask
+    mask = trim_mask(mask) if trim is True else mask
+    return mask
 
+
+def trim_mask(mask: list | np.ndarray) -> np.ndarray:
+    """
+    Given a mask with shape (n_reps, x_points) and only 0 and 1 as entries,
+    return a mask where each column has same number of 1 by flip some 0 to 1.
+    This will ensure that our repetition number is same for all x_points.
+
+    Note from Zihao(11/08/2023):
+    This is old qtrlb code. I didn't change the core algorithm.
+    Please make it better if you know how to do it.
+    heralding_test is not the only place to use this function!!!
+    """
+    mask = np.array(mask)
     assert len(mask.shape) == 2, 'Process: Do not support trim other than 2D data yet.'
 
-    # Old qtrl code for trim data.
     n_pass_min = np.min(np.sum(mask == 0, axis=0))  
 
     for i in range(mask.shape[1]):  # Loop over each x_point
@@ -124,7 +137,6 @@ def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndar
             n_short = np.sum(mask[:, i] == 0) - n_pass_min
             mask[j : j + n_short, i] = 1
             j += n_short
-            
     return mask
 
 
@@ -439,7 +451,9 @@ def multitone_normalize(*data_levels_tuple: tuple, axis: int = 0, mask: np.ndarr
         assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
 
         accumulated_length *= len(levels_0)
-        flatten_data += accumulated_length * data_1 
+        flatten_data += accumulated_length * (data_1 - intersection)
 
     levels = np.arange(accumulated_length * len(levels_1))
     return normalize_population(flatten_data, levels, axis, mask)
+
+
