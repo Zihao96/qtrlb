@@ -6,8 +6,9 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
+from qtrlb.utils.waveforms import get_waveform
 from qtrlb.calibration.calibration import Scan2D
-from qtrlb.calibration.scan_classes import RabiScan, LevelScan
+from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
 from qtrlb.processing.fitting import fit, QuadModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
@@ -96,7 +97,138 @@ class ChevronScan(Scan2D, RabiScan):
     def fit_data(self, x=None, **fitting_kwargs):
         super().fit_data(x=x, y=self.y_values, **fitting_kwargs)
         
+
+class ACStarkSpectroscopy(Scan2D, Spectroscopy):
+    """
+    Ref: https://doi.org/10.1103/PhysRevLett.117.190503
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
+                 amp_start: float,
+                 amp_stop: float,
+                 amp_points: int,
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int,
+                 stimulation_pulse_length: float,
+                 ringdown_time: float, 
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None,
+                 stimulation_waveform_idx: int = 1):
         
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='ACStarkSpectroscopy',
+                         x_plot_label='Drive Frequency',
+                         x_plot_unit='MHz',
+                         x_start=detuning_start,
+                         x_stop=detuning_stop,
+                         x_points=detuning_points,
+                         y_plot_label='Stimulation Amplitude', 
+                         y_plot_unit='arb', 
+                         y_start=amp_start, 
+                         y_stop=amp_stop, 
+                         y_points=amp_points, 
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+        
+        self.stimulation_pulse_length = stimulation_pulse_length
+        self.ringdown_time = ringdown_time
+        self.stimulation_waveform_idx = stimulation_waveform_idx
+
+        self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
+        self.ringdown_time_ns = round(ringdown_time / u.ns)
+        assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
+            f'ACSS: The stimulation + readout pulse cannot exceed 16384ns.'
+
+
+    def set_waveforms_acquisitions(self):
+        """
+        Add the simulation waveform to sequence_dict.
+        """
+        super().set_waveforms_acquisitions(add_special_waveforms=False)
+
+        for tone in self.tones:
+            if not tone.startswith('R'): continue
+            waveforms = {'ACStark': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
+                                                          shape=self.cfg[f'variables.{tone}/pulse_shape']), 
+                                     'index': self.stimulation_waveform_idx}}
+            self.sequences[tone]['waveforms'].update(waveforms)
+
+
+    def add_yinit(self):
+        """
+        Here R6 is the amplitude of stimulation pulse.
+        """
+        super().add_yinit()
+        
+        for tone in self.main_tones:
+            y_start = self.gain_translator(self.y_start)
+            self.sequences[tone]['program'] += f"""
+                    move             {y_start},R6
+            """
+
+
+    def add_main(self):
+        for tone in self.tones:
+
+            if tone.startswith('R'):
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+                main = f"""
+                    set_freq         {freq}
+                    set_awg_gain     R6,R6
+                    reset_ph
+                    play             1,1,{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
+                """
+
+            elif tone in self.main_tones:
+                step = self.frequency_translator(self.x_step)
+                gain = round(self.cfg.variables[f'{tone}']['amp_180'] * 32768)
+                gain_drag = round(gain * self.cfg.variables[f'{tone}']['DRAG_weight'])
+                main = f"""
+                    wait             {self.stimulation_pulse_length_ns - self.qubit_pulse_length_ns}
+                    set_freq         R4
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{self.qubit_pulse_length_ns + self.ringdown_time_ns}
+                    add              R4,{step},R4
+                """
+
+            else:
+                main = f"""
+                    wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
+                """
+
+            self.sequences[tone]['program'] += main
+
+
+    def add_yvalue(self):
+        y_step = self.gain_translator(self.y_step)
+        for tone in self.main_tones:  self.sequences[tone]['program'] += f"""
+                    add              R6,{y_step},R6
+        """
+
+
+    def fit_data(self):
+        return
+    
+
+    def plot(self):
+        return 
+
+
 class ReadoutTemplateScan(Scan2D, LevelScan):
     """ Sweep a readout parameter (freq/amp/length) with different qubit state.
         Calculate readout fidelity for each parameter value and show the spectrum for all qubit state.

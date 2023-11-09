@@ -120,7 +120,7 @@ class Spectroscopy(Scan):
                          readout_resonators=readout_resonators,
                          scan_name='Spectroscopy',
                          x_plot_label='Drive Frequency', 
-                         x_plot_unit='kHz', 
+                         x_plot_unit='MHz', 
                          x_start=detuning_start, 
                          x_stop=detuning_stop, 
                          x_points=detuning_points, 
@@ -153,11 +153,9 @@ class Spectroscopy(Scan):
             
     def add_main(self):
         for tone in self.main_tones:
-            tone_dict = self.cfg[f'variables.{tone}']
-            
             step = self.frequency_translator(self.x_step)
-            gain = round(tone_dict['amp_180'] * 32768)
-            gain_drag = round(gain * tone_dict['DRAG_weight'])
+            gain = round(self.cfg[f'variables.{tone}']['amp_180'] * 32768)
+            gain_drag = round(gain * self.cfg[f'variables.{tone}']['DRAG_weight'])
 
                     
             main = (f"""
