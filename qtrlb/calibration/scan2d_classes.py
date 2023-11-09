@@ -175,7 +175,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         """
         super().add_yinit()
         
-        for tone in self.main_tones:
+        for tone in self.tones:
             y_start = self.gain_translator(self.y_start)
             self.sequences[tone]['program'] += f"""
                     move             {y_start},R6
@@ -188,6 +188,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
             if tone.startswith('R'):
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
                 main = f"""
+                #-----------Main-----------
                     set_freq         {freq}
                     set_awg_gain     R6,R6
                     reset_ph
@@ -199,6 +200,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                 gain = round(self.cfg.variables[f'{tone}']['amp_180'] * 32768)
                 gain_drag = round(gain * self.cfg.variables[f'{tone}']['DRAG_weight'])
                 main = f"""
+                #-----------Main-----------
                     wait             {self.stimulation_pulse_length_ns - self.qubit_pulse_length_ns}
                     set_freq         R4
                     set_awg_gain     {gain},{gain_drag}
@@ -208,6 +210,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
             else:
                 main = f"""
+                #-----------Main-----------
                     wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
                 """
 
@@ -216,7 +219,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
     def add_yvalue(self):
         y_step = self.gain_translator(self.y_step)
-        for tone in self.main_tones:  self.sequences[tone]['program'] += f"""
+        for tone in self.tones:  self.sequences[tone]['program'] += f"""
                     add              R6,{y_step},R6
         """
 
