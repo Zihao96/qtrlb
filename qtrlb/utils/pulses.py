@@ -132,11 +132,11 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         
     elif pulse_string.startswith('X'):
         angle = pulse_string[1:]
-        subspace_dict = cfg[f'variables.{tone}']
+        tone_dict = cfg[f'variables.{tone}']
         
-        freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
-        gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
-        gain_drag = round(gain * subspace_dict['DRAG_weight'])
+        freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
+        gain = calculate_angle_to_gain(angle, tone_dict['amp_180'], tone_dict['amp_90'])
+        gain_drag = round(gain * tone_dict['DRAG_weight'])
         
         pulse_program = f"""
                     set_freq         {freq}
@@ -147,11 +147,11 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
     elif pulse_string.startswith('Y'):
         # Y = Z90 * X * Z-90, operator order, so Z-90 first.
         angle = pulse_string[1:]
-        subspace_dict = cfg[f'variables.{tone}']
+        tone_dict = cfg[f'variables.{tone}']
         
-        freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
-        gain = calculate_angle_to_gain(angle, subspace_dict['amp_180'], subspace_dict['amp_90'])
-        gain_drag = round(gain * subspace_dict['DRAG_weight'])
+        freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
+        gain = calculate_angle_to_gain(angle, tone_dict['amp_180'], tone_dict['amp_90'])
+        gain_drag = round(gain * tone_dict['DRAG_weight'])
         
         pulse_program = f"""
                     set_ph_delta     {round(750e6)}

@@ -60,8 +60,6 @@ class DriveAmplitudeScan(Scan):
         for tone in self.main_tones:
             start = self.gain_translator(self.x_start)
             start_DRAG = self.gain_translator(self.x_start * self.cfg[f'variables.{tone}/DRAG_weight'])
-            # start = round(self.x_start * 32768)
-            # start_DRAG = round(start * self.cfg[f'variables.{tone}/DRAG_weight'])
             xinit = f"""
                     move             {start},R4     
                     move             {start_DRAG},R11
@@ -71,11 +69,11 @@ class DriveAmplitudeScan(Scan):
             
     def add_main(self):
         for tone in self.main_tones:
-            subspace_dict = self.cfg[f'variables.{tone}']
+            tone_dict = self.cfg[f'variables.{tone}']
             
             step = self.gain_translator(self.x_step)
-            step_DRAG = self.gain_translator(self.x_step * subspace_dict['DRAG_weight'])
-            freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
+            step_DRAG = self.gain_translator(self.x_step * tone_dict['DRAG_weight'])
+            freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
                     
             main = (f"""
                  #-----------Main-----------
@@ -89,6 +87,90 @@ class DriveAmplitudeScan(Scan):
                  + f""" 
                     add              R4,{step},R4
                     add              R11,{step_DRAG},R11
+            """)
+            self.sequences[tone]['program'] += main
+
+        for tone in self.rest_tones:
+            main = f"""
+                 #-----------Main-----------
+                    wait             {self.qubit_pulse_length_ns * self.error_amplification_factor}
+            """            
+            self.sequences[tone]['program'] += main
+
+
+class Spectroscopy(Scan):
+    def __init__(self, 
+                 cfg: MetaManager,  
+                 drive_qubits: str | list[str],
+                 readout_resonators: str | list[str],
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int, 
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None,
+                 error_amplification_factor: int = 1):
+        
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_resonators=readout_resonators,
+                         scan_name='Spectroscopy',
+                         x_plot_label='Drive Frequency', 
+                         x_plot_unit='kHz', 
+                         x_start=detuning_start, 
+                         x_stop=detuning_stop, 
+                         x_points=detuning_points, 
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+        
+        self.error_amplification_factor = error_amplification_factor
+        
+        
+    def add_xinit(self):
+        """
+        Here R4 stores the modulation frequency of the main tones.
+        """
+        super().add_xinit()
+
+        for tone in self.main_tones:
+            ssb_freq_start = self.x_start + self.cfg[f'variables.{tone}/mod_freq']
+            ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
+            
+            xinit = f"""
+                    move             {ssb_freq_start_4},R4
+            """
+            self.sequences[tone]['program'] += xinit
+            
+            
+    def add_main(self):
+        for tone in self.main_tones:
+            tone_dict = self.cfg[f'variables.{tone}']
+            
+            step = self.frequency_translator(self.x_step)
+            gain = round(tone_dict['amp_180'] * 32768)
+            gain_drag = round(gain * tone_dict['DRAG_weight'])
+
+                    
+            main = (f"""
+                 #-----------Main-----------
+                    set_freq         R4
+                    set_awg_gain     {gain},{gain_drag}
+            """  
+                    
+                 + f"""
+                    play             0,1,{self.qubit_pulse_length_ns}""" * self.error_amplification_factor
+
+                 + f""" 
+                    add              R4,{step},R4
             """)
             self.sequences[tone]['program'] += main
 
@@ -199,9 +281,9 @@ class RabiScan(Scan):
         step_ns = round(self.x_step * 1e9)
         
         for tone in self.main_tones:
-            subspace_dict = self.cfg[f'variables.{tone}']
-            if freq is None: freq = round((subspace_dict['mod_freq'] + subspace_dict['pulse_detuning']) * 4)
-            if gain is None: gain = round(subspace_dict['amp_rabi'] * 32768)
+            tone_dict = self.cfg[f'variables.{tone}']
+            if freq is None: freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
+            if gain is None: gain = round(tone_dict['amp_rabi'] * 32768)
                     
             main = f"""
                  #-----------Main-----------
