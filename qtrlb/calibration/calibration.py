@@ -932,7 +932,8 @@ class Scan:
 
         for i, r in enumerate(self.readout_resonators):
             # Normalization.
-            level_low, level_high = int(subspace[i][0]), int(subspace[i][1])
+            level_high = int( subspace[i][ int(len(subspace[i])/2) : ] )
+            level_low = level_high - 1
             P_low = self.measurement[r]['to_fit'][level_low - self.cfg[f'variables.{r}/lowest_readout_levels']]
             P_high = self.measurement[r]['to_fit'][level_high - self.cfg[f'variables.{r}/lowest_readout_levels']]
             self.measurement[r]['to_fit_SubspaceNormalized'] = P_high / (P_high + P_low)
