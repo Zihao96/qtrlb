@@ -63,7 +63,16 @@ def chevron_func(x, y, omega_0, freq_offset, phase, A, C):
     """
     t, detuning = np.meshgrid(x, y)  # Return 2D data when t and detuning are both array.
     omega_R = np.sqrt( omega_0**2 + (detuning - freq_offset)**2 )
-    return C + A * (omega_0/omega_R)**2 * sin(2*PI * omega_R * t / 2 + phase)**2
+    return C + A * ( omega_0 / omega_R * sin(2*PI * omega_R * t / 2 + phase) )**2
+
+
+def spectroscopy_func(x, t, omega_0, freq_offset, A, C):
+    """
+    Ref: Gerry and Knight(2005) Eq.(4.80)
+    Here x is the detuning.
+    """
+    omega_R = np.sqrt( omega_0**2 + (x - freq_offset)**2 )
+    return C + A * ( omega_0 / omega_R * sin(2*PI * omega_R * t / 2) ) ** 2
 
 
 def resonator_hanger_transmission_func(x, f0, Q, Qc, theta, A, phi, ED, PCC):
@@ -190,6 +199,24 @@ class ChevronModel(Model):
         self.set_param_hint('C', value=np.mean(data))
         return self.make_params()
     
+
+class SpectroscopyModel(Model):
+    def __init__(self, *args, **kwargs):
+        super().__init__(func=spectroscopy_func, *args, **kwargs)
+    
+    def guess(self, data: np.ndarray, x: np.ndarray, t: float):
+        # We make 't' as a fixed parameter since we don't need it.
+        # The initial guess for freq_offset is crucial. It highly decides the fitting result.
+        # We need to consider the peak can be both upward and downward.
+        peak_idx = np.argmax(np.abs( data - np.mean(data) ))
+
+        self.set_param_hint('t', value=t, vary=False)
+        self.set_param_hint('omega_0', value=0.5 / t, min=0)
+        self.set_param_hint('freq_offset', value=x[peak_idx], min=x[0], max=x[-1])
+        self.set_param_hint('A', value=0, max=2*(np.max(data)-np.min(data)), min=-2*(np.max(data)-np.min(data)))
+        self.set_param_hint('C', value=np.mean(data))
+        return self.make_params()
+
 
 class ResonatorHangerTransmissionModel(Model):
     def __init__(self, *args, **kwargs):

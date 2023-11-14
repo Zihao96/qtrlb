@@ -4,13 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
+import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
     multitone_predict_sequential, multitone_predict_mask, multitone_normalize
-from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel
+from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel, SpectroscopyModel
 
 
 class DriveAmplitudeScan(Scan):
@@ -112,7 +113,7 @@ class Spectroscopy(Scan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None,
+                 fitmodel: Model = SpectroscopyModel,
                  error_amplification_factor: int = 1):
         
         super().__init__(cfg=cfg,
@@ -178,6 +179,10 @@ class Spectroscopy(Scan):
                     wait             {self.qubit_pulse_length_ns * self.error_amplification_factor}
             """            
             self.sequences[tone]['program'] += main
+
+
+    def fit_data(self):
+        return super().fit_data(t=self.qubit_pulse_length_ns*self.error_amplification_factor*u.ns)
 
 
 class RabiScan(Scan):
