@@ -181,8 +181,12 @@ class Spectroscopy(Scan):
             self.sequences[tone]['program'] += main
 
 
-    def fit_data(self):
-        return super().fit_data(t=self.qubit_pulse_length_ns*self.error_amplification_factor*u.ns)
+    def fit_data(self, x=None, **fitting_kwargs):
+        return super().fit_data(
+            x=x, 
+            t=self.qubit_pulse_length_ns * self.error_amplification_factor * u.ns,
+            **fitting_kwargs
+        )
 
 
 class RabiScan(Scan):

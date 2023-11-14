@@ -27,7 +27,7 @@ def compare_dict(dict_raw: dict, dict_template: dict, key: str = ''):
     Suffix tells which yaml we are checking.
     """
     for k, v in dict_template.items():
-        if not k in dict_raw: print(f'Missing key "{k}" in key "{key}".')
+        if not k in dict_raw: print(f'misc: Missing key "{k}" in key "{key}".')
         if isinstance(v, dict): 
             compare_dict(dict_raw[k], dict_template[k], k)
 
@@ -60,7 +60,17 @@ def tone_to_qudit(tone: str | list) -> str | list:
         return qudit
 
     else:
-        raise TypeError(f'DAC: Cannot translate the {tone}. Please check it type.')
+        raise TypeError(f'misc: Cannot translate the {tone}. Please check it type.')
+
+
+def split_subspace(subspace: str) -> tuple[int, int]:
+    """
+    Given a string like '23', '02', '910', '1011', split into two integer.
+    """
+    assert subspace.isdecimal(), f'misc: Subspace string must be decimal.'
+    level_low = int( subspace[ : int(len(subspace)/2)] )
+    level_high = int( subspace[ int(len(subspace)/2) : ] )
+    return level_low, level_high
 
 
 def plot_overnightscan_result(total_tau_dict: dict, time_list: list | np.ndarray = None) -> dict[str: tuple]:

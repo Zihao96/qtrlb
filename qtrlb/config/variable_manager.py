@@ -1,5 +1,8 @@
 import qtrlb.utils.units as u
 from qtrlb.config.config import Config
+from qtrlb.utils.misc import split_subspace
+
+
 
 
 class VariableManager(Config):
@@ -66,7 +69,7 @@ class VariableManager(Config):
                     # Set anharmonicity for each subspace.
                     # It can solve subspace like '910' and compare '02' with '01'.
                     if (not subtone.isdecimal()) or subtone == '01': continue
-                    level_high = int( subtone[ int(len(subtone)/2) : ] )
+                    _, level_high = split_subspace(subtone)
                     last_tone = f'{qudit}/{level_high - 2}{level_high - 1}'
                     anharmonicity = self[f'{tone}/freq'] - self[f'{last_tone}/freq']
                     self.set(f'{tone}/anharmonicity', anharmonicity, which='dict')

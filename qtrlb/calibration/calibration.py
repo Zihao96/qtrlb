@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit
+from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, split_subspace
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -932,8 +932,7 @@ class Scan:
 
         for i, r in enumerate(self.readout_resonators):
             # Normalization.
-            level_high = int( subspace[i][ int(len(subspace[i])/2) : ] )
-            level_low = level_high - 1
+            level_low, level_high = split_subspace(subspace[i])
             P_low = self.measurement[r]['to_fit'][level_low - self.cfg[f'variables.{r}/lowest_readout_levels']]
             P_high = self.measurement[r]['to_fit'][level_high - self.cfg[f'variables.{r}/lowest_readout_levels']]
             self.measurement[r]['to_fit_SubspaceNormalized'] = P_high / (P_high + P_low)
