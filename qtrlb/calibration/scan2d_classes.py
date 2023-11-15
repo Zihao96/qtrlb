@@ -240,7 +240,8 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
             for j in range(self.y_points):
                 try:
                     result = fit(input_data=self.measurement[r]['to_fit'][level_index][j],
-                                 x=x, fitmodel=self.fitmodel, **fitting_kwargs)
+                                 x=x, fitmodel=self.fitmodel, t=self.qubit_pulse_length_ns * u.ns,
+                                 **fitting_kwargs)
                     self.fit_result[r].append(result)
                     
                     params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in result.params.values()}
