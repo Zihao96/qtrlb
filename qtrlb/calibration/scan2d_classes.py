@@ -9,7 +9,7 @@ from qtrlb.config.config import MetaManager
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
-from qtrlb.processing.fitting import fit, QuadModel, ResonatorHangerTransmissionModel
+from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity
 
@@ -120,7 +120,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None,
+                 fitmodel: Model = SpectroscopyModel,
                  stimulation_waveform_idx: int = 1):
         
         super().__init__(cfg=cfg, 

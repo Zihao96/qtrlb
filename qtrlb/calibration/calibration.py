@@ -827,8 +827,8 @@ class Scan:
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
             for x in range(self.x_points):
-                I = self.measurement[r][IQ_key][0,:,x]
-                Q = self.measurement[r][IQ_key][1,:,x]
+                I = Is[:,x]
+                Q = Qs[:,x]
                 c, cmap = (None, None)
                                   
                 if self.classification_enable:
