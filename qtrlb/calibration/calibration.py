@@ -1152,7 +1152,15 @@ class Scan2D(Scan):
 
 
     def plot(self):
+        """
+        Note from Zihao(11/15/2023):
+        I haven't add plot_population here since there is too many plots and hard to manage.
+        The IQ plots are also a lot, but we can turn it off in yaml easily.
+        Sometimes I have to do it quickly. I'm sorry.
+        """
         self.plot_main()
+        if self.cfg.DAC.test_mode: return
+        self.plot_IQ()
 
 
     def plot_main(self, dpi: int = 150):
@@ -1187,12 +1195,55 @@ class Scan2D(Scan):
             self.figures[r] = fig
 
 
+    def plot_IQ(self, 
+                IQ_key: str = 'IQrotated_readout', 
+                c_key: str = 'GMMpredicted_readout', 
+                mask_key: str = 'Mask_heralding',
+                dpi: int = 75):
+        """
+        Plot the IQ point for each element in self.x_values and ALSO self.y_values.
+        For 2D scan, it will usually generate a lot of IQ plot. So it's not recommended.
+        For more information, please check Scan.plot_IQ()
+        The only difference here is we have double for loop, and we need to index y in data and plot.
+        """
+        if self.cfg['variables.common/plot_IQ'] is False: return
 
+        for r in self.readout_resonators:
+            Is, Qs = self.measurement[r][IQ_key]
+            left, right = (np.min(Is), np.max(Is))
+            bottom, top = (np.min(Qs), np.max(Qs))
 
+            for y in range(self.y_points):
+                for x in range(self.x_points):
+                    I = Is[:,y,x]
+                    Q = Qs[:,y,x]
+                    c, cmap = (None, None)
+                                    
+                    if self.classification_enable:
+                        c = self.measurement[r][c_key][:,y,x]
+                        cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
 
-
-
-
-
-
+                    fig, ax = plt.subplots(1, 1, dpi=dpi)
+                    ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
+                    ax.axvline(color='k', ls='dashed')    
+                    ax.axhline(color='k', ls='dashed')
+                    ax.set(xlabel='I', ylabel='Q', title=f'y{y}_x{x}', aspect='equal', 
+                           xlim=(left, right), ylim=(bottom, top))
+                    fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'y{y}_x{x}.png'))
+                    plt.close(fig)
+                    
+                    if self.heralding_enable:
+                        mask = self.measurement[r][mask_key][:,x] 
+                        I_masked = np.ma.MaskedArray(I, mask=mask)
+                        Q_masked = np.ma.MaskedArray(Q, mask=mask)
+                        c_masked = np.ma.MaskedArray(c, mask=mask)
+                        
+                        fig, ax = plt.subplots(1, 1, dpi=dpi)
+                        ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
+                        ax.axvline(color='k', ls='dashed')    
+                        ax.axhline(color='k', ls='dashed')
+                        ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
+                                xlim=(left, right), ylim=(bottom, top))
+                        fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'heralded_y{y}_x{x}.png'))
+                        plt.close(fig)
 

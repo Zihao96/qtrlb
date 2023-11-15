@@ -1,4 +1,5 @@
 import os
+import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
@@ -224,12 +225,64 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         """
 
 
-    def fit_data(self):
-        return
+    def fit_data(self, x: list | np.ndarray = None, **fitting_kwargs):
+        """
+        We won't fit 2D data, instead, we treat each amp as an independent spectroscopy and fit it.
+        See Scan.fit_data() as reference.
+        """
+        self.fit_result = {r: [] for r in self.readout_resonators}
+        if self.fitmodel is None: return
+        if x is None: x = self.x_values
+        
+        for i, r in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
+
+            for j in range(self.y_points):
+                try:
+                    result = fit(input_data=self.measurement[r]['to_fit'][level_index][j],
+                                 x=x, fitmodel=self.fitmodel, **fitting_kwargs)
+                    self.fit_result[r].append(result)
+                    
+                    params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in result.params.values()}
+                    self.measurement[r][f'fit_result_{j}'] = params
+                    self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
+                except Exception:
+                    self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
+                    print(f'Scan: Failed to fit {r} {j}-th amp data. ')
+                    self.measurement[r][f'fit_result_{j}'] = None
+                    self.measurement[r]['fit_model'] = str(self.fitmodel)
     
 
-    def plot(self):
-        return 
+    def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
+        """
+        Here we will save all the plot without showing in console or make them attributes.
+        See Scan.plot_main() as reference.
+        """
+        for i, r in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
+
+            if self.classification_enable:
+                ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
+            else:
+                ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
+
+            for j, amp in enumerate(self.y_values):
+                fig, ax = plt.subplots(1, 1, dpi=dpi)
+                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][level_index][j], 'k.')
+                ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', ylabel=ylabel, 
+                       title=f'{self.datetime_stamp}, {self.scan_name}, {r}, Amp{amp}')
+
+                if self.measurement[r][f'fit_result_{j}'] is not None: 
+                    # Raise resolution of fit result for smooth plot.
+                    x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
+                    y = self.fit_result[r][j].eval(x=x)
+                    ax.plot(x / self.x_unit_value, y, 'm-')
+                    
+                    fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[r][j].params.values()])
+                    ax.add_artist(AnchoredText(fit_text, loc=text_loc, prop={'color':'m'}))
+
+                fig.savefig(os.path.join(self.data_path, f'{r}_amp{j}.png'))
+                plt.close('all')
 
 
 class ReadoutTemplateScan(Scan2D, LevelScan):
