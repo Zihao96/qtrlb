@@ -246,7 +246,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                     
                     params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in result.params.values()}
                     self.measurement[r][f'fit_result_{j}'] = params
-                    self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
+                    self.measurement[r]['fit_model'] = str(result.model)
                 except Exception:
                     self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
                     print(f'Scan: Failed to fit {r} {j}-th amp data. ')
