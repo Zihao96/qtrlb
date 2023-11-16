@@ -337,7 +337,7 @@ class ProcessManager(Config):
 
             for tone in tones:
                 measurement[tone]['Mask_heralding'] = mask_heralding
-                measurement[tone]['MultiTonePredicted_readout'] = multitonepredicted_readout
+                measurement[tone]['MultitonePredicted_readout'] = multitonepredicted_readout
                 measurement[tone]['PopulationNormalized_readout'] = population_normalized_readout
                 measurement[tone]['PopulationCorrected_readout'] = population_corrected_readout
                 measurement[tone]['to_fit'] = population_corrected_readout
@@ -393,7 +393,7 @@ class ProcessManager(Config):
 
             # Save to measurement
             for tone in tones:
-                measurement[tone]['MultiTonePredicted_readout'] = multitonepredicted_readout
+                measurement[tone]['MultitonePredicted_readout'] = multitonepredicted_readout
                 measurement[tone]['Mask_multitone_readout'] = mask_multitone_readout
                 measurement[tone]['PopulationNormalized_readout'] = population_normalized_readout
                 measurement[tone]['PopulationCorrected_readout'] = population_corrected_readout
@@ -424,18 +424,18 @@ class ProcessManager(Config):
 
                 # Save to measurement
                 for tone in tones:
-                    measurement[tone]['MultiTonePredicted_heralding'] = multitonepredicted_heralding
+                    measurement[tone]['MultitonePredicted_heralding'] = multitonepredicted_heralding
                     measurement[tone]['Mask_multitone_heralding'] = mask_multitone_heralding
 
             # Heralding test. We don't trim since we won't have trimed result anyway.
-            heralding_data_list = [measurement[tones[0]]['MultiTonePredicted_heralding'] for tones in process_kwargs.keys()]
+            heralding_data_list = [measurement[tones[0]]['MultitonePredicted_heralding'] for tones in process_kwargs.keys()]
             mask_heralding = heralding_test(*heralding_data_list, trim=False)
 
             for tones, corr_matrix in process_kwargs.items():
                 mask_union = measurement[tones[0]]['Mask_multitone_heralding'] | \
                     mask_heralding | measurement[tones[0]]['Mask_multitone_readout']
 
-                population_normalized_readout = normalize_population(measurement[tones[0]]['MultiTonePredicted_readout'], 
+                population_normalized_readout = normalize_population(measurement[tones[0]]['MultitonePredicted_readout'], 
                                                                      levels,
                                                                      mask=mask_union)
                 population_corrected_readout = correct_population(population_normalized_readout, 

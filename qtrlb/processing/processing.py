@@ -211,6 +211,24 @@ def correct_population(input_data, corr_matrix: list | np.ndarray, corr_method: 
     return result
 
 
+def sort_points_by_distance(points: np.ndarray, points_ref: np.ndarray) -> list:
+    """
+    Assuming we have two arrays of equal numbers of n-dimensional points, and their positions are close.
+    We will sort the order the points of first array based on the distance to reference points.
+    We will return these indices.
+    It helps sort the gmm_fit results in correct order.
+
+    Example:
+    points = np.array([[43, 43], [24, 24], [35, 35], [9, 9]])
+    points_ref = a = np.array([[22, 22], [33, 33], [11, 11], [44, 44]])
+
+    Return: [1, 2, 3, 0]
+    """
+    indices = [np.argmin( np.linalg.norm(points-point_ref, axis=1) ) for point_ref in points_ref]
+    assert len(indices) == len(set(indices)), 'Processing: Cannot sort the array.'
+    return indices
+
+
 def find_most_distant_points(input_data):
     """
     Find the most distant points of data based on Euclidean distance.

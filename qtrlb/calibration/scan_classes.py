@@ -10,7 +10,7 @@ from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
-    multitone_predict_sequential, multitone_predict_mask, multitone_normalize
+    multitone_predict_sequential, multitone_predict_mask, multitone_normalize, sort_points_by_distance
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel, SpectroscopyModel
 
 
@@ -816,7 +816,8 @@ class CalibrateClassification(LevelScan):
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 save_cfg: bool = True):
+                 save_cfg: bool = True,
+                 refine_mixture_fitting: bool = False):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -829,6 +830,7 @@ class CalibrateClassification(LevelScan):
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
+        self.refine_mixture_fitting = refine_mixture_fitting
         assert self.classification_enable, 'Please turn on classification.'
           
         
@@ -839,6 +841,7 @@ class CalibrateClassification(LevelScan):
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
         """
         for r, data_dict in self.measurement.items():
+            # First fit GMM parameters for each level separately
             means = np.zeros((self.x_points, 2))
             covariances = np.zeros(self.x_points)
             
@@ -856,7 +859,19 @@ class CalibrateClassification(LevelScan):
                 means[i] = mean[0]
                 covariances[i] = covariance[0]
                 # Because the default form is one more layer nested.
+
+            # Refit with multi-component model.
+            # It's better for poor state preparation or decay during readout.
+            if self.refine_mixture_fitting:
+                data = data_dict['IQrotated_readout']
+                if self.heralding_enable: data = data.reshape(2, -1)[:, mask.flatten() == 0]
+
+                means_new, covariances_new = gmm_fit(data, n_components=self.x_points)
+                indices = sort_points_by_distance(means_new, means)
+                means = means_new[indices]
+                covariances = covariances_new[indices]
                 
+            # Redo processing and save to measurement dictionary.
             data_dict['means_new'] = means
             data_dict['covariances_new'] = covariances
             data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
@@ -1240,7 +1255,8 @@ class MultitoneROCalibration(LevelScan):
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 save_cfg: bool = True):
+                 save_cfg: bool = True,
+                 refine_mixture_fitting: bool = False):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -1253,6 +1269,7 @@ class MultitoneROCalibration(LevelScan):
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
+        self.refine_mixture_fitting = refine_mixture_fitting
         assert self.classification_enable, 'Please turn on classification.'
         assert self.customized_data_process is not None, 'Please specify customized data process.'
     
@@ -1266,6 +1283,7 @@ class MultitoneROCalibration(LevelScan):
         """
         # Fit new GMM parameter and get corr_matrix for each single tone.
         for r, data_dict in self.measurement.items():
+            # Fit GMM parameters for each level separately
             readout_levels = self.cfg.variables[f'{r}/readout_levels']
             means = np.zeros((len(readout_levels), 2))
             covariances = np.zeros(len(readout_levels))
@@ -1289,6 +1307,19 @@ class MultitoneROCalibration(LevelScan):
                 means[i] = mean[0]
                 covariances[i] = covariance[0]
                 # Because the default form is one more layer nested.
+
+
+            # Refit with multi-component model.
+            # It's better for poor state preparation or decay during readout.
+            if self.refine_mixture_fitting:
+                data = data_dict['IQrotated_readout'][..., readout_levels]
+                if self.heralding_enable: data = data.reshape(2, -1)[:, mask_heralding[:,readout_levels].flatten() == 0]
+
+                means_new, covariances_new = gmm_fit(data, n_components=len(readout_levels))
+                indices = sort_points_by_distance(means_new, means)
+                means = means_new[indices]
+                covariances = covariances_new[indices]
+
 
             # Using fitting result to re-predict state.
             data_dict['means_new'] = means
