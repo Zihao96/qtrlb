@@ -743,11 +743,11 @@ class Scan:
 
             if self.customized_data_process.endswith('sequential'):
                 self.plot_multitone_populations()
-                self.plot_IQ(c_key='MultiTonePredicted_readout')
+                self.plot_IQ(c_key='MultitonePredicted_readout')
 
             elif self.customized_data_process.endswith('mask'):
                 self.plot_multitone_populations()
-                self.plot_IQ(c_key='MultiTonePredicted_readout', mask_key='Mask_union')
+                self.plot_IQ(c_key='MultitonePredicted_readout', mask_key='Mask_union')
 
             elif self.customized_data_process.endswith('corr'):
                 self.plot_multitone_populations()
