@@ -833,7 +833,7 @@ class Scan:
                                   
                 if self.classification_enable:
                     c = self.measurement[r][c_key][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -1221,7 +1221,7 @@ class Scan2D(Scan):
                                     
                     if self.classification_enable:
                         c = self.measurement[r][c_key][:,y,x]
-                        cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+                        cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
 
                     fig, ax = plt.subplots(1, 1, dpi=dpi)
                     ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)

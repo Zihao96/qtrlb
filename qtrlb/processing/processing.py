@@ -49,10 +49,11 @@ def autorotate_IQ(input_data: list | np.ndarray, n_components: int):
     return result
     
 
-def gmm_predict(input_data, means, covariances, covariance_type='spherical', lowest_level: int = 0):
+def gmm_predict(input_data: list | np.ndarray, means: list | np.ndarray, covariances: list | np.ndarray,
+                covariance_type: str = 'ellipsoidal', lowest_level: int = 0):
     """
     Predict the state of input data based on given means and covariances of GMM.
-    By default, means should have shape (n_components, 2) for 2D gaussian.
+    By default, means should have shape (n_components, n) for n-D gaussian.
     Covariances should have shape (n_components,) for symmetrical distribution,
     where n_components is the number of Gaussian blob in IQ plane.
     The return values are always count from zero.
@@ -71,17 +72,18 @@ def gmm_predict(input_data, means, covariances, covariance_type='spherical', low
     gmm.precisions_cholesky_ = _compute_precision_cholesky(covariances, covariance_type)
     gmm.weights_  = np.ones(n_components) / n_components
 
-    result = lowest_level + gmm.predict(input_data.reshape(2,-1).T).reshape(input_data.shape[1:])
+    result = lowest_level + gmm.predict(input_data.reshape(input_data.shape[0], -1).T).reshape(input_data.shape[1:])
     # Magic reshape stealing from Ray.
     return result
 
-
-def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
+ 
+def gmm_fit(input_data, n_components: int, covariance_type: str = 'ellipsoidal', refine: bool = False,
+            tol: float = 0.001, means: list | np.ndarray = None, covariances: list | np.ndarray = None):
     """
     Fit the input data with GMM. User must specify number of Gaussian blobs.
-    The input_data should has shape (2, ...) because of two quadratures.
-    Return the means and covariances. Means have shape (n_components, 2).
-    Covariances have shape (n_components,) for symmetrical 2D distribution.
+    The input_data should has shape (n_features, ...) where n_features = 2 for single tone readout.
+    Return the GMM object. User can access the parameters by gmm.means_ and gmm_covariances_.
+    Means and covariances have shape (n_components, n_features) and (n_components,) for spherical covariance.
 
     Note from Zihao(11/07/2023):
     Gaussian Mixture doesn't support np.ma.core.MaskedArray.
@@ -90,10 +92,22 @@ def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
     User must slice the data by themself before sending into this function.
     """
     assert not hasattr(input_data, 'mask'), 'Processing: MaskedArray are not supported by GaussianMixture.'
+    assert (refine is False) or (means is not None and covariances is not None), \
+        'Processing: Need to specify means and covariance for refined GMM fitting.'
+
     input_data = np.array(input_data)
-    gmm = GaussianMixture(n_components, covariance_type=covariance_type)
-    gmm.fit(input_data.reshape(2,-1).T)
-    return gmm.means_, gmm.covariances_
+    gmm = GaussianMixture(n_components, covariance_type=covariance_type, tol=tol, warm_start=refine)
+
+    if refine is True:
+        gmm.means_ = means
+        gmm.covariances_ = covariances
+        gmm.precisions_cholesky_ = _compute_precision_cholesky(covariances, covariance_type)
+        gmm.weights_  = np.ones(n_components) / n_components
+        gmm.converged_ = True
+        gmm.lower_bound_ = -np.inf
+
+    gmm.fit(input_data.reshape(input_data.shape[0], -1).T)
+    return gmm
 
 
 def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndarray:

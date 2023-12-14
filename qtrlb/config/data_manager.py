@@ -211,7 +211,7 @@ class DataManager(Config):
         datetime_delta = datetime_stop - datetime_start
         total_time_sec = (datetime_delta.days * 24 * 3600 
                         + datetime_delta.seconds 
-                        + datetime_delta.microseconds / 1000)
+                        + datetime_delta.microseconds * 1e-6)
 
         if time_unit.lower().startswith('s'):
             total_time = total_time_sec
