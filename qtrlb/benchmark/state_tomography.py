@@ -19,7 +19,7 @@ class StateTomography(Scan):
             self,
             cfg: MetaManager,
             drive_qubits: str | list[str],
-            readout_resonators: str | list[str],
+            readout_tones: str | list[str],
             subspace: str | list[str],
             gate_set: str | dict,
             main_tones: str | list[str] = None,
@@ -30,7 +30,7 @@ class StateTomography(Scan):
         super().__init__(
             cfg=cfg, 
             drive_qubits=drive_qubits, 
-            readout_resonators=readout_resonators, 
+            readout_tones=readout_tones, 
             scan_name='StateTomography', 
             x_plot_label='',
             x_plot_unit='arb', 

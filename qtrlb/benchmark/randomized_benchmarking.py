@@ -26,7 +26,7 @@ class RB1QB(Scan):
             self,
             cfg: MetaManager,
             drive_qubits: str | list[str],
-            readout_resonators: str | list[str],
+            readout_tones: str | list[str],
             n_gates_start: int,
             n_gates_stop: int,
             n_gates_points: int,
@@ -42,7 +42,7 @@ class RB1QB(Scan):
         super().__init__(
             cfg=cfg, 
             drive_qubits=drive_qubits, 
-            readout_resonators=readout_resonators, 
+            readout_tones=readout_tones, 
             scan_name='RB1QB', 
             x_plot_label='Number of Clifford Gates',
             x_plot_unit='arb', 
@@ -90,7 +90,7 @@ class RB1QB(Scan):
             # Make the sub folder, self.data_path will be updated here.
             self.data_path = os.path.join(self.main_data_path, f'Random_{i}')
             os.makedirs(os.path.join(self.data_path, 'Jsons'))
-            for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
+            for r in self.readout_tones: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
             
             # Run as usual, but using the new self.data_path.
             self.make_sequence() 

@@ -7,12 +7,13 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
+from qtrlb.utils.misc import tone_to_qudit
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
 from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
-                                        get_readout_fidelity
+                                        get_readout_fidelity, sort_points_by_distance
 
 
 
@@ -21,7 +22,7 @@ class ChevronScan(Scan2D, RabiScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float,
                  length_stop: float,
                  length_points: int,
@@ -39,7 +40,7 @@ class ChevronScan(Scan2D, RabiScan):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Chevron',
                          x_plot_label='Pulse Length',
                          x_plot_unit='ns',
@@ -106,7 +107,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  amp_start: float,
                  amp_stop: float,
                  amp_points: int,
@@ -126,7 +127,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ACStarkSpectroscopy',
                          x_plot_label='Drive Frequency',
                          x_plot_unit='MHz',
@@ -162,8 +163,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         """
         super().set_waveforms_acquisitions(add_special_waveforms=False)
 
-        for tone in self.tones:
-            if not tone.startswith('R'): continue
+        for tone in self.readout_tones:
             waveforms = {'ACStark': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
                                                           shape=self.cfg[f'variables.{tone}/pulse_shape']), 
                                      'index': self.stimulation_waveform_idx}}
@@ -303,7 +303,12 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
     def process_data(self, compensate_ED: bool = False):
         """
         Here we override the parent method since the processing for this Scan has no similarity to \
-        other Scan. Code is similar to CalibrateClassification.fit_data()
+        other Scan. Code is similar to CalibrateClassification.fit_data().
+
+        Note from Zihao(12/18/2023):
+        At the current measurement, keys like 'R4/a' will typically only have 'IQrotated_readout' inside, \
+        while all GMM prediction and average/normalization should be in keys like 'R4'.
+        In this function, we treat it specially since the RTS is really designed for single readout_tone.
         """
         self.x_values = self.x_values.astype(int)
 
@@ -336,6 +341,15 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     means[x] = mean[0]
                     covariances[x] = covariance[0]
                     # Because the default form is one more layer nested.
+
+                # Refit with multi-component model.
+                # It's better for poor state preparation or decay during readout.
+                if hasattr(self, 'refine_mixture_fitting') and self.refine_mixture_fitting is True:
+                    means_new, covariances_new = gmm_fit(data, n_components=self.x_points, 
+                                                         refine=True, means=means, covariances=covariances)
+                    indices = sort_points_by_distance(means_new, means)
+                    means = means_new[indices]
+                    covariances = covariances_new[indices]
                     
                 sub_dict['means'] = means
                 sub_dict['covariances'] = covariances
@@ -370,7 +384,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         """
         self.figures = {}
 
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = 'Readout Fidelity [a.u.]'
@@ -400,7 +414,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         For readout amplitude and length, it may not be approprite to call it spectrum.
         But, you get what I mean here :)
         """
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             data = self.measurement[r]['IQEDcompensated_readout']
             
             title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
@@ -428,7 +442,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Plot IQ data for all y_values, each y_value will have a plot with all levels.
         Code is similar to Scan.plot_IQ()
         """
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             Is, Qs = self.measurement[r]['IQrotated_readout']
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
@@ -439,7 +453,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 for x in range(self.x_points):
                     I = self.measurement[r]['IQrotated_readout'][0,:,y,x]
                     Q = self.measurement[r]['IQrotated_readout'][1,:,y,x]
-                    c = self.measurement[r]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
+                    c = self.measurement[tone_to_qudit(r)]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(self.x_values), 12)
                     
                     ax[x].scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -456,7 +470,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  detuning_start: float, 
@@ -470,7 +484,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ReadoutFrequency',
                          x_plot_label='Level',
                          x_plot_unit='arb',
@@ -492,7 +506,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
     def add_yinit(self):
         super().add_yinit()
         
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             ssb_freq_start = self.y_start + self.cfg[f'variables.{r}/mod_freq']
             ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
             
@@ -532,7 +546,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         
     def add_yvalue(self):
         ssb_freq_step_4 = self.frequency_translator(self.y_step)
-        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+        for r in self.readout_tones:  self.sequences[r]['program'] += f"""
                     add              R6,{ssb_freq_step_4},R6    """
 
 
@@ -546,9 +560,9 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         Fit frequency and quality factor of resonators for a given level, then plot results.
         """
         level_to_fit = self.make_it_list(level_to_fit)
-        assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
+        assert len(level_to_fit) == len(self.readout_tones), 'Please specify level_to_fit for each readout tone.'
 
-        for i, r in enumerate(self.readout_resonators):
+        for i, r in enumerate(self.readout_tones):
             # Fit
             level = level_to_fit[i]
             data_to_fit = self.measurement[r]['IQEDcompensated_readout'][:, level]
@@ -605,7 +619,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
@@ -619,7 +633,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ReadoutAmplitude',
                          x_plot_label='Level',
                          x_plot_unit='arb',
@@ -641,7 +655,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
     def add_yinit(self):
         super().add_yinit()
         
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             gain = round(self.y_start * 32768)
             yinit = f"""
                     move             {gain},R6
@@ -679,7 +693,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         
     def add_yvalue(self):
         gain_step = round(self.y_step * 32768)
-        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+        for r in self.readout_tones:  self.sequences[r]['program'] += f"""
                     add              R6,{gain_step},R6    """
 
 
@@ -697,7 +711,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
@@ -714,7 +728,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
 
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          level_start=level_start,
                          level_stop=level_stop,
                          amp_start=amp_start, 
@@ -772,7 +786,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
 
             # Make the sub folder, self.data_path will be updated here.
             self.data_path = os.path.join(self.main_data_path, f'{self.resonator_pulse_length_ns}ns')
-            os.makedirs(os.path.join(self.data_path, f'{self.readout_resonators[0]}_IQplots'))
+            os.makedirs(os.path.join(self.data_path, f'{self.readout_tones[0]}_IQplots'))
             os.makedirs(os.path.join(self.data_path, 'Jsons'))
 
             # Run as usual, but using the new self.data_path.
@@ -830,7 +844,7 @@ class DRAGWeightScan(Scan2D):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str], 
-                 readout_resonators: str | list[str], 
+                 readout_tones: str | list[str], 
                  weight_start: float, 
                  weight_stop: float, 
                  weight_points: int, 
@@ -843,7 +857,7 @@ class DRAGWeightScan(Scan2D):
                  fitmodel: Model = QuadModel):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
-                         readout_resonators=readout_resonators, 
+                         readout_tones=readout_tones, 
                          scan_name='DRAGWeight', 
                          x_plot_label='Pulse Order', 
                          x_plot_unit='arb', 

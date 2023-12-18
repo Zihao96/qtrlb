@@ -45,21 +45,22 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
 
     Example:
     gate_df = 
-           subspace_0 subspace_1 prepulse_0 prepulse_1
-        Q3    X180_01          I     Y90_01          I
-        Q4    X180_01    X180_12         H3     Z90_12
-        R3          I          I          I          I
-        R4          I          I          I          I
+           subspace_0 subspace_1 prepulse_0 prepulse_1 Readout
+        Q3    X180_01          I     Y90_01          I       I
+        Q4    X180_01    X180_12         H3     Z90_12       I
+        R3          I          I          I          I  RO_a_b
+        R4          I          I          I          I    RO_a
 
-    With tones = ['Q3/01', 'Q3/12', 'Q4/01', 'Q4/12', 'R3', 'R4'], this function return it to
+    With tones = ['Q3/01', 'Q3/12', 'Q4/01', 'Q4/12', 'R3/a', 'R3/b', 'R4/a'], this function return it to
 
-              subspace_0 subspace_1 prepulse_0 prepulse_1
-        Q3/01       X180          I        Y90          I
-        Q3/12          I          I          I          I
-        Q4/01       X180          I      H3_01          I
-        Q4/12          I       X180      H3_12        Z90
-        R3             I          I          I          I
-        R4             I          I          I          I
+              subspace_0 subspace_1 prepulse_0 prepulse_1 Readout
+        Q3/01       X180          I        Y90          I       I
+        Q3/12          I          I          I          I       I
+        Q4/01       X180          I      H3_01          I       I
+        Q4/12          I       X180      H3_12        Z90       I
+        R3/a           I          I          I          I      RO
+        R3/b           I          I          I          I      RO
+        R4/a           I          I          I          I      RO
     """
 
     pulse_df = dict_to_DataFrame(dic={}, name='', rows=tones)
@@ -75,8 +76,9 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
             if gate == 'I':
                 pass
 
-            elif gate == 'RO':
-                pulse_df.loc[f'{row_name}', col_name] = gate
+            elif gate.startswith('RO'):
+                subtones = gate.split('_')
+                for subtone in subtones[1:]: pulse_df.loc[f'{row_name}/{subtone}', col_name] = 'RO'
 
             elif gate.startswith(('X', 'Y', 'Z')):
                 gate_str, subspace = gate.split('_')

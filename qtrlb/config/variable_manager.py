@@ -75,33 +75,38 @@ class VariableManager(Config):
                     self.set(f'{tone}/anharmonicity', anharmonicity, which='dict')
 
             elif qudit.startswith('R'):
-                tone = qudit
-                tones_list.append(tone)
+                for subtone, tone_dict in self[f'{qudit}'].items():
+                    if not 'sequencer' in tone_dict: continue
 
-                # Set mod, out, seq for convenience.
-                mod, out, seq = self[f'{tone}/sequencer'].split('/')
-                self.set(f'{tone}/mod', int(mod), which='dict')
-                self.set(f'{tone}/out', int(out), which='dict')
-                self.set(f'{tone}/seq', int(seq), which='dict')
+                    # Add tone
+                    tone = f'{qudit}/{subtone}'
+                    tones_list.append(tone)
 
-                # Set NCO frequency for each tone.
-                mod_freq = self[f'{tone}/freq'] - self[f'lo_freq/M{mod}O{out}']
-                assert -500*u.MHz < mod_freq < 500*u.MHz, f'Varman: mod_freq of {tone} is out of range.'
-                self.set(f'{tone}/mod_freq', mod_freq, which='dict')
-                
+                    # Set mod, out, seq for convenience.
+                    mod, out, seq = tone_dict['sequencer'].split('/')
+                    self.set(f'{tone}/mod', int(mod), which='dict')
+                    self.set(f'{tone}/out', int(out), which='dict')
+                    self.set(f'{tone}/seq', int(seq), which='dict')
+
+                    # Set NCO frequency for each tone.
+                    mod_freq = self[f'{tone}/freq'] - self[f'lo_freq/M{mod}O{out}']
+                    assert -500*u.MHz < mod_freq < 500*u.MHz, f'Varman: mod_freq of {tone} is out of range.'
+                    self.set(f'{tone}/mod_freq', mod_freq, which='dict')
+
                 # Make sure readout_levels are in ascending order.
-                self.set(f'{tone}/readout_levels', sorted(self[f'{tone}/readout_levels']), which='dict')
-                self.set(f'{tone}/lowest_readout_levels', self[f'{tone}/readout_levels'][0], which='dict')
-                self.set(f'{tone}/highest_readout_levels', self[f'{tone}/readout_levels'][-1], which='dict')
-                self.set(f'{tone}/n_readout_levels', len(self[f'{tone}/readout_levels']), which='dict')
+                self.set(f'{qudit}/readout_levels', sorted(self[f'{qudit}/readout_levels']), which='dict')
+                self.set(f'{qudit}/lowest_readout_levels', self[f'{qudit}/readout_levels'][0], which='dict')
+                self.set(f'{qudit}/highest_readout_levels', self[f'{qudit}/readout_levels'][-1], which='dict')
+                self.set(f'{qudit}/n_readout_levels', len(self[f'{qudit}/readout_levels']), which='dict')
 
+            # Other common keys.
             else:
                 pass
 
         self.set('tones', tones_list, which='dict')
 
 
-    def transmon_parameters(self, transmon: str, resonator: str, chi_kHz: float = None):
+    def transmon_parameters(self, transmon: str, readout_tone: str, chi_kHz: float = None):
         """
         All return values are in [GHz].
         
@@ -115,11 +120,11 @@ class VariableManager(Config):
             print('Missing the module to run such function')
             return
 
-        assert transmon.startswith('Q'), 'Transmon has to be string like "Q0", "Q1".'
-        assert resonator.startswith('R'), 'Resonator has to be string like "R3", "R4a".'
+        assert transmon.startswith('Q'), 'Transmon must to be string like "Q0", "Q1".'
+        assert readout_tone.startswith('R'), 'Resonator must to be string like "R3/a", "R4/b".'
         f01_GHz = self[f'{transmon}/01/freq'] / u.GHz
         alpha_GHz = self[f'{transmon}/12/anharmonicity'] / u.GHz
-        fr_GHz = self[f'{resonator}/freq'] / u.GHz
+        fr_GHz = self[f'{readout_tone}/freq'] / u.GHz
         
         # The return values depends on whether user has run ReadoutFrequencyScan.
         if chi_kHz is None:

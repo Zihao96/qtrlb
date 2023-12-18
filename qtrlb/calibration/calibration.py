@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, split_subspace
+from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, find_subtones, split_subspace
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -28,7 +28,7 @@ class Scan:
         Attributes:
             cfg: A MetaManager.
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
-            readout_resonators: 'R3' or ['R1', 'R5'].
+            readout_tones: 'R3/a' or ['R1/a', 'R1/b', 'R5/a'].
             scan_name: 'drive_amplitude', 't1', 'ramsey'.
             x_plot_label: The label of x axis on main plot.
             x_plot_unit: The unit of x axis on main plot.
@@ -52,7 +52,7 @@ class Scan:
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
@@ -68,7 +68,7 @@ class Scan:
                  fitmodel: Model = None):
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
-        self.readout_resonators = self.make_it_list(readout_resonators)
+        self.readout_tones = self.make_it_list(readout_tones)
         self.scan_name = scan_name
         self.x_plot_label = x_plot_label
         self.x_plot_unit = x_plot_unit
@@ -101,7 +101,8 @@ class Scan:
         self.x_unit_value = getattr(u, self.x_plot_unit)
         self.subspace_gate = {tone.split('/')[0]: [f'X180_{l}{l+1}' for l in range(int(tone.split('/')[1][0]))] 
                               for tone in self.main_tones if tone.startswith('Q')}
-        self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
+        self.readout_gate = {r: ['RO_' + '_'.join(tone.split('/')[1] for tone in find_subtones(r, self.readout_tones))] 
+                             for r in self.readout_resonators}
         self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
         self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
         # Last two lines just for convenience.
@@ -160,6 +161,11 @@ class Scan:
         Such modification usually happen after instantiation and before make_sequence.
         """
         return tone_to_qudit(self.tones)
+    
+
+    @property
+    def readout_resonators(self):
+        return tone_to_qudit(self.readout_tones)
 
 
     def check_attribute(self):
@@ -196,7 +202,6 @@ class Scan:
         For more information, see self.make_sequence, DACManager.implement_parameters and start_sequencer.
         """
         self.tones = []
-        self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
 
         # Determine tones list from self.subspace.
         for i, qubit in enumerate(self.drive_qubits):
@@ -204,15 +209,17 @@ class Scan:
 
             for level in range(highest_level):
                 self.tones.append(f'{qubit}/{level}{level+1}')
-                self.tones_.append(f'{qubit}_{level}{level+1}')
 
-        self.tones += self.readout_resonators
-        self.tones_ += self.readout_resonators
+        # Add readout_tones
+        self.tones += self.readout_tones
 
         # If main_tones keep default, generate it from self.subspace.
         if self.main_tones == []: self.main_tones = [f'{q}/{ss}' for q, ss in zip(self.drive_qubits, self.subspace)]
-        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
         self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
+
+        # Replace all slash by underscroll for self.make_exp_dir().
+        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
+        
 
 
     def set_running_attributes(
@@ -658,7 +665,7 @@ class Scan:
         self.cfg.save(yamls_path=self.cfg.data.yamls_path, verbose=False)
         self.save_sequence(jsons_path=self.cfg.data.jsons_path)
         
-        for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
+        for r in self.readout_tones: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
     
     
     def acquire_data(self, keep_raw: bool = False):
@@ -673,7 +680,7 @@ class Scan:
                                 'raw_heralding': [[],[]],
                                 'Heterodyned_readout': [[],[]],
                                 'Heterodyned_heralding':[[],[]]
-                                } for r in self.readout_resonators}
+                                } for r in self.readout_tones}
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
@@ -727,7 +734,7 @@ class Scan:
                 self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
             except Exception:
                 self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
-                print(f'Scan: Failed to fit {r} data. ')
+                print(f'Scan: Failed to fit {r} data. See traceback by print scan.fitting_traceback.')
                 self.measurement[r]['fit_result'] = None
                 self.measurement[r]['fit_model'] = str(self.fitmodel)
                 
@@ -822,7 +829,7 @@ class Scan:
         """
         if self.cfg['variables.common/plot_IQ'] is False: return
 
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             Is, Qs = self.measurement[r][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
@@ -832,7 +839,7 @@ class Scan:
                 c, cmap = (None, None)
                                   
                 if self.classification_enable:
-                    c = self.measurement[r][c_key][:,x]
+                    c = self.measurement[tone_to_qudit(r)][c_key][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
@@ -845,7 +852,7 @@ class Scan:
                 plt.close(fig)
                 
                 if self.heralding_enable:
-                   mask = self.measurement[r][mask_key][:,x] 
+                   mask = self.measurement[tone_to_qudit(r)][mask_key][:,x] 
                    I_masked = np.ma.MaskedArray(I, mask=mask)
                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
                    c_masked = np.ma.MaskedArray(c, mask=mask)
@@ -1028,7 +1035,7 @@ class Scan2D(Scan):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
@@ -1051,7 +1058,7 @@ class Scan2D(Scan):
         Scan.__init__(self,
                       cfg=cfg, 
                       drive_qubits=drive_qubits,
-                      readout_resonators=readout_resonators,
+                      readout_tones=readout_tones,
                       scan_name=scan_name,
                       x_plot_label=x_plot_label, 
                       x_plot_unit=x_plot_unit, 
@@ -1208,7 +1215,7 @@ class Scan2D(Scan):
         """
         if self.cfg['variables.common/plot_IQ'] is False: return
 
-        for r in self.readout_resonators:
+        for r in self.readout_tones:
             Is, Qs = self.measurement[r][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
@@ -1220,7 +1227,7 @@ class Scan2D(Scan):
                     c, cmap = (None, None)
                                     
                     if self.classification_enable:
-                        c = self.measurement[r][c_key][:,y,x]
+                        c = self.measurement[tone_to_qudit(r)][c_key][:,y,x]
                         cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
 
                     fig, ax = plt.subplots(1, 1, dpi=dpi)
@@ -1233,7 +1240,7 @@ class Scan2D(Scan):
                     plt.close(fig)
                     
                     if self.heralding_enable:
-                        mask = self.measurement[r][mask_key][:,x] 
+                        mask = self.measurement[tone_to_qudit(r)][mask_key][:,x] 
                         I_masked = np.ma.MaskedArray(I, mask=mask)
                         Q_masked = np.ma.MaskedArray(Q, mask=mask)
                         c_masked = np.ma.MaskedArray(c, mask=mask)

@@ -7,6 +7,7 @@ from lmfit import Model
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
+from qtrlb.utils.misc import tone_to_qudit, find_subtones
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
@@ -18,7 +19,7 @@ class DriveAmplitudeScan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  amp_start: float, 
                  amp_stop: float, 
                  amp_points: int, 
@@ -33,7 +34,7 @@ class DriveAmplitudeScan(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Drive_Amplitude',
                          x_plot_label='Drive Amplitude', 
                          x_plot_unit='arb', 
@@ -103,7 +104,7 @@ class Spectroscopy(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int, 
@@ -118,7 +119,7 @@ class Spectroscopy(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Spectroscopy',
                          x_plot_label='Drive Frequency', 
                          x_plot_unit='MHz', 
@@ -193,7 +194,7 @@ class RabiScan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float = 0, 
                  length_stop: float = 320e-9, 
                  length_points: int = 81, 
@@ -208,7 +209,7 @@ class RabiScan(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Rabi',
                          x_plot_label='Pulse Length', 
                          x_plot_unit='ns', 
@@ -383,7 +384,7 @@ class T1Scan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
@@ -398,7 +399,7 @@ class T1Scan(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='T1',
                          x_plot_label='Wait Length', 
                          x_plot_unit='us', 
@@ -460,7 +461,7 @@ class RamseyScan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
@@ -477,7 +478,7 @@ class RamseyScan(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Ramsey',
                          x_plot_label='Wait Length', 
                          x_plot_unit='us', 
@@ -576,7 +577,7 @@ class EchoScan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float, 
                  length_stop: float, 
                  length_points: int, 
@@ -595,7 +596,7 @@ class EchoScan(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Echo',
                          x_plot_label='Wait Length', 
                          x_plot_unit='us', 
@@ -726,7 +727,7 @@ class LevelScan(Scan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  scan_name: str,
                  level_start: int, 
                  level_stop: int,  
@@ -737,7 +738,7 @@ class LevelScan(Scan):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name=scan_name,
                          x_plot_label='Level', 
                          x_plot_unit='arb', 
@@ -758,7 +759,6 @@ class LevelScan(Scan):
         The self.tones will be determined by the level_stop.
         """
         self.tones = []
-        self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
 
         # Determine tones list from level_stop.
         for qubit in self.drive_qubits:
@@ -766,13 +766,12 @@ class LevelScan(Scan):
                 self.tones.append(f'{qubit}/{level}{level+1}')
                 self.tones_.append(f'{qubit}_{level}{level+1}')
 
-        self.tones += self.readout_resonators
-        self.tones_ += self.readout_resonators
+        self.tones += self.readout_tones
 
         # Make main_tones default here.
         self.main_tones = [f'{q}/01' for q in self.drive_qubits]
-        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
         self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
+        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
 
         
     def add_xinit(self):
@@ -810,18 +809,18 @@ class CalibrateClassification(LevelScan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int, 
                  level_stop: int,  
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True,
-                 refine_mixture_fitting: bool = False):
+                 refine_mixture_fitting: bool = True):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='CalibrateClassification',
                          level_start=level_start, 
                          level_stop=level_stop, 
@@ -840,19 +839,24 @@ class CalibrateClassification(LevelScan):
         It will be a reference/comparison from previous classification.
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
         """
-        for r, data_dict in self.measurement.items():
-            # First fit GMM parameters for each level separately
-            means = np.zeros((self.x_points, 2))
-            covariances = np.zeros(self.x_points)
+        for r in self.readout_resonators: 
+            data_dict = self.measurement[r]
+            multitone_IQ_readout = np.concatenate(
+                [self.measurement[tone]['IQrotated_readout'] for tone in find_subtones(r, self.measurement.keys())], 
+                axis=0)
             
+            # First fit GMM parameters for each level separately
+            means = np.zeros((self.x_points, multitone_IQ_readout.shape[0]))
+            covariances = np.zeros(self.x_points)
+
             for i in range(self.x_points):
                 mask = None
-                data = data_dict['IQrotated_readout'][..., i]
+                data = multitone_IQ_readout[..., i]
                 
                 if self.heralding_enable:
                     mask = data_dict['Mask_heralding']
                     data = data[:, mask[:,i] == 0]
-                    # Here the data_dict['IQrotated_readout'] has shape (2, n_reps, x_points)
+                    # Here the multitone_IQ_readout has shape (2*n_tones, n_reps, x_points)
                     # mask has shape (n_reps, x_points)
                 
                 mean, covariance = gmm_fit(data, n_components=1)
@@ -863,18 +867,21 @@ class CalibrateClassification(LevelScan):
             # Refit with multi-component model.
             # It's better for poor state preparation or decay during readout.
             if self.refine_mixture_fitting:
-                data = data_dict['IQrotated_readout']
-                if self.heralding_enable: data = data.reshape(2, -1)[:, mask.flatten() == 0]
+                data = multitone_IQ_readout
 
-                means_new, covariances_new = gmm_fit(data, n_components=self.x_points)
+                if self.heralding_enable: 
+                    data = data.reshape(multitone_IQ_readout.shape[0], -1)[:, mask.flatten() == 0]
+
+                means_new, covariances_new = gmm_fit(data, n_components=self.x_points, 
+                                                     refine=True, means=means, covariances=covariances)
                 indices = sort_points_by_distance(means_new, means)
                 means = means_new[indices]
                 covariances = covariances_new[indices]
-                
+
             # Redo processing and save to measurement dictionary.
             data_dict['means_new'] = means
             data_dict['covariances_new'] = covariances
-            data_dict['GMMpredicted_new'] = gmm_predict(data_dict['IQrotated_readout'], 
+            data_dict['GMMpredicted_new'] = gmm_predict(multitone_IQ_readout, 
                                                         means=means, covariances=covariances,
                                                         lowest_level=self.x_start)
             data_dict['PopulationNormalized_new'] = normalize_population(data_dict['GMMpredicted_new'],
@@ -934,7 +941,7 @@ class JustGate(Scan):
     def __init__(self,
                  cfg: MetaManager,
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  just_gate: dict[str: list[str]],
                  lengths: list[int],
                  subspace: str | list[str] = None,
@@ -946,7 +953,7 @@ class JustGate(Scan):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='JustGate',
                          x_plot_label='', 
                          x_plot_unit='arb', 
@@ -983,10 +990,10 @@ class CalibrateTOF(JustGate):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str, 
-                 readout_resonators: str):
+                 readout_tones: str):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
-                         readout_resonators=readout_resonators, 
+                         readout_tones=readout_tones, 
                          just_gate={drive_qubits: ['I']}, 
                          lengths=None, 
                          n_seqloops=1,
@@ -999,7 +1006,7 @@ class CalibrateTOF(JustGate):
         """
         Start and stop set the limit of x axis.
         """
-        r = self.readout_resonators[0]  # We should only use one resonator.
+        r = self.readout_tones[0]  # We should use only one readout_tone.
         self.raw_data = np.array(self.measurement[r]['raw_readout'])
 
         t = np.arange(16384)
@@ -1024,11 +1031,11 @@ class CheckBlobShift(CalibrateClassification):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str, 
-                 readout_resonators: str, 
+                 readout_tones: str, 
                  n_seqloops: int = 1000):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
-                         readout_resonators=readout_resonators, 
+                         readout_tones=readout_tones, 
                          level_start=0,
                          level_stop=1,
                          n_seqloops=n_seqloops, 
@@ -1056,7 +1063,7 @@ class CheckBlobShift(CalibrateClassification):
 
     
     def plot(self):
-        r = self.readout_resonators[0]
+        r = self.readout_resonators[0]  # Assume we check only one readout resonator.
 
         # The shape of the two arrays should be:
         # means_all.shape = (n_runs, x_points=2, IQ=2)
@@ -1092,7 +1099,7 @@ class TwoToneROCalibration(LevelScan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: list[str],
+                 readout_tones: list[str],
                  level_start: int, 
                  level_stop: int,
                  readout_levels_dict: dict[str: list[int]],  
@@ -1103,7 +1110,7 @@ class TwoToneROCalibration(LevelScan):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='TwoToneROCalibration',
                          level_start=level_start, 
                          level_stop=level_stop, 
@@ -1116,7 +1123,7 @@ class TwoToneROCalibration(LevelScan):
         assert self.classification_enable, 'Please turn on classification.'
         assert not self.heralding_enable, 'This Scan do not support heralding yet.'
         assert self.customized_data_process is not None, 'Please specify customized data process.'
-        assert len(self.readout_levels_dict) == len(self.readout_resonators) == 2, \
+        assert len(self.readout_levels_dict) == len(self.readout_tones) == 2, \
                 'Please specify two resonators and their own readout levels.'
 
 
@@ -1175,7 +1182,7 @@ class TwoToneROCalibration(LevelScan):
             self.cfg[f'process.{r}/corr_matrix'] = corr_matrix
 
         if self.save_cfg: self.cfg.save()
-        tone_0, tone_1 = self.readout_resonators
+        tone_0, tone_1 = self.readout_tones
 
         if self.customized_data_process == 'two_tone_readout_mask':
             # Predict result and generate mask for confliction.
@@ -1249,7 +1256,7 @@ class MultitoneROCalibration(LevelScan):
     def __init__(self, 
                  cfg: MetaManager,  
                  drive_qubits: str | list[str],
-                 readout_resonators: list[str],
+                 readout_tones: list[str],
                  level_start: int, 
                  level_stop: int,
                  pre_gate: dict[str: list[str]] = None,
@@ -1260,7 +1267,7 @@ class MultitoneROCalibration(LevelScan):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='MultitoneROCalibration',
                          level_start=level_start, 
                          level_stop=level_stop, 
