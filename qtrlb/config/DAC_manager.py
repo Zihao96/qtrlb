@@ -172,42 +172,43 @@ class DACManager(Config):
         # Really start sequencer.
         self.qblox.start_sequencer()  
 
-        for r in tones:
-            # Only loop over resonator.
-            if not r.startswith('R'): continue
+        for rt in tones:
+            # Only loop over readout_tone.
+            if not rt.startswith('R'): continue
+            rr, subtone = rt.split('/')
 
-            timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{r}/mod'])]
-            seq_idx = int(self.varman[f'{r}/seq'])
+            timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{rt}/mod'])]
+            seq_idx = int(self.varman[f'{rt}/seq'])
            
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
-            self.module[r].get_acquisition_state(seq_idx, timeout)  
+            self.module[rt].get_acquisition_state(seq_idx, timeout)  
 
             # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
             if keep_raw: 
-                self.module[r].store_scope_acquisition(seq_idx, 'readout')
-                if heralding_enable: self.module[r].store_scope_acquisition(seq_idx, 'heralding')
+                self.module[rt].store_scope_acquisition(seq_idx, 'readout')
+                if heralding_enable: self.module[rt].store_scope_acquisition(seq_idx, 'heralding')
             
             # Retrive the heterodyned result (binned data) back to python in Host PC.
-            data = self.module[r].get_acquisitions(seq_idx)
+            data = self.module[rt].get_acquisitions(seq_idx)
             
             # Clear the memory of instrument. 
             # It's necessary otherwise the acquisition result will accumulate and be averaged.
-            self.module[r].delete_acquisition_data(seq_idx, 'readout')
-            if heralding_enable: self.module[r].delete_acquisition_data(seq_idx, 'heralding')
+            self.module[rt].delete_acquisition_data(seq_idx, 'readout')
+            if heralding_enable: self.module[rt].delete_acquisition_data(seq_idx, 'heralding')
             
             # Append list of each repetition into measurement dictionary.
-            measurement[r]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 
-            measurement[r]['Heterodyned_readout'][1].append(data['readout']['acquisition']['bins']['integration']['path1'])
+            measurement[rr][subtone]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 
+            measurement[rr][subtone]['Heterodyned_readout'][1].append(data['readout']['acquisition']['bins']['integration']['path1'])
             if heralding_enable:
-                measurement[r]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
-                measurement[r]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
+                measurement[rr][subtone]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
+                measurement[rr][subtone]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
 
             if keep_raw:
-                measurement[r]['raw_readout'][0].append(data['readout']['acquisition']['scope']['path0']['data']) 
-                measurement[r]['raw_readout'][1].append(data['readout']['acquisition']['scope']['path1']['data'])
+                measurement[rr][subtone]['raw_readout'][0].append(data['readout']['acquisition']['scope']['path0']['data']) 
+                measurement[rr][subtone]['raw_readout'][1].append(data['readout']['acquisition']['scope']['path1']['data'])
                 if heralding_enable:
-                    measurement[r]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
-                    measurement[r]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
+                    measurement[rr][subtone]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
+                    measurement[rr][subtone]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
 
         # In case of the sequencers don't stop correctly.
         # Do not call qblox.reset() here since it will make debugging difficult.

@@ -7,7 +7,6 @@ from lmfit import Model
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
-from qtrlb.utils.misc import tone_to_qudit, find_subtones
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
@@ -329,8 +328,8 @@ class RabiScan(Scan):
         
         for tone in self.main_tones:
             try:
-                r = 'R' + tone.split('/')[0][1:]
-                fit_rabi_freq = self.fit_result[r].params['freq'].value 
+                rr = 'R' + tone.split('/')[0][1:]
+                fit_rabi_freq = self.fit_result[rr].params['freq'].value 
             except AttributeError:
                 print('RabiScan: Fitting failed. Please check fitting process.')
                 return
@@ -353,31 +352,31 @@ class DebugRabi(RabiScan):
     def plot_main(self, text_loc: str = 'lower right'):
         self.figures = {}
         
-        for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+        for i, rr in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             ylabel = 'Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 2, figsize=(13, 5))
-            ax[0].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][0], 'k.')
+            ax[0].plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][0], 'k.')
             ax[0].set(xlabel=xlabel, ylabel=f'I-{ylabel}', title=title)
-            ax[1].plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][1], 'k.')
+            ax[1].plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][1], 'k.')
             ax[1].set(xlabel=xlabel, ylabel=f'Q-{ylabel}', title=title)
             
-            if self.fit_result[r] is not None: 
+            if self.fit_result[rr] is not None: 
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
-                y = self.fit_result[r].eval(x=x)
+                y = self.fit_result[rr].eval(x=x)
                 ax[level_index].plot(x / self.x_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[rr].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax[level_index].add_artist(anchored_text)
 
-            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig
 
     
 class T1Scan(Scan):
@@ -764,14 +763,11 @@ class LevelScan(Scan):
         for qubit in self.drive_qubits:
             for level in range(self.x_stop):
                 self.tones.append(f'{qubit}/{level}{level+1}')
-                self.tones_.append(f'{qubit}_{level}{level+1}')
 
         self.tones += self.readout_tones
 
         # Make main_tones default here.
         self.main_tones = [f'{q}/01' for q in self.drive_qubits]
-        self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
-        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
 
         
     def add_xinit(self):
@@ -832,22 +828,50 @@ class CalibrateClassification(LevelScan):
         self.refine_mixture_fitting = refine_mixture_fitting
         assert self.classification_enable, 'Please turn on classification.'
           
+    
+    def process_data(self):
+        """
+        Use the old GMM parameters to process data.
+        If the struture of GMM parameters is incompatible, we won't do old GMM processing here.
+        It's usually caused by change on readout_levels.
+        """
+        try:
+            return super().process_data()
+        
+        except Exception as expt:
+            if self.heralding_enable: raise expt
+            self.plot_populations = lambda: None
+            shape = (2, self.n_reps, self.x_points)
+
+            print('Cal: Cannot do processing using old GMM parameters.')
+
+            # Loop over each resonator
+            for rr, data_dict in self.measurement.items():
+                # Loop over its subtones and process IQ.   
+                for subtone, subtone_dict in data_dict.items():
+                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
+                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+
+                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
+                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
+                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+
         
     def fit_data(self):
         """
-        Here we should already have a normally processed data.
+        Here we may already have a normally processed data from self.process_data().
         It will be a reference/comparison from previous classification.
         And we intercept it from 'IQrotated_readout' to do new gmm_fit.
         """
-        for r in self.readout_resonators: 
-            data_dict = self.measurement[r]
+        for rr, data_dict in self.measurement.items(): 
             multitone_IQ_readout = np.concatenate(
-                [self.measurement[tone]['IQrotated_readout'] for tone in find_subtones(r, self.measurement.keys())], 
+                [subtone_dict['IQrotated_readout'] for subtone_dict in data_dict.values()
+                 if isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict], 
                 axis=0)
             
             # First fit GMM parameters for each level separately
             means = np.zeros((self.x_points, multitone_IQ_readout.shape[0]))
-            covariances = np.zeros(self.x_points)
+            covariances = np.zeros((self.x_points, multitone_IQ_readout.shape[0]))
 
             for i in range(self.x_points):
                 mask = None
@@ -859,9 +883,9 @@ class CalibrateClassification(LevelScan):
                     # Here the multitone_IQ_readout has shape (2*n_tones, n_reps, x_points)
                     # mask has shape (n_reps, x_points)
                 
-                mean, covariance = gmm_fit(data, n_components=1)
-                means[i] = mean[0]
-                covariances[i] = covariance[0]
+                gmm = gmm_fit(data, n_components=1)
+                means[i] = gmm.means_[0]
+                covariances[i] = gmm.covariances_[0]
                 # Because the default form is one more layer nested.
 
             # Refit with multi-component model.
@@ -872,8 +896,9 @@ class CalibrateClassification(LevelScan):
                 if self.heralding_enable: 
                     data = data.reshape(multitone_IQ_readout.shape[0], -1)[:, mask.flatten() == 0]
 
-                means_new, covariances_new = gmm_fit(data, n_components=self.x_points, 
-                                                     refine=True, means=means, covariances=covariances)
+                gmm = gmm_fit(data, n_components=self.x_points, 
+                              refine=True, means=means, covariances=covariances)
+                means_new, covariances_new = gmm.means_, gmm.covariances_
                 indices = sort_points_by_distance(means_new, means)
                 means = means_new[indices]
                 covariances = covariances_new[indices]
@@ -889,45 +914,43 @@ class CalibrateClassification(LevelScan):
                                                                          mask=mask)
             data_dict['confusionmatrix_new'] = data_dict['PopulationNormalized_new']
             data_dict['PopulationCorrected_new'] = correct_population(data_dict['PopulationNormalized_new'],
-                                                                      data_dict['confusionmatrix_new'])
-            data_dict['ReadoutFidelity'] =  get_readout_fidelity(data_dict['confusionmatrix_new'])
+                                                                      data_dict['confusionmatrix_new'],
+                                                                      self.cfg.process['corr_method'])
+            data_dict['ReadoutFidelity'] = get_readout_fidelity(data_dict['confusionmatrix_new'])
             
-            self.cfg[f'process.{r}/IQ_means'] = means
-            self.cfg[f'process.{r}/IQ_covariances'] = covariances
-            self.cfg[f'process.{r}/corr_matrix'] = data_dict['PopulationNormalized_new']
+            self.cfg[f'process.{rr}/IQ_means'] = means
+            self.cfg[f'process.{rr}/IQ_covariances'] = covariances
+            self.cfg[f'process.{rr}/corr_matrix'] = data_dict['confusionmatrix_new']
         
         if self.save_cfg: self.cfg.save()
         
         
-    def plot_main(self):
+    def plot_main(self, dpi: int = 150):
         """
         We expect this function to plot new result with correction.
-        And plot_all_population will give you the previous result along with corrected result.
-        So there will be four plots for each resonator in total.
+        And plot_population will give you the previous result along with corrected result.
+        So there will be two population plots for each resonator.
         """
-        for r in self.readout_resonators:
-            title = f'Uncorrected probability, {self.scan_name}, {r}'
-            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
-            ylabel = 'Probability'
-            
-            fig, ax = plt.subplots(1, 1, dpi=150)
+        self.figures = {}
+
+        for rr in self.readout_resonators:
+            fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
             for i, level in enumerate(self.x_values):
-                ax.plot(self.x_values, self.measurement[r]['PopulationNormalized_new'][i], 
-                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
-            plt.legend()
-            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationUncorrected_new.png'))
-            
-            
-            title = f'Corrected probability, {self.scan_name}, {r}'
-            fig, ax = plt.subplots(1, 1, dpi=150)
-            for i, level in enumerate(self.x_values):
-                ax.plot(self.x_values, self.measurement[r]['PopulationCorrected_new'][i], 
-                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-            ax.set(xlabel=xlabel, ylabel=ylabel, title=title, ylim=(-0.05,1.05))
-            plt.legend()
-            fig.savefig(os.path.join(self.data_path, f'{r}_PopulationCorrected_new.png'))
+                ax[0].plot(self.x_values, self.measurement[rr]['PopulationNormalized_new'][i], 
+                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                ax[1].plot(self.x_values, self.measurement[rr]['PopulationCorrected_new'][i], 
+                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+
+            xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
+            ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
+            ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
+            ax[0].legend()
+            ax[1].legend()
+            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}')
+            fig.savefig(os.path.join(self.data_path, f'{rr}_Population_new.png'))
             plt.close(fig)
+
+            self.figures[rr] = plot_corr_matrix(self.measurement[rr]['confusionmatrix_new'])
         
         
     def plot_IQ(self):
@@ -1006,8 +1029,8 @@ class CalibrateTOF(JustGate):
         """
         Start and stop set the limit of x axis.
         """
-        r = self.readout_tones[0]  # We should use only one readout_tone.
-        self.raw_data = np.array(self.measurement[r]['raw_readout'])
+        rr, subtone = self.readout_tones[0].split('/')  # We should use only one readout_tone.
+        self.raw_data = np.array(self.measurement[rr][subtone]['raw_readout'])
 
         t = np.arange(16384)
         I_trace = np.mean(self.raw_data, axis=1)[0]
@@ -1016,11 +1039,11 @@ class CalibrateTOF(JustGate):
         fig, ax = plt.subplots(2, 1, dpi=150)
         ax[0].plot(t[start:stop], I_trace[start:stop])
         ax[1].plot(t[start:stop], Q_trace[start:stop])
-        ax[0].set(ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {r}')
+        ax[0].set(ylabel='I', title = f'{self.datetime_stamp}, {self.scan_name}, {rr}')
         ax[1].set(ylabel='Q', label='Time[ns]')
 
-        if savefig: fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-        self.figures = {r: fig}
+        if savefig: fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+        self.figures = {rr: fig}
 
 
 class CheckBlobShift(CalibrateClassification):

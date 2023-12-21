@@ -107,7 +107,7 @@ class DataManager(Config):
         """
         for k, v in dictionary.items():
             if isinstance(v, dict):
-                subgroup = h5.create_group(k)
+                subgroup = h5.require_group(k)
                 DataManager.save_dict_to_hdf5(v, subgroup)
             elif v is None:
                 continue

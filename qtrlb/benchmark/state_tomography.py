@@ -159,7 +159,7 @@ class SingleQuditStateTomography(StateTomography):
         It should be compatible with any currect twotone readout problem
     """
     def fit_data(self):
-        # Consider only single qudit and first tone has same index as the qudit.
+        # Consider only single qudit and the readout resonator has same index as the qudit.
         # populations will have shape (n_readout_levels, n_tomograhy_gates).
         populations = self.measurement[f'R{self.drive_qubits[0][1:]}']['to_fit']
         self.density_matrix_raw = calculate_single_qudit_density_matrix(populations, self.tomography_gates_list)
@@ -182,5 +182,5 @@ class SingleQuditStateTomography(StateTomography):
         ax.title.set_size(8)
 
         fig.savefig(os.path.join(self.data_path, 'Density_Matrix.png'))
-        self.figures = {r: fig for r in self.readout_resonators}
+        self.figures = {rr: fig for rr in self.readout_resonators}
 

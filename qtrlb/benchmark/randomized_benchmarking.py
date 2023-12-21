@@ -90,7 +90,7 @@ class RB1QB(Scan):
             # Make the sub folder, self.data_path will be updated here.
             self.data_path = os.path.join(self.main_data_path, f'Random_{i}')
             os.makedirs(os.path.join(self.data_path, 'Jsons'))
-            for r in self.readout_tones: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
+            for rt_ in self.readout_tones_: os.makedirs(os.path.join(self.data_path, 'IQplots', rt_))
             
             # Run as usual, but using the new self.data_path.
             self.make_sequence() 
@@ -200,11 +200,11 @@ class RB1QB(Scan):
         I believe this Scan is special and specific enough to treat it differetly without \
         considering too much of generality.
         """
-        for r in self.readout_resonators:
+        for rr in self.readout_resonators:
             # It will have shape (n_random, n_levels, x_points).
-            data_all_random = np.array([measurement[r]['to_fit'] for measurement in self.measurements])
+            data_all_random = np.array([measurement[rr]['to_fit'] for measurement in self.measurements])
 
-            self.measurement[r] = {
+            self.measurement[rr] = {
                 'all_random': data_all_random,
                 'to_fit': np.mean(data_all_random, axis=0)
             }
@@ -218,14 +218,14 @@ class RB1QB(Scan):
         self.plot_main(text_loc='lower left')
         
         # Plot result of each random sequence.
-        for j, r in enumerate(self.readout_resonators):
-            ax = self.figures[r].get_axes()[0]  # figure.get_axes always return list of axis object.
+        for j, rr in enumerate(self.readout_resonators):
+            ax = self.figures[rr].get_axes()[0]  # figure.get_axes always return list of axis object.
             
             for i in range(self.n_random):
                 ax.plot(self.x_values / self.x_unit_value, 
-                        self.measurement[r]['all_random'][i][self.level_to_fit[j]], 
+                        self.measurement[rr]['all_random'][i][self.level_to_fit[j]], 
                         'r.', alpha=0.1)
 
-            self.figures[r].savefig(os.path.join(self.main_data_path, f'{r}.png'))
-            self.figures[r].canvas.draw()
+            self.figures[rr].savefig(os.path.join(self.main_data_path, f'{rr}.png'))
+            self.figures[rr].canvas.draw()
 

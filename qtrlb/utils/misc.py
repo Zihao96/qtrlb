@@ -43,8 +43,8 @@ def tone_to_qudit(tone: str | Iterable) -> str | list:
     tone_to_qudit('Q2') -> 'Q2'
     tone_to_qudit('R2') -> 'R2'
     tone_to_qudit('Q2/12') -> 'Q2'
-    tone_to_qudit(['Q2/01', 'Q2/12', 'R2']) -> ['Q2', 'R2']
-    tone_to_qudit([['Q2/01', 'Q3/12', 'R2'], ['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
+    tone_to_qudit(['Q2/01', 'Q2/12', 'R2/a']) -> ['Q2', 'R2']
+    tone_to_qudit([['Q2/01', 'Q3/12', 'R2/a'], ['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
     """
     if isinstance(tone, str):
         assert tone.startswith(('Q', 'R')), f'Cannot translate {tone} to qudit.'

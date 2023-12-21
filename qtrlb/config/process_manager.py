@@ -1,7 +1,6 @@
 import numpy as np
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
-from qtrlb.utils.misc import tone_to_qudit, find_subtones
 from qtrlb.processing.processing import rotate_IQ, gmm_predict, heralding_test, normalize_population, \
     autorotate_IQ, correct_population, two_tone_predict, two_tone_normalize, multitone_predict_sequential, \
     multitone_predict_mask, multitone_normalize
@@ -36,6 +35,12 @@ class ProcessManager(Config):
         Check the shape of those IQ matrices inside process.yaml. 
         If their shapes are not compatible with readout_levels,
         default compatible matrices will be generated without saving.
+
+        Note from Zihao(2023/12/19):
+        We will assume single tone readout and ellipsoidal covariances here.
+        The means and covariances will both have shape (n_readout_levels, 2).
+        It will cause error if we then use it on multitone readout.
+        User need to re-calibrate and save the new GMM parameters in such case.
         """
         for r in self.keys():
             if not r.startswith('R'): continue
@@ -49,7 +54,7 @@ class ProcessManager(Config):
                 
                 print(f'Processman: New IQ matrices of {r} has been generated to be compatible with its readout_levels.')
                 self[f'{r}/corr_matrix'] = np.identity(self[f'{r}/n_readout_levels'])
-                self[f'{r}/IQ_covariances'] = [1 for _ in range(self[f'{r}/n_readout_levels'])]
+                self[f'{r}/IQ_covariances'] = [[1, 1] for _ in range(self[f'{r}/n_readout_levels'])]
                 self[f'{r}/IQ_means'] = [[i, i] for i in range(self[f'{r}/n_readout_levels'])]
                 
                 
@@ -78,100 +83,107 @@ class ProcessManager(Config):
         
         elif self['heralding'] is True:
             heralding_data_list = []
-            for r, data_dict in measurement.items():  
-                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
-                data_dict['Reshaped_heralding'] = np.array(data_dict['Heterodyned_heralding']).reshape(shape)
-                
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
-                                                           angle=self[f'{r}/IQ_rotation_angle'])
-                data_dict['IQrotated_heralding'] = rotate_IQ(data_dict['Reshaped_heralding'], 
-                                                             angle=self[f'{r}/IQ_rotation_angle'])
 
-            for r in tone_to_qudit(measurement.keys()): 
-                data_dict = measurement[r] = {}
-                multitone_IQ_readout = np.concatenate(
-                    [measurement[tone]['IQrotated_readout'] for tone in find_subtones(r, measurement.keys())], 
-                    axis=0)
-                multitone_IQ_heralding = np.concatenate(
-                    [measurement[tone]['IQrotated_heralding'] for tone in find_subtones(r, measurement.keys())], 
-                    axis=0)
-                
+            # Loop over each resonator
+            for rr, data_dict in measurement.items():
+                # Loop over its subtones and collect all IQ.   
+                multitone_IQ_readout = []
+                multitone_IQ_heralding = []
+                for subtone, subtone_dict in data_dict.items():
+                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
+                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+
+                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
+                    subtone_dict['Reshaped_heralding'] = np.array(subtone_dict['Heterodyned_heralding']).reshape(shape)
+
+                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
+                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                    subtone_dict['IQrotated_heralding'] = rotate_IQ(subtone_dict['Reshaped_heralding'], 
+                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
+                    multitone_IQ_heralding.append(subtone_dict['IQrotated_heralding'])
+
+                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
+                multitone_IQ_heralding = np.concatenate(multitone_IQ_heralding, axis=0)
+
                 data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ_readout, 
-                                                                means=self[f'{r}/IQ_means'], 
-                                                                covariances=self[f'{r}/IQ_covariances'],
-                                                                lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                means=self[f'{rr}/IQ_means'], 
+                                                                covariances=self[f'{rr}/IQ_covariances'],
+                                                                lowest_level=self[f'{rr}/lowest_readout_levels'])
                 data_dict['GMMpredicted_heralding'] = gmm_predict(multitone_IQ_heralding, 
-                                                                  means=self[f'{r}/IQ_means'], 
-                                                                  covariances=self[f'{r}/IQ_covariances'],
-                                                                  lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                  means=self[f'{rr}/IQ_means'], 
+                                                                  covariances=self[f'{rr}/IQ_covariances'],
+                                                                  lowest_level=self[f'{rr}/lowest_readout_levels'])
                 heralding_data_list.append(data_dict['GMMpredicted_heralding'])
 
             mask_heralding = heralding_test(*heralding_data_list)
-            
-            for r in tone_to_qudit(measurement.keys()):
-                data_dict = measurement[r]
 
+            for rr, data_dict in measurement.items():
                 data_dict['Mask_heralding'] = mask_heralding  # So that it can be save to hdf5.
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
-                                                                                 levels=self[f'{r}/readout_levels'],
+                                                                                 levels=self[f'{rr}/readout_levels'],
                                                                                  mask=mask_heralding)
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
-                                                                              self[f'{r}/corr_matrix'],
+                                                                              self[f'{rr}/corr_matrix'],
                                                                               self['corr_method'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
             
             
         elif self['classification'] is True:
-            for r, data_dict in measurement.items():  
-                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
-                
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
-                                                           angle=self[f'{r}/IQ_rotation_angle'])
-                
-            for r in tone_to_qudit(measurement.keys()): 
-                data_dict = measurement[r] = {}
-                multitone_IQ_readout = np.concatenate(
-                    [measurement[tone]['IQrotated_readout'] for tone in find_subtones(r, measurement.keys())], 
-                    axis=0)
+            # Loop over each resonator
+            for rr, data_dict in measurement.items():
+                # Loop over its subtones and collect all IQ.   
+                multitone_IQ_readout = []
+                for subtone, subtone_dict in data_dict.items():
+                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
+                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
 
+                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
+                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
+                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
+
+                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
+                
                 data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ_readout, 
-                                                                means=self[f'{r}/IQ_means'], 
-                                                                covariances=self[f'{r}/IQ_covariances'],
-                                                                lowest_level=self[f'{r}/lowest_readout_levels'])
+                                                                means=self[f'{rr}/IQ_means'], 
+                                                                covariances=self[f'{rr}/IQ_covariances'],
+                                                                lowest_level=self[f'{rr}/lowest_readout_levels'])
                 
                 data_dict['PopulationNormalized_readout'] = normalize_population(data_dict['GMMpredicted_readout'],
-                                                                                 levels=self[f'{r}/readout_levels'])
+                                                                                 levels=self[f'{rr}/readout_levels'])
                 
                 data_dict['PopulationCorrected_readout'] = correct_population(data_dict['PopulationNormalized_readout'],
-                                                                              self[f'{r}/corr_matrix'],
+                                                                              self[f'{rr}/corr_matrix'],
                                                                               self['corr_method'])
                 
                 data_dict['to_fit'] = data_dict['PopulationCorrected_readout']
 
             
         else:
-            # Process the readout_tones.
-            for r, data_dict in measurement.items():  
-                data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
-                
-                data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
-                                                           angle=self[f'{r}/IQ_rotation_angle'])
-            
-            # Process the readout_resonators. We will combine all IQ associated to each resonators here.
-            for r in tone_to_qudit(measurement.keys()): 
-                data_dict = measurement[r] = {}
-                multitone_IQ_readout = np.concatenate(
-                    [measurement[tone]['IQrotated_readout'] for tone in find_subtones(r, measurement.keys())], 
-                    axis=0)
+            # Loop over each resonator
+            for rr, data_dict in measurement.items():
+                # Loop over its subtones and collect all IQ.  
+                multitone_IQ_readout = []
+                for subtone, subtone_dict in data_dict.items():
+                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
+                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+
+                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
+                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
+                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
+
+                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
 
                 data_dict['IQaveraged_readout'] = np.mean(multitone_IQ_readout, axis=1)
 
                 if self['IQautorotation']:
                     data_dict['IQautorotated_readout'] = autorotate_IQ(multitone_IQ_readout, 
-                                                                       n_components=self[f'{r}/n_readout_levels'])
+                                                                       n_components=self[f'{rr}/n_readout_levels'])
                     data_dict['IQaveraged_readout'] = np.mean(data_dict['IQautorotated_readout'], axis=1)
         
                 data_dict['to_fit'] = data_dict['IQaveraged_readout']
