@@ -8,7 +8,7 @@ from qtrlb.calibration.scan2d_classes import ChevronScan, ACStarkSpectroscopy, R
 from qtrlb.calibration.mixer_correction import MixerCorrection, MixerAutoCorrection
 from qtrlb.calibration.autotune import autotune
 
-from qtrlb.benchmark.randomized_benchmarking import RB1QB
+from qtrlb.benchmark.randomized_benchmarking import RB1QB, RB1QBDetuningSweep, RB1QBAmplitudeSweep
 from qtrlb.benchmark.state_tomography import StateTomography, SingleQuditStateTomography
 
 from qtrlb.processing.fitting import QuadModel, SinModel, ChevronModel, ResonatorHangerTransmissionModel

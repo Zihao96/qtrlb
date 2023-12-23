@@ -2,64 +2,24 @@ import os
 import json
 import numpy as np
 from lmfit import Model
+from abc import ABCMeta, abstractmethod
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
+from qtrlb.calibration.scan_classes import Spectroscopy
 from qtrlb.processing.fitting import ExpModel2
 from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
-    
-    
-    
-    
-class RB1QB(Scan):
-    """ Randomized Benchmarking (RB) for single qubit or any single two-level subspace.
 
-        Note from Zihao(09/09/2023):
-        This is not design for simultaneous RB on multiple single qubit, \
-        which is better metric that include crosstalk, stark shift, idling decoherence.
-        It's not about the two-qubit gate, it's because here I and Z gate don't take real time.
-        It will break synchronization when we run it on multiple qubits simultaneously.
-        The pulse.py accept finite time of I and Z.
-        So if we want it, we need to change optimize_circuit in RB1QB_tools.
-        And also the way we generate self.Clifford_gates since it's different between qubits.
+
+
+
+class RB1QBBase(Scan, metaclass=ABCMeta):
+    """ Base class for Randomized Benchmarking type of experiments.
+        User must overload the __init__, make_sequence and add_main for child class.
+        A integer n_random need to be specified during __init__
     """
-    def __init__(
-            self,
-            cfg: MetaManager,
-            drive_qubits: str | list[str],
-            readout_tones: str | list[str],
-            n_gates_start: int,
-            n_gates_stop: int,
-            n_gates_points: int,
-            n_random: int = 30,
-            subspace: str | list[str] = None,
-            main_tones: str | list[str] = None,
-            pre_gate: dict[str: list[str]] = None,
-            post_gate: dict[str: list[str]] = None,
-            n_seqloops: int = 1000,
-            level_to_fit: int | list[int] = None,
-            fitmodel: Model = ExpModel2):
-        
-        super().__init__(
-            cfg=cfg, 
-            drive_qubits=drive_qubits, 
-            readout_tones=readout_tones, 
-            scan_name='RB1QB', 
-            x_plot_label='Number of Clifford Gates',
-            x_plot_unit='arb', 
-            x_start=n_gates_start, 
-            x_stop=n_gates_stop, 
-            x_points=n_gates_points,
-            subspace=subspace,
-            main_tones=main_tones,
-            pre_gate=pre_gate,
-            post_gate=post_gate,
-            n_seqloops=n_seqloops,
-            level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
-        
-        assert self.x_step.is_integer(), 'All n_gates should be integer.'
-        self.x_values = self.x_values.astype(int)
-        self.n_random = n_random
+    @abstractmethod
+    def __init__(self, n_random: int):
+        return
         
         
     def run(self, 
@@ -75,6 +35,10 @@ class RB1QB(Scan):
         It means we shouldn't call self.run() twice, instead, we shuold redo instantiation.
         This is similar to ReadoutLengthAmpScan.
         """
+        # Check attributes
+        assert hasattr(self, 'n_random'), 'RB1QBBase: Please specify n_random.'
+        self.measurements = []  # Allow user to call run() without redo instantiation.
+
         # Set attributes as usual
         self.set_running_attributes(experiment_suffix, n_pyloops, process_kwargs, fitting_kwargs, plot_kwargs)
 
@@ -112,6 +76,123 @@ class RB1QB(Scan):
         self.save_data()
         self.plot_full_result()
         self.n_runs += 1
+
+
+    @abstractmethod
+    def make_sequence(self):
+        return
+
+
+    @abstractmethod
+    def add_main(self):
+        return
+
+
+    def save_sequence(self, jsons_path: str = None):
+        """
+        Save Q1ASM sequences and also each randomized gates sequence to their sub folders.
+        """
+        super().save_sequence(jsons_path=jsons_path)
+        
+        if ( not hasattr(self, 'Clifford_gates') ) or ( jsons_path is None ): return
+        both_sequences = {'Clifford_gates': self.Clifford_gates,
+                          'primitive_gates': self.primitive_gates}
+        
+        with open(os.path.join(jsons_path, 'RB_sequence.json'), 'w', encoding='utf-8') as file:
+            json.dump(both_sequences, file, indent=4)
+
+
+    def fit_data(self):
+        """
+        Combine result of all randoms and fit it.
+        
+        Note from Zihao (04/03/2023):
+        I overwrite the LAST measurement[r] to reuse Scan.fit_data and save it to main_data_path.
+        However, the last measurement.hdf5 still keep last random data correctly.
+        It's because there is no self.save_data() after self.fit_data() 
+        I believe this Scan is special and specific enough to treat it differetly without \
+        considering too much of generality.
+        """
+        for rr in self.readout_resonators:
+            # It will have shape (n_random, n_levels, x_points).
+            data_all_random = np.array([measurement[rr]['to_fit'] for measurement in self.measurements])
+
+            self.measurement[rr] = {
+                'all_random': data_all_random,
+                'to_fit': np.mean(data_all_random, axis=0)
+            }
+        super().fit_data()
+
+
+    def plot_full_result(self):
+        """
+        Plot each random result with their average and the fitting for average.
+        """
+        self.plot_main(text_loc='lower left')
+        
+        # Plot result of each random sequence.
+        for j, rr in enumerate(self.readout_resonators):
+            ax = self.figures[rr].get_axes()[0]  # figure.get_axes always return list of axis object.
+            
+            for i in range(self.n_random):
+                ax.plot(self.x_values / self.x_unit_value, 
+                        self.measurement[rr]['all_random'][i][self.level_to_fit[j]], 
+                        'r.', alpha=0.1)
+
+            self.figures[rr].savefig(os.path.join(self.main_data_path, f'{rr}.png'))
+            self.figures[rr].canvas.draw()
+
+
+class RB1QB(RB1QBBase):
+    """ Randomized Benchmarking (RB) for single qubit or any single two-level subspace.
+
+        Note from Zihao(09/09/2023):
+        This is not design for simultaneous RB on multiple single qubit, \
+        which is better metric that include crosstalk, stark shift, idling decoherence.
+        It's not about the two-qubit gate, it's because here I and Z gate don't take real time.
+        It will break synchronization when we run it on multiple qubits simultaneously.
+        The pulse.py accept finite time of I and Z.
+        So if we want it, we need to change optimize_circuit in RB1QB_tools.
+        And also the way we generate self.Clifford_gates since it's different between qubits.
+    """
+    def __init__(
+            self,
+            cfg: MetaManager,
+            drive_qubits: str | list[str],
+            readout_tones: str | list[str],
+            n_gates_start: int,
+            n_gates_stop: int,
+            n_gates_points: int,
+            n_random: int = 30,
+            subspace: str | list[str] = None,
+            main_tones: str | list[str] = None,
+            pre_gate: dict[str: list[str]] = None,
+            post_gate: dict[str: list[str]] = None,
+            n_seqloops: int = 1000,
+            level_to_fit: int | list[int] = None,
+            fitmodel: Model = ExpModel2):
+        
+        super(RB1QBBase, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits, 
+            readout_tones=readout_tones, 
+            scan_name='RB1QB', 
+            x_plot_label='Number of Clifford Gates',
+            x_plot_unit='arb', 
+            x_start=n_gates_start, 
+            x_stop=n_gates_stop, 
+            x_points=n_gates_points,
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel)
+        
+        assert self.x_step.is_integer(), 'All n_gates should be integer.'
+        self.x_values = self.x_values.astype(int)
+        self.n_random = n_random
 
 
     def make_sequence(self):
@@ -175,57 +256,126 @@ class RB1QB(Scan):
             self.add_sequence_end()
 
 
-    def save_sequence(self, jsons_path: str = None):
-        """
-        Save Q1ASM sequences and also each randomized gates sequence to their sub folders.
-        """
-        super().save_sequence(jsons_path=jsons_path)
+class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
+    """ Pulse detuning sweep based on randomized gate sequence.
+        We will set fixed number of gates and randoms and variable frequency.
+        We can use this class to find the optimal frequency for getting high RB fidelity.
+    """
+    def __init__(
+            self,
+            cfg: MetaManager,
+            drive_qubits: str | list[str],
+            readout_tones: str | list[str],
+            detuning_start: float, 
+            detuning_stop: float, 
+            detuning_points: int, 
+            n_gates: int = 100,
+            n_random: int = 30,
+            subspace: str | list[str] = None,
+            main_tones: str | list[str] = None,
+            pre_gate: dict[str: list[str]] = None,
+            post_gate: dict[str: list[str]] = None,
+            n_seqloops: int = 1000,
+            level_to_fit: int | list[int] = None,
+            fitmodel: Model = None):
         
-        if ( not hasattr(self, 'Clifford_gates') ) or ( jsons_path is None ): return
-        both_sequences = {'Clifford_gates': self.Clifford_gates,
-                          'primitive_gates': self.primitive_gates}
+        super(RB1QBBase, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits, 
+            readout_tones=readout_tones, 
+            scan_name='RB1QBDetuningSweep', 
+            x_plot_label='Pulse Detuning',
+            x_plot_unit='MHz', 
+            x_start=detuning_start, 
+            x_stop=detuning_stop, 
+            x_points=detuning_points,
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel)
         
-        with open(os.path.join(jsons_path, 'RB_sequence.json'), 'w', encoding='utf-8') as file:
-            json.dump(both_sequences, file, indent=4)
+        self.n_gates = n_gates
+        self.n_random = n_random
 
 
-    def fit_data(self):
+    def make_sequence(self):
         """
-        Combine result of all randoms and fit it.
+        Generate self.sequence and self.primitive_gates
+        Here self.Clifford_gates is a list of string of Clifford gate name, generate_RB_primitive_gates
+        The primitive_gates replace the Clifford gate string with primitive gate string.
+        Its shape is uncertain because of the optimize_circuit.
+        """
+        self.Clifford_gates = generate_RB_Clifford_gates(self.n_gates)
+        self.primitive_gates = generate_RB_primitive_gates(self.Clifford_gates)    
+
+        super(RB1QBBase, self).make_sequence()
+
+
+    def add_main(self):
+        """
+        Add main randomized gates and step of x_values.
+        We then replace the frequency of main_tones to the register R4 (specific x_values).
+        """
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
+                  for gate in self.primitive_gates]
+        self.add_gate(self.primitive_gates, 'RB', lengths, add_label=False, concat_df=False)
+
+        for tone in self.main_tones:
+            self.sequences[tone]['program'] += f"""
+                    add              R4,{self.frequency_translator(self.x_step)},R4
+            """
+
+            tone_dict = self.cfg[f'variables.{tone}']
+            freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
+
+            old_str = f'set_freq         {freq}'
+            new_str = f'set_freq         R4'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str, new_str)
+
+
+class RB1QBAmplitudeSweep(RB1QBBase, Spectroscopy):
+    """ Pulse amplitude sweep based on randomized gate sequence.
+        We will set fixed number of gates and randoms and variable frequency.
+        We can use this class to find the optimal frequency for getting high RB fidelity.
+    """
+    def __init__(
+            self,
+            cfg: MetaManager,
+            drive_qubits: str | list[str],
+            readout_tones: str | list[str],
+            amp_start: float, 
+            amp_stop: float, 
+            amp_points: int, 
+            n_gates: int = 100,
+            n_random: int = 30,
+            subspace: str | list[str] = None,
+            main_tones: str | list[str] = None,
+            pre_gate: dict[str: list[str]] = None,
+            post_gate: dict[str: list[str]] = None,
+            n_seqloops: int = 1000,
+            level_to_fit: int | list[int] = None,
+            fitmodel: Model = None):
         
-        Note from Zihao (04/03/2023):
-        I overwrite the LAST measurement[r] to reuse Scan.fit_data and save it to main_data_path.
-        However, the last measurement.hdf5 still keep last random data correctly.
-        It's because there is no self.save_data() after self.fit_data() 
-        I believe this Scan is special and specific enough to treat it differetly without \
-        considering too much of generality.
-        """
-        for rr in self.readout_resonators:
-            # It will have shape (n_random, n_levels, x_points).
-            data_all_random = np.array([measurement[rr]['to_fit'] for measurement in self.measurements])
-
-            self.measurement[rr] = {
-                'all_random': data_all_random,
-                'to_fit': np.mean(data_all_random, axis=0)
-            }
-        super().fit_data()
-
-
-    def plot_full_result(self):
-        """
-        Plot each random result with their average and the fitting for average.
-        """
-        self.plot_main(text_loc='lower left')
+        super(RB1QBBase, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits, 
+            readout_tones=readout_tones, 
+            scan_name='RB1QBAmplitudeSweep', 
+            x_plot_label='Amplitude',
+            x_plot_unit='arb', 
+            x_start=amp_start, 
+            x_stop=amp_stop, 
+            x_points=amp_points,
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel)
         
-        # Plot result of each random sequence.
-        for j, rr in enumerate(self.readout_resonators):
-            ax = self.figures[rr].get_axes()[0]  # figure.get_axes always return list of axis object.
-            
-            for i in range(self.n_random):
-                ax.plot(self.x_values / self.x_unit_value, 
-                        self.measurement[rr]['all_random'][i][self.level_to_fit[j]], 
-                        'r.', alpha=0.1)
-
-            self.figures[rr].savefig(os.path.join(self.main_data_path, f'{rr}.png'))
-            self.figures[rr].canvas.draw()
-
+        self.n_gates = n_gates
+        self.n_random = n_random

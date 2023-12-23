@@ -120,7 +120,7 @@ class Spectroscopy(Scan):
                          drive_qubits=drive_qubits,
                          readout_tones=readout_tones,
                          scan_name='Spectroscopy',
-                         x_plot_label='Drive Frequency', 
+                         x_plot_label='Pulse Detuning', 
                          x_plot_unit='MHz', 
                          x_start=detuning_start, 
                          x_stop=detuning_stop, 
