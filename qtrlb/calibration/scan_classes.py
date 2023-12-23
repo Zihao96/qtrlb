@@ -852,9 +852,9 @@ class CalibrateClassification(LevelScan):
                     # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
                     if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
 
+                    angle = self.cfg[f'process.{rr}/{subtone}/IQ_rotation_angle']
                     subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
-                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
-                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], angle)
 
         
     def fit_data(self):

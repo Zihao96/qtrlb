@@ -1244,7 +1244,7 @@ class Scan2D(Scan):
         """
         if self.cfg['variables.common/plot_IQ'] is False: return
 
-        for rt_ in self.readout_tones:
+        for rt_ in self.readout_tones_:
             rr, subtone = rt_.split('_')
             Is, Qs = self.measurement[rr][subtone][IQ_key]
             left, right = (np.min(Is), np.max(Is))

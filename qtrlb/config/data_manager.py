@@ -78,10 +78,12 @@ class DataManager(Config):
                     h5file.attrs[k] = v
                 except TypeError:  
                     # If v is a dictionary(pre_gate, process_kwargs), it will also raise TypeError.
-                    if (k.__class__ is str) and (k.split('_')[-1] in ('gate', 'kwargs')):
+                    if isinstance(k, str) and k.split('_')[-1] in ('gate', 'kwargs'):
                         h5file.attrs[k] = str(v)
                     else:
                         pass
+                except Exception:
+                    pass
 
 
     @staticmethod

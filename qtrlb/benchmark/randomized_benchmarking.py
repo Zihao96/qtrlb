@@ -279,7 +279,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             level_to_fit: int | list[int] = None,
             fitmodel: Model = None):
         
-        super(RB1QBBase, self).__init__(
+        super(Spectroscopy, self).__init__(
             cfg=cfg, 
             drive_qubits=drive_qubits, 
             readout_tones=readout_tones, 
@@ -319,9 +319,15 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
         Add main randomized gates and step of x_values.
         We then replace the frequency of main_tones to the register R4 (specific x_values).
         """
+        main_gate = {}
+        for tone in self.main_tones:
+            qubit, subspace = tone.split('/')
+            main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
+
         lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
                   for gate in self.primitive_gates]
-        self.add_gate(self.primitive_gates, 'RB', lengths, add_label=False, concat_df=False)
+        
+        self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
         for tone in self.main_tones:
             self.sequences[tone]['program'] += f"""
@@ -334,6 +340,11 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             old_str = f'set_freq         {freq}'
             new_str = f'set_freq         R4'
             self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str, new_str)
+
+    
+    def fit_data(self):
+        return super(Spectroscopy, self).fit_data()
+
 
 
 class RB1QBAmplitudeSweep(RB1QBBase, Spectroscopy):

@@ -323,9 +323,9 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
                 if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
 
+                angle = self.cfg[f'process.{rr}/{subtone}/IQ_rotation_angle']
                 subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
-                subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
-                                                                angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
+                subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], angle)
                 multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
 
             multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
@@ -342,20 +342,21 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             for y in range(self.y_points):
                 sub_dict = {}
                 means = np.zeros((self.x_points, 2))
-                covariances = np.zeros(self.x_points)
+                covariances = np.zeros((self.x_points, 2))
                 
                 for x in range(self.x_points):
                     data = multitone_IQ_readout[..., y, x]
-                    mean, covariance = gmm_fit(data, n_components=1)
-                    means[x] = mean[0]
-                    covariances[x] = covariance[0]
+                    gmm = gmm_fit(data, n_components=1)
+                    means[x] = gmm.means_[0]
+                    covariances[x] = gmm.covariances_[0]
                     # Because the default form is one more layer nested.
 
                 # Refit with multi-component model.
                 # It's better for poor state preparation or decay during readout.
                 if hasattr(self, 'refine_mixture_fitting') and self.refine_mixture_fitting is True:
-                    means_new, covariances_new = gmm_fit(data, n_components=self.x_points, 
-                                                         refine=True, means=means, covariances=covariances)
+                    gmm = gmm_fit(data, n_components=self.x_points, 
+                                  refine=True, means=means, covariances=covariances)
+                    means_new, covariances_new = gmm.means_, gmm.covariances_
                     indices = sort_points_by_distance(means_new, means)
                     means = means_new[indices]
                     covariances = covariances_new[indices]
@@ -491,7 +492,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = QuadModel,
-                 refine_mixture_fitting: bool = True):
+                 refine_mixture_fitting: bool = False):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -575,11 +576,12 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         level_to_fit = self.make_it_list(level_to_fit)
         assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
 
-        for i, rr in enumerate(self.readout_resonators):
+        for i, rt in enumerate(self.readout_tones):
             # Fit
+            rr, _ = rt.split('/')
             level = level_to_fit[i]
             data_to_fit = self.measurement[rr]['IQEDcompensated_readout'][:, level]
-            x = self.y_values + self.cfg[f'variables.{rr}/freq']
+            x = self.y_values + self.cfg[f'variables.{rt}/freq']
             try:
                 result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
             except Exception:
@@ -643,7 +645,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,
-                 refine_mixture_fitting: bool = True):
+                 refine_mixture_fitting: bool = False):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -741,7 +743,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,
-                 refine_mixture_fitting: bool = True):
+                 refine_mixture_fitting: bool = False):
 
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
