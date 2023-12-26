@@ -80,12 +80,20 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
 
     @abstractmethod
     def make_sequence(self):
-        return
+        """
+        Generate self.sequence and self.primitive_gates
+        Here self.Clifford_gates is a list of string of Clifford gate name, generate_RB_primitive_gates
+        The primitive_gates replace the Clifford gate string with primitive gate string.
+        Its shape is uncertain because of the optimize_circuit.
+        """
+        self.Clifford_gates = generate_RB_Clifford_gates(self.n_gates)
+        self.primitive_gates = generate_RB_primitive_gates(self.Clifford_gates)    
+        super().make_sequence()
 
 
     @abstractmethod
     def add_main(self):
-        return
+        super().main()
 
 
     def save_sequence(self, jsons_path: str = None):
@@ -112,6 +120,10 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
         It's because there is no self.save_data() after self.fit_data() 
         I believe this Scan is special and specific enough to treat it differetly without \
         considering too much of generality.
+
+        Note from Zihao (12/24/2023):
+        I intentionally use Scan.fit_data() instead of super().fit_data to disable dependency injection.
+        It's similar to Scan2D.__init__() and common for diamond inheritance. See RB1QBDetuningSweep.
         """
         for rr in self.readout_resonators:
             # It will have shape (n_random, n_levels, x_points).
@@ -121,7 +133,7 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
                 'all_random': data_all_random,
                 'to_fit': np.mean(data_all_random, axis=0)
             }
-        super().fit_data()
+        Scan.fit_data(self)
 
 
     def plot_full_result(self):
@@ -302,16 +314,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
 
 
     def make_sequence(self):
-        """
-        Generate self.sequence and self.primitive_gates
-        Here self.Clifford_gates is a list of string of Clifford gate name, generate_RB_primitive_gates
-        The primitive_gates replace the Clifford gate string with primitive gate string.
-        Its shape is uncertain because of the optimize_circuit.
-        """
-        self.Clifford_gates = generate_RB_Clifford_gates(self.n_gates)
-        self.primitive_gates = generate_RB_primitive_gates(self.Clifford_gates)    
-
-        super(RB1QBBase, self).make_sequence()
+        super().make_sequence()
 
 
     def add_main(self):
@@ -319,6 +322,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
         Add main randomized gates and step of x_values.
         We then replace the frequency of main_tones to the register R4 (specific x_values).
         """
+        # Add main_gate
         main_gate = {}
         for tone in self.main_tones:
             qubit, subspace = tone.split('/')
@@ -329,6 +333,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
         
         self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
+        # Add x_value
         for tone in self.main_tones:
             self.sequences[tone]['program'] += f"""
                     add              R4,{self.frequency_translator(self.x_step)},R4
@@ -341,25 +346,21 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             new_str = f'set_freq         R4'
             self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str, new_str)
 
-    
-    def fit_data(self):
-        return super(Spectroscopy, self).fit_data()
 
-
-
-class RB1QBAmplitudeSweep(RB1QBBase, Spectroscopy):
-    """ Pulse amplitude sweep based on randomized gate sequence.
-        We will set fixed number of gates and randoms and variable frequency.
-        We can use this class to find the optimal frequency for getting high RB fidelity.
+class RB1QBAmp180Sweep(RB1QBBase):
+    """ Pulse amplitude sweep of X180 based on randomized gate sequence.
+        We will set fixed number of gates and randoms and variable amp_180.
+        amp90 and dragweight are constant in this class.
+        We can use this class to find the optimal drive amplitude of X180 for getting high RB fidelity.
     """
     def __init__(
             self,
             cfg: MetaManager,
             drive_qubits: str | list[str],
             readout_tones: str | list[str],
-            amp_start: float, 
-            amp_stop: float, 
-            amp_points: int, 
+            amp180_start: float, 
+            amp180_stop: float, 
+            amp180_points: int, 
             n_gates: int = 100,
             n_random: int = 30,
             subspace: str | list[str] = None,
@@ -374,12 +375,12 @@ class RB1QBAmplitudeSweep(RB1QBBase, Spectroscopy):
             cfg=cfg, 
             drive_qubits=drive_qubits, 
             readout_tones=readout_tones, 
-            scan_name='RB1QBAmplitudeSweep', 
+            scan_name='RB1QBAmp180Sweep', 
             x_plot_label='Amplitude',
             x_plot_unit='arb', 
-            x_start=amp_start, 
-            x_stop=amp_stop, 
-            x_points=amp_points,
+            x_start=amp180_start, 
+            x_stop=amp180_stop, 
+            x_points=amp180_points,
             subspace=subspace,
             main_tones=main_tones,
             pre_gate=pre_gate,
@@ -390,3 +391,306 @@ class RB1QBAmplitudeSweep(RB1QBBase, Spectroscopy):
         
         self.n_gates = n_gates
         self.n_random = n_random
+
+
+    def make_sequence(self):
+        super().make_sequence()
+
+
+    def add_xinit(self):
+        """
+        Here R4 is the amp_180, R11 = R4 * DRAG_weight.
+        """
+        super().add_xinit()
+
+        for tone in self.main_tones:
+            start = self.gain_translator(self.x_start)
+            DRAG_start = self.gain_translator(self.x_start * self.cfg[f'variables.{tone}/DRAG_weight'])
+
+            self.sequences[tone]['program'] += f"""
+                    move             {start},R4     
+                    move             {DRAG_start},R11
+            """
+
+
+    def add_main(self):
+        """
+        Add main randomized gates and step of x_values.
+        We then replace the set_awg_gain of main_tones to the registers (specific x_values).
+        """
+        # Add main_gate
+        main_gate = {}
+        for tone in self.main_tones:
+            qubit, subspace = tone.split('/')
+            main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
+
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
+                  for gate in self.primitive_gates]
+        
+        self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
+
+        # Add x_value
+        # Code here is based on the fact that primitive gates only have ['X90', 'X180', 'X-90'] and Z gates.
+        for tone in self.main_tones:
+            tone_dict = self.cfg[f'variables.{tone}']
+
+            step = self.gain_translator(self.x_step)
+            DRAG_step = self.gain_translator(self.x_step * tone_dict['DRAG_weight'])
+
+            self.sequences[tone]['program'] += f"""
+                    add              R4,{step},R4
+                    add              R11,{DRAG_step},R11
+            """
+
+            gain_180 = round(tone_dict['amp_180'] * 32768)
+            drag_180 = round(gain_180 * tone_dict['DRAG_weight'])
+            old_str_180 = f'set_awg_gain     {gain_180},{drag_180}'
+            new_str_180 = f'set_awg_gain     R4,R11'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_180, new_str_180)
+
+
+
+class RB1QBAmp90Sweep(RB1QBBase):
+    """ Pulse amplitude sweep of X90 based on randomized gate sequence.
+        We will set fixed number of gates and randoms and variable amp_90.
+        amp_-90 will just always be its negative. amp180 and dragweight are constant in this class.
+        We can use this class to find the optimal drive amplitude of X90 for getting high RB fidelity.
+    """
+    def __init__(
+            self,
+            cfg: MetaManager,
+            drive_qubits: str | list[str],
+            readout_tones: str | list[str],
+            amp90_start: float, 
+            amp90_stop: float, 
+            amp90_points: int, 
+            n_gates: int = 100,
+            n_random: int = 30,
+            subspace: str | list[str] = None,
+            main_tones: str | list[str] = None,
+            pre_gate: dict[str: list[str]] = None,
+            post_gate: dict[str: list[str]] = None,
+            n_seqloops: int = 1000,
+            level_to_fit: int | list[int] = None,
+            fitmodel: Model = None):
+        
+        super(RB1QBBase, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits, 
+            readout_tones=readout_tones, 
+            scan_name='RB1QBAmp90Sweep', 
+            x_plot_label='Amplitude',
+            x_plot_unit='arb', 
+            x_start=amp90_start, 
+            x_stop=amp90_stop, 
+            x_points=amp90_points,
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel)
+        
+        self.n_gates = n_gates
+        self.n_random = n_random
+
+
+    def make_sequence(self):
+        super().make_sequence()
+
+
+    def add_xinit(self):
+        """
+        Here R4 is the amp_90, R11 = -1 * R4 / 2 (amp_-90), R12(R13) = R4(R11) * DRAG_weight.
+        """
+        super().add_xinit()
+
+        for tone in self.main_tones:
+            start = self.gain_translator(self.x_start)
+            start_neg = self.gain_translator(-1 * self.x_start)
+
+            DRAG_weight = self.cfg[f'variables.{tone}/DRAG_weight']
+            DRAG_start = self.gain_translator(self.x_start * DRAG_weight)
+            DRAG_start_neg = self.gain_translator(-1 * self.x_start * DRAG_weight)
+
+            self.sequences[tone]['program'] += f"""
+                    move             {start},R4     
+                    move             {start_neg},R11
+                    move             {DRAG_start},R12
+                    move             {DRAG_start_neg},R13
+            """
+
+
+    def add_main(self):
+        """
+        Add main randomized gates and step of x_values.
+        We then replace the set_awg_gain of main_tones to the registers (specific x_values).
+        """
+        # Add main_gate
+        main_gate = {}
+        for tone in self.main_tones:
+            qubit, subspace = tone.split('/')
+            main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
+
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
+                  for gate in self.primitive_gates]
+        
+        self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
+
+        # Add x_value
+        # Code here is based on the fact that primitive gates only have ['X90', 'X180', 'X-90'] and Z gates.
+        for tone in self.main_tones:
+            tone_dict = self.cfg[f'variables.{tone}']
+
+            step = self.gain_translator(self.x_step)
+            step_neg = self.gain_translator(-1 * self.x_step / 2)
+
+            DRAG_step = self.gain_translator(self.x_step * tone_dict['DRAG_weight'])
+            DRAG_step_neg = self.gain_translator(-1 * self.x_step * tone_dict['DRAG_weight'])
+
+            self.sequences[tone]['program'] += f"""
+                    add              R4,{step},R4
+                    add              R11,{step_neg},R11
+                    add              R12,{DRAG_step},R12
+                    add              R13,{DRAG_step_neg},R13
+            """
+
+            gain_90 = round(tone_dict['amp_90'] * 32768)
+            drag_90 = round(gain_90 * tone_dict['DRAG_weight'])
+            old_str_90 = f'set_awg_gain     {gain_90},{drag_90}'
+            new_str_90 = f'set_awg_gain     R4,R12'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_90, new_str_90)
+
+            gain_90n = round(-1 * tone_dict['amp_90'] * 32768)
+            drag_90n = round(gain_90n * tone_dict['DRAG_weight'])
+            old_str_90n = f'set_awg_gain     {gain_90n},{drag_90n}'
+            new_str_90n = f'set_awg_gain     R11,R13'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_90n, new_str_90n)
+
+
+class RB1QBDRAGWeightSweep(RB1QBBase):
+    """ DRAG weight sweep based on randomized gate sequence.
+        We will set fixed number of gates and randoms and variable DRAG_weight.
+        The absolute amp_180 and amp_90 will keep constant.
+        We can use this class to find the optimal drag weight for getting high RB fidelity.
+    """
+    def __init__(
+            self,
+            cfg: MetaManager,
+            drive_qubits: str | list[str],
+            readout_tones: str | list[str],
+            weight_start: float, 
+            weight_stop: float, 
+            weight_points: int, 
+            n_gates: int = 100,
+            n_random: int = 30,
+            subspace: str | list[str] = None,
+            main_tones: str | list[str] = None,
+            pre_gate: dict[str: list[str]] = None,
+            post_gate: dict[str: list[str]] = None,
+            n_seqloops: int = 1000,
+            level_to_fit: int | list[int] = None,
+            fitmodel: Model = None):
+        
+        super(RB1QBBase, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits, 
+            readout_tones=readout_tones, 
+            scan_name='RB1QBDRAGWeightSweep', 
+            x_plot_label='DRAG weight',
+            x_plot_unit='arb', 
+            x_start=weight_start, 
+            x_stop=weight_stop, 
+            x_points=weight_points,
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel)
+        
+        self.n_gates = n_gates
+        self.n_random = n_random
+
+
+    def make_sequence(self):
+        super().make_sequence()
+
+
+    def add_xinit(self):
+        """
+        Here R4 is the gain on DRAG path, R11 = R4 / 2 (for amp_90), R12 = -1 * R11 (for amp_-90),
+        R13, R14, R15 are amp_180, amp_90, amp_-90 and are constant.
+        """
+        super().add_xinit()
+
+        for tone in self.main_tones:
+            tone_dict = self.cfg[f'variables.{tone}']
+            gain_180 = self.gain_translator(tone_dict['amp_180'])
+            gain_90 = self.gain_translator(tone_dict['amp_90'])
+            gain_90n = self.gain_translator(-1 * tone_dict['amp_90'])
+
+            start = self.gain_translator(tone_dict['amp_180'] * self.x_start)
+            start_half = self.gain_translator(tone_dict['amp_90'] * self.x_start)
+            start_half_neg = self.gain_translator(-1 * tone_dict['amp_90'] * self.x_start)
+
+            self.sequences[tone]['program'] += f"""
+                    move             {start},R4     
+                    move             {start_half},R11
+                    move             {start_half_neg},R12
+                    move             {gain_180},R13
+                    move             {gain_90},R14
+                    move             {gain_90n},R15
+            """
+
+
+    def add_main(self):
+        """
+        Add main randomized gates and step of x_values.
+        We then replace the set_awg_gain of main_tones to the registers (specific x_values).
+        """
+        # Add main_gate
+        main_gate = {}
+        for tone in self.main_tones:
+            qubit, subspace = tone.split('/')
+            main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
+
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
+                  for gate in self.primitive_gates]
+        
+        self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
+
+        # Add x_value
+        # Code here is based on the fact that primitive gates only have ['X90', 'X180', 'X-90'] and Z gates.
+        for tone in self.main_tones:
+            tone_dict = self.cfg[f'variables.{tone}']
+
+            step = self.gain_translator(self.x_step)
+            step_half = self.gain_translator(self.x_step * tone_dict['amp_90'] / tone_dict['amp_180'])
+            step_half_neg = self.gain_translator(-1 * self.x_step * tone_dict['amp_90'] / tone_dict['amp_180'])
+
+            self.sequences[tone]['program'] += f"""
+                    add              R4,{step},R4
+                    add              R11,{step_half},R11
+                    add              R12,{step_half_neg},R12
+            """
+
+            gain_180 = round(tone_dict['amp_180'] * 32768)
+            drag_180 = round(gain_180 * tone_dict['DRAG_weight'])
+            old_str_180 = f'set_awg_gain     {gain_180},{drag_180}'
+            new_str_180 = f'set_awg_gain     R13,R4'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_180, new_str_180)
+
+            gain_90 = round(tone_dict['amp_90'] * 32768)
+            drag_90 = round(gain_90 * tone_dict['DRAG_weight'])
+            old_str_90 = f'set_awg_gain     {gain_90},{drag_90}'
+            new_str_90 = f'set_awg_gain     R14,R11'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_90, new_str_90)
+
+            gain_90n = round(-1 * tone_dict['amp_90'] * 32768)
+            drag_90n = round(gain_90n * tone_dict['DRAG_weight'])
+            old_str_90n = f'set_awg_gain     {gain_90n},{drag_90n}'
+            new_str_90n = f'set_awg_gain     R15,R12'
+            self.sequences[tone]['program'] = self.sequences[tone]['program'].replace(old_str_90n, new_str_90n)

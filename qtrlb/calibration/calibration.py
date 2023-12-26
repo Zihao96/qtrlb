@@ -1038,7 +1038,7 @@ class Scan:
         The gain passed in here take value [-1.0, 1.0).
         We need to make it integer between [-32768, 32768) for set_awg_gain instruction.
         Still, this is useful when we assign the gain to register and treat it as a variable.
-        When we call set_awg_gain instruction in Q1ASM program, we can just pass negative gain * 32768.
+        When we call set_awg_gain with Immediate in Q1ASM program, we can just pass negative gain * 32768.
         """
         assert -1 <= gain < 1, 'The gain must between [-1.0, 1.0).'
         gain = round(gain * gain_resolution)
