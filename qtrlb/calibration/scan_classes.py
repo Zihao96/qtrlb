@@ -1108,6 +1108,59 @@ class CheckBlobShift(CalibrateClassification):
         self.figures = {r: fig}
 
 
+class QNDnessCheck(LevelScan):
+    """
+    An experiment to check QNDness of our readout. Require heralding and pre-GMM-calibration.
+    The sequence is following:
+    State preparation (Pi-pulses) --> RO --> Ringdown(wait) --> RO
+
+    Note from Zihao(2023/12/26):
+    Because of the bad structure of DAC.start_sequencer(), I use a hacky solution here as proof of concept.
+    I enforce heralding but do not use it for better state preparation. Instead, it's' one of the two RO above.
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 level_start: int,
+                 level_stop: int,
+                 ringdown_time: float,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list[int] = None,
+                 refine_mixture_fitting: bool = False):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='QNDnessCheck',
+                         level_start=level_start,
+                         level_stop=level_stop,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit)
+
+        self.ringdown_time = ringdown_time
+        self.refine_mixture_fitting = refine_mixture_fitting  
+        assert self.heralding_enable, 'RQS: Please enable heralding.'
+        self.ringdown_time_ns = round(ringdown_time / u.ns)
+
+
+    def add_heralding(self):
+        """
+        In traditional make_sequence, it comes before subspace_gate, we skip it here.
+        """
+        return
+
+
+    def add_readout(self):
+        super().add_readout(name='Readout_0', acq_index=0)  # Will become readout in self.measurement
+        self.add_wait('RingDown', self.ringdown_time_ns-round(self.cfg.variables['common/tof'] * 1e9))
+        super().add_readout(name='Readout_1', acq_index=1)  # will become heralding in self.measurement
+
+
 class TwoToneROCalibration(LevelScan):
     """ This class is designed for calibrating classification of twotone readout.
         We will generate new GMM parameters with single tone corr_matrix for each tone.

@@ -480,13 +480,14 @@ class Scan:
         
         
     def add_heralding(self, name: str = 'Heralding', add_label: bool = True, 
-                      concat_df: bool = True, acq_index: int = 1):
+                      concat_df: bool = True, acq_index: int = 1, delay: float = None):
         """
         Add heralding with short delay(relaxation) to the sequence program.
         """
         self.add_readout(name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
-        heralding_delay = round(self.cfg.variables['common/heralding_delay'] * 1e9)
-        self.add_wait(name=name+'Delay', length=heralding_delay, add_label=add_label, concat_df=concat_df)
+        delay = self.cfg.variables['common/heralding_delay'] if delay is None else delay
+        tof = self.cfg.variables['common/tof']
+        self.add_wait(name=name+'Delay', length=round((delay-tof) / u.ns), add_label=add_label, concat_df=concat_df)
         
         
     def add_main(self):        
