@@ -1128,8 +1128,7 @@ class QNDnessCheck(LevelScan):
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list[int] = None,
-                 refine_mixture_fitting: bool = False):
+                 level_to_fit: int | list[int] = None):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -1143,9 +1142,9 @@ class QNDnessCheck(LevelScan):
                          level_to_fit=level_to_fit)
 
         self.ringdown_time = ringdown_time
-        self.refine_mixture_fitting = refine_mixture_fitting  
-        assert self.heralding_enable, 'RQS: Please enable heralding.'
         self.ringdown_time_ns = round(ringdown_time / u.ns)
+        assert self.heralding_enable, 'RQS: Please enable heralding.'
+        
 
 
     def add_heralding(self):

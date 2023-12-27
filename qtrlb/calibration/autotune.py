@@ -52,10 +52,6 @@ def autotune(
                              error_amplification_factor=9, fitmodel=QuadModel, 
                              level_to_fit=level_to_fit, **autotune_kwargs)
     
-    dws = DRAGWeightScan(cfg, drive_qubits, readout_tones, subspace=subspace, 
-                         weight_start=weight-0.3, weight_stop=weight+0.3, weight_points=41, 
-                         level_to_fit=level_to_fit, **autotune_kwargs)
-    
     ramsp.run(f'AD+{round(rams_AD/u.kHz)}kHz_autotune')
     ramsn.run(f'AD-{round(rams_AD/u.kHz)}kHz_autotune')
     if normalize_subspace:
@@ -75,8 +71,20 @@ def autotune(
     cfg.save(verbose=verbose)
     cfg.load()
 
+    # DWS is Scan2D doesn't support heralding yet.
+    heralding = False
+    if cfg[f'variables.common/heralding'] is True:
+        heralding = True
+        cfg[f'variables.common/heralding'] = False
+        cfg.save(verbose=verbose)
+        cfg.load()
+
+    dws = DRAGWeightScan(cfg, drive_qubits, readout_tones, subspace=subspace, 
+                         weight_start=weight-0.3, weight_stop=weight+0.3, weight_points=31, 
+                         level_to_fit=level_to_fit, **autotune_kwargs)
     dws.run('autotune')
     cfg[f'variables.{main_tone}/DRAG_weight'] = dws.fit_result[rr].params['x0'].value
+    cfg[f'variables.common/heralding'] = heralding
     cfg.save(verbose=verbose)
     cfg.load()
 
