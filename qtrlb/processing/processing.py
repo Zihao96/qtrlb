@@ -16,6 +16,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from itertools import combinations
 from scipy.optimize import minimize
 from sklearn.mixture import GaussianMixture
 from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
@@ -42,17 +43,18 @@ def autorotate_IQ(input_data: list | np.ndarray, n_components: int):
     Automatically rotate all IQ data based on most distance Gaussian blob.
     """
     input_data = np.array(input_data)
-    means, covariances = gmm_fit(input_data, n_components=n_components)
-    point_i, point_j = find_most_distant_points(means)
-    angle = -1 * np.arctan2(point_i[1]-point_j[1], point_i[0]-point_j[0])
+    gmm = gmm_fit(input_data, n_components=n_components)
+    points = find_most_distant_points(gmm.means_)
+    angle = -1 * np.arctan2(points[0][1]-points[1][1], points[0][0]-points[1][0])
     result = rotate_IQ(input_data, angle)
     return result
     
 
-def gmm_predict(input_data, means, covariances, covariance_type='spherical', lowest_level: int = 0):
+def gmm_predict(input_data: list | np.ndarray, means: list | np.ndarray, covariances: list | np.ndarray,
+                covariance_type: str = 'ellipsoidal', lowest_level: int = 0):
     """
     Predict the state of input data based on given means and covariances of GMM.
-    By default, means should have shape (n_components, 2) for 2D gaussian.
+    By default, means should have shape (n_components, n) for n-D gaussian.
     Covariances should have shape (n_components,) for symmetrical distribution,
     where n_components is the number of Gaussian blob in IQ plane.
     The return values are always count from zero.
@@ -71,17 +73,18 @@ def gmm_predict(input_data, means, covariances, covariance_type='spherical', low
     gmm.precisions_cholesky_ = _compute_precision_cholesky(covariances, covariance_type)
     gmm.weights_  = np.ones(n_components) / n_components
 
-    result = lowest_level + gmm.predict(input_data.reshape(2,-1).T).reshape(input_data.shape[1:])
+    result = lowest_level + gmm.predict(input_data.reshape(input_data.shape[0], -1).T).reshape(input_data.shape[1:])
     # Magic reshape stealing from Ray.
     return result
 
-
-def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
+ 
+def gmm_fit(input_data, n_components: int, covariance_type: str = 'ellipsoidal', refine: bool = False,
+            tol: float = 0.001, means: list | np.ndarray = None, covariances: list | np.ndarray = None):
     """
     Fit the input data with GMM. User must specify number of Gaussian blobs.
-    The input_data should has shape (2, ...) because of two quadratures.
-    Return the means and covariances. Means have shape (n_components, 2).
-    Covariances have shape (n_components,) for symmetrical 2D distribution.
+    The input_data should has shape (n_features, ...) where n_features = 2 for single tone readout.
+    Return the GMM object. User can access the parameters by gmm.means_ and gmm_covariances_.
+    Means and covariances have shape (n_components, n_features) and (n_components,) for spherical covariance.
 
     Note from Zihao(11/07/2023):
     Gaussian Mixture doesn't support np.ma.core.MaskedArray.
@@ -90,10 +93,22 @@ def gmm_fit(input_data, n_components: int, covariance_type='spherical'):
     User must slice the data by themself before sending into this function.
     """
     assert not hasattr(input_data, 'mask'), 'Processing: MaskedArray are not supported by GaussianMixture.'
+    assert (refine is False) or (means is not None and covariances is not None), \
+        'Processing: Need to specify means and covariance for refined GMM fitting.'
+
     input_data = np.array(input_data)
-    gmm = GaussianMixture(n_components, covariance_type=covariance_type)
-    gmm.fit(input_data.reshape(2,-1).T)
-    return gmm.means_, gmm.covariances_
+    gmm = GaussianMixture(n_components, covariance_type=covariance_type, tol=tol, warm_start=refine)
+
+    if refine is True:
+        gmm.means_ = means
+        gmm.covariances_ = covariances
+        gmm.precisions_cholesky_ = _compute_precision_cholesky(covariances, covariance_type)
+        gmm.weights_  = np.ones(n_components) / n_components
+        gmm.converged_ = True
+        gmm.lower_bound_ = -np.inf
+
+    gmm.fit(input_data.reshape(input_data.shape[0], -1).T)
+    return gmm
 
 
 def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndarray:
@@ -102,7 +117,8 @@ def heralding_test(*input_data: tuple[np.ndarray], trim: bool = True) -> np.ndar
     The input data should be arbitrary numbers of GMM predicted result with same data shape.
     The entries of mask will be 0 only if all input data is 0 at that position(index).
     It means for that specific repetition and x_point, all resonators pass heralding test.
-    We then trim data to make sure all x_point has same amount of available repetition.
+    Otherwise the entries will be 1 and no other values.
+    We then trim data to make sure all x_points has same amount of available repetition.
     Data trim doesn't Support 2D scan result.
     
     Note from Zihao(02/21/2023):
@@ -240,14 +256,13 @@ def find_most_distant_points(input_data):
     """
     input_data = np.array(input_data)  
     max_distance = 0
-    for i in input_data:
-        for j in input_data[i:]:
-            distance_ij = np.linalg.norm(i-j)
-            if distance_ij > max_distance:
-                max_distance = distance_ij
-                point_i = i 
-                point_j = j
-    return point_i, point_j
+    for comb in combinations(input_data, 2):
+        distance = np.linalg.norm(comb[0]-comb[1])
+        if distance > max_distance:
+            max_distance = distance
+            points = comb
+
+    return points
 
 
 def get_readout_fidelity(confusion_matrix: list | np.ndarray) -> float:

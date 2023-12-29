@@ -78,10 +78,12 @@ class DataManager(Config):
                     h5file.attrs[k] = v
                 except TypeError:  
                     # If v is a dictionary(pre_gate, process_kwargs), it will also raise TypeError.
-                    if (k.__class__ is str) and (k.split('_')[-1] in ('gate', 'kwargs')):
+                    if isinstance(k, str) and k.split('_')[-1] in ('gate', 'kwargs'):
                         h5file.attrs[k] = str(v)
                     else:
                         pass
+                except Exception:
+                    pass
 
 
     @staticmethod
@@ -107,7 +109,7 @@ class DataManager(Config):
         """
         for k, v in dictionary.items():
             if isinstance(v, dict):
-                subgroup = h5.create_group(k)
+                subgroup = h5.require_group(k)
                 DataManager.save_dict_to_hdf5(v, subgroup)
             elif v is None:
                 continue
@@ -211,7 +213,7 @@ class DataManager(Config):
         datetime_delta = datetime_stop - datetime_start
         total_time_sec = (datetime_delta.days * 24 * 3600 
                         + datetime_delta.seconds 
-                        + datetime_delta.microseconds / 1000)
+                        + datetime_delta.microseconds * 1e-6)
 
         if time_unit.lower().startswith('s'):
             total_time = total_time_sec

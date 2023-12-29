@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, split_subspace
+from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, find_subtones, split_subspace
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
@@ -28,7 +28,7 @@ class Scan:
         Attributes:
             cfg: A MetaManager.
             drive_qubits: 'Q2', or ['Q3', 'Q4'].
-            readout_resonators: 'R3' or ['R1', 'R5'].
+            readout_tones: 'R3/a' or ['R1/a', 'R1/b', 'R5/a'].
             scan_name: 'drive_amplitude', 't1', 'ramsey'.
             x_plot_label: The label of x axis on main plot.
             x_plot_unit: The unit of x axis on main plot.
@@ -52,7 +52,7 @@ class Scan:
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
@@ -68,7 +68,7 @@ class Scan:
                  fitmodel: Model = None):
         self.cfg = cfg
         self.drive_qubits = self.make_it_list(drive_qubits)
-        self.readout_resonators = self.make_it_list(readout_resonators)
+        self.readout_tones = self.make_it_list(readout_tones)
         self.scan_name = scan_name
         self.x_plot_label = x_plot_label
         self.x_plot_unit = x_plot_unit
@@ -81,8 +81,8 @@ class Scan:
         self.post_gate = post_gate if post_gate is not None else {}
         self.n_seqloops = n_seqloops
         self.level_to_fit = self.make_it_list(level_to_fit, 
-                                              [self.cfg[f'variables.{r}/lowest_readout_levels'] 
-                                               for r in self.readout_resonators])
+                                              [self.cfg[f'variables.{rr}/lowest_readout_levels'] 
+                                               for rr in self.readout_resonators])
         self.fitmodel = fitmodel
         
         self.n_runs = 0
@@ -101,7 +101,8 @@ class Scan:
         self.x_unit_value = getattr(u, self.x_plot_unit)
         self.subspace_gate = {tone.split('/')[0]: [f'X180_{l}{l+1}' for l in range(int(tone.split('/')[1][0]))] 
                               for tone in self.main_tones if tone.startswith('Q')}
-        self.readout_gate = {r: ['RO'] for r in self.readout_resonators}
+        self.readout_gate = {rr: ['RO_' + '_'.join(tone.split('/')[1] for tone in find_subtones(rr, self.readout_tones))] 
+                             for rr in self.readout_resonators}
         self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
         self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
         # Last two lines just for convenience.
@@ -152,16 +153,6 @@ class Scan:
         self.measurements.append(self.measurement)
 
 
-    @property
-    def qudits(self):
-        """
-        As the first step towards dynamical attribute, we make self.qudits property.
-        It allows user to modify self.tones of an instance without worry about the gates dataframe.
-        Such modification usually happen after instantiation and before make_sequence.
-        """
-        return tone_to_qudit(self.tones)
-
-
     def check_attribute(self):
         """
         Check the qubits/resonators are always string with 'Q' or 'R'.
@@ -171,7 +162,7 @@ class Scan:
         Make sure classification is on when heralding is on.
         Note this method is usually called before we have self.tones and self.qudits.
         """
-        for qudit in self.drive_qubits + self.readout_resonators:
+        for qudit in self.drive_qubits + self.readout_tones:
             assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
             assert qudit.startswith(('Q', 'R')), f'The value of {qudit} is invalid.'
         
@@ -185,18 +176,59 @@ class Scan:
         assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
 
 
+    @property
+    def qudits(self):
+        """
+        As the first step towards dynamical attribute, we make self.qudits property.
+        It allows user to modify self.tones of an instance without worry about the gates dataframe.
+        Such modification usually happen after instantiation and before make_sequence.
+        """
+        return tone_to_qudit(self.tones)
+    
+
+    @property
+    def readout_resonators(self):
+        return tone_to_qudit(self.readout_tones)
+    
+
+    @property
+    def rest_tones(self):
+        return [tone for tone in self.tones if tone not in self.main_tones]
+
+
+    @property
+    def tones_(self):
+        return [tone.replace('/', '_') for tone in self.tones]
+
+
+    @property
+    def main_tones_(self):
+        return [main_tone.replace('/', '_') for main_tone in self.main_tones]
+    
+
+    @property
+    def readout_tones_(self):
+        return [readout_tone.replace('/', '_') for readout_tone in self.readout_tones]
+
+
     def make_tones_list(self):
         """
         Generate list attribute self.tones from existing attributes.
-        It will have values like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
-        Each tone will map to a sequencer which can only give one frequency at a moment.
+        It will have values like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3/a', 'R4/a'].
+        Each tone will map to a sequencer which can only run one frequency at a moment.
         By determine the tones, we actually determine the number of sequencer involved in experiment.
         self.main_tones will be the tones that those Rabi/Ramsey/DriveAmplitude happen on.
         self.rest_tones will be the tones that only do pre_gate/post_gate/readout_gate.
+
+        As the result, Scan will have both static and dynamic attributes.
+        Static attributes: (Include all user specified keyword arguments)
+            drive_qubits, readout_tones, subspace, main_tones, level_to_fit, tones
+        Dynamic attributes:
+            qudits, readout_resonators, rest_tones, and all tones attributes end with underscroll.
+
         For more information, see self.make_sequence, DACManager.implement_parameters and start_sequencer.
         """
         self.tones = []
-        self.tones_ = []  # Replace all slash by underscroll. Just for convenience.
 
         # Determine tones list from self.subspace.
         for i, qubit in enumerate(self.drive_qubits):
@@ -204,15 +236,12 @@ class Scan:
 
             for level in range(highest_level):
                 self.tones.append(f'{qubit}/{level}{level+1}')
-                self.tones_.append(f'{qubit}_{level}{level+1}')
 
-        self.tones += self.readout_resonators
-        self.tones_ += self.readout_resonators
+        # Add readout_tones
+        self.tones += self.readout_tones
 
         # If main_tones keep default, generate it from self.subspace.
         if self.main_tones == []: self.main_tones = [f'{q}/{ss}' for q, ss in zip(self.drive_qubits, self.subspace)]
-        self.main_tones_ = [main_tone.replace('/', '_') for main_tone in self.main_tones]
-        self.rest_tones = [tone for tone in self.tones if tone not in self.main_tones]
 
 
     def set_running_attributes(
@@ -451,13 +480,14 @@ class Scan:
         
         
     def add_heralding(self, name: str = 'Heralding', add_label: bool = True, 
-                      concat_df: bool = True, acq_index: int = 1):
+                      concat_df: bool = True, acq_index: int = 1, delay: float = None):
         """
         Add heralding with short delay(relaxation) to the sequence program.
         """
         self.add_readout(name=name, add_label=add_label, concat_df=concat_df, acq_index=acq_index)
-        heralding_delay = round(self.cfg.variables['common/heralding_delay'] * 1e9)
-        self.add_wait(name=name+'Delay', length=heralding_delay, add_label=add_label, concat_df=concat_df)
+        delay = self.cfg.variables['common/heralding_delay'] if delay is None else delay
+        tof = self.cfg.variables['common/tof']
+        self.add_wait(name=name+'Delay', length=round((delay-tof) / u.ns), add_label=add_label, concat_df=concat_df)
         
         
     def add_main(self):        
@@ -658,22 +688,27 @@ class Scan:
         self.cfg.save(yamls_path=self.cfg.data.yamls_path, verbose=False)
         self.save_sequence(jsons_path=self.cfg.data.jsons_path)
         
-        for r in self.readout_resonators: os.makedirs(os.path.join(self.data_path, f'{r}_IQplots'))
+        for rt_ in self.readout_tones_: os.makedirs(os.path.join(self.data_path, 'IQplots', rt_))
     
     
     def acquire_data(self, keep_raw: bool = False):
         """
         Create measurement dictionary, then start sequencer and save data into this dictionary.
-        self.measurement should only have resonators' name as keys.
-        Inside each resonator should be consistent name of processing or raw data.
+        self.measurement should only have resonators' names as keys.
+        Inside each resonator should be its subtones and consistent name of processing.
         After all loops, the 'Heterodyned_readout' usually has shape (2, n_pyloops, n_seqloops*x_points).
         We will reshape it to (2, n_reps, x_points) later by ProcessManager, where n_reps = n_seqloops * n_pyloops.
         """
-        self.measurement = {r: {'raw_readout': [[],[]],  # First element for I, second element for Q.
-                                'raw_heralding': [[],[]],
-                                'Heterodyned_readout': [[],[]],
-                                'Heterodyned_heralding':[[],[]]
-                                } for r in self.readout_resonators}
+        self.measurement = {rr: {} for rr in self.readout_resonators}
+
+        for rt in self.readout_tones:
+            rr, subtone = rt.split('/')
+            self.measurement[rr][subtone] = {
+                'raw_readout': [[],[]],  # First element for I, second element for Q.
+                'raw_heralding': [[],[]],
+                'Heterodyned_readout': [[],[]],
+                'Heterodyned_heralding':[[],[]]
+            }
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
@@ -712,24 +747,24 @@ class Scan:
         In that case we can pass whichever axis as horizontal axis here.
         The only cost is to process self.measurement[r]['to_fit'] to correct shape.
         """
-        self.fit_result = {r: None for r in self.readout_resonators}
+        self.fit_result = {rr: None for rr in self.readout_resonators}
         if self.fitmodel is None: return
         if x is None: x = self.x_values
         
-        for i, r in enumerate(self.readout_resonators):
+        for i, rr in enumerate(self.readout_resonators):
             try:
-                level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
-                self.fit_result[r] = fit(input_data=self.measurement[r]['to_fit'][level_index],
-                                         x=x, fitmodel=self.fitmodel, **fitting_kwargs)
+                level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']
+                self.fit_result[rr] = fit(input_data=self.measurement[rr]['to_fit'][level_index],
+                                          x=x, fitmodel=self.fitmodel, **fitting_kwargs)
                 
-                params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
-                self.measurement[r]['fit_result'] = params
-                self.measurement[r]['fit_model'] = str(self.fit_result[r].model)
+                params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[rr].params.values()}
+                self.measurement[rr]['fit_result'] = params
+                self.measurement[rr]['fit_model'] = str(self.fit_result[rr].model)
             except Exception:
                 self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
-                print(f'Scan: Failed to fit {r} data. ')
-                self.measurement[r]['fit_result'] = None
-                self.measurement[r]['fit_model'] = str(self.fitmodel)
+                print(f'Scan: Failed to fit {rr} data. See traceback by print scan.fitting_traceback.')
+                self.measurement[rr]['fit_result'] = None
+                self.measurement[rr]['fit_model'] = str(self.fitmodel)
                 
 
     def plot(self):
@@ -775,9 +810,9 @@ class Scan:
         """
         self.figures = {}
         
-        for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+        for i, rr in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
@@ -785,22 +820,22 @@ class Scan:
                 ylabel = 'I-Q Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=dpi)
-            ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][level_index], 'k.')
+            ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][level_index], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
-            if self.fit_result[r] is not None: 
+            if self.fit_result[rr] is not None: 
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
-                y = self.fit_result[r].eval(x=x)
+                y = self.fit_result[rr].eval(x=x)
                 ax.plot(x / self.x_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[rr].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
-            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig
             
             
     def plot_IQ(self, 
@@ -822,8 +857,9 @@ class Scan:
         """
         if self.cfg['variables.common/plot_IQ'] is False: return
 
-        for r in self.readout_resonators:
-            Is, Qs = self.measurement[r][IQ_key]
+        for rt_ in self.readout_tones_:
+            rr, subtone = rt_.split('_')
+            Is, Qs = self.measurement[rr][subtone][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
             for x in range(self.x_points):
@@ -832,8 +868,8 @@ class Scan:
                 c, cmap = (None, None)
                                   
                 if self.classification_enable:
-                    c = self.measurement[r][c_key][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+                    c = self.measurement[rr][c_key][:,x]
+                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -841,11 +877,11 @@ class Scan:
                 ax.axhline(color='k', ls='dashed')
                 ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                        xlim=(left, right), ylim=(bottom, top))
-                fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{x}.png'))
+                fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'{x}.png'))
                 plt.close(fig)
                 
                 if self.heralding_enable:
-                   mask = self.measurement[r][mask_key][:,x] 
+                   mask = self.measurement[rr][mask_key][:,x] 
                    I_masked = np.ma.MaskedArray(I, mask=mask)
                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
                    c_masked = np.ma.MaskedArray(c, mask=mask)
@@ -856,7 +892,7 @@ class Scan:
                    ax.axhline(color='k', ls='dashed')
                    ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                           xlim=(left, right), ylim=(bottom, top))
-                   fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'heralded_{x}.png'))
+                   fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_{x}.png'))
                    plt.close(fig)
 
 
@@ -864,12 +900,12 @@ class Scan:
         """
         Plot populations for all levels, both with and without readout correction.
         """           
-        for r in self.readout_resonators:
+        for rr in self.readout_resonators:
             fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
-            for i, level in enumerate(self.cfg[f'variables.{r}/readout_levels']):
-                ax[0].plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationNormalized_readout'][i], 
+            for i, level in enumerate(self.cfg[f'variables.{rr}/readout_levels']):
+                ax[0].plot(self.x_values / self.x_unit_value, self.measurement[rr]['PopulationNormalized_readout'][i], 
                            c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-                ax[1].plot(self.x_values / self.x_unit_value, self.measurement[r]['PopulationCorrected_readout'][i], 
+                ax[1].plot(self.x_values / self.x_unit_value, self.measurement[rr]['PopulationCorrected_readout'][i], 
                            c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
 
             xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
@@ -877,13 +913,14 @@ class Scan:
             ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
             ax[0].legend()
             ax[1].legend()
-            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {r}')
-            fig.savefig(os.path.join(self.data_path, f'{r}_Population.png'))
+            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}')
+            fig.savefig(os.path.join(self.data_path, f'{rr}_Population.png'))
             plt.close(fig)
 
 
     def plot_multitone_populations(self, dpi: int = 150):
         """
+        DEPRECATED
         Plot population of multitone readout result.
         In this case we have all level population under both resonators' key.
         """
@@ -930,34 +967,34 @@ class Scan:
         assert self.classification_enable, 'This function only work when enabling classification.'
         assert len(subspace) == len(self.readout_resonators), 'Please specify fitting subspace for each resonator.'
 
-        for i, r in enumerate(self.readout_resonators):
+        for i, rr in enumerate(self.readout_resonators):
             # Normalization.
             level_low, level_high = split_subspace(subspace[i])
-            P_low = self.measurement[r]['to_fit'][level_low - self.cfg[f'variables.{r}/lowest_readout_levels']]
-            P_high = self.measurement[r]['to_fit'][level_high - self.cfg[f'variables.{r}/lowest_readout_levels']]
-            self.measurement[r]['to_fit_SubspaceNormalized'] = P_high / (P_high + P_low)
+            P_low = self.measurement[rr]['to_fit'][level_low - self.cfg[f'variables.{rr}/lowest_readout_levels']]
+            P_high = self.measurement[rr]['to_fit'][level_high - self.cfg[f'variables.{rr}/lowest_readout_levels']]
+            self.measurement[rr]['to_fit_SubspaceNormalized'] = P_high / (P_high + P_low)
 
             # Fitting
-            self.fit_result[r] = fit(self.measurement[r]['to_fit_SubspaceNormalized'], self.x_values, self.fitmodel)
+            self.fit_result[rr] = fit(self.measurement[rr]['to_fit_SubspaceNormalized'], self.x_values, self.fitmodel)
 
-            params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[r].params.values()}
-            self.measurement[r]['fit_result_SubspaceNormalized'] = params
+            params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in self.fit_result[rr].params.values()}
+            self.measurement[rr]['fit_result_SubspaceNormalized'] = params
             self.save_data()
 
             # Plot    
             fig, ax = plt.subplots(1, 1, dpi=dpi)
-            ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit_SubspaceNormalized'], 'k.')
+            ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit_SubspaceNormalized'], 'k.')
             ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', 
                    ylabel=fr'$\frac{{P_{level_high}}}{{P_{level_high} + P_{level_low}}}$',
-                   title=f'{self.datetime_stamp}, {self.scan_name}, {r}')
+                   title=f'{self.datetime_stamp}, {self.scan_name}, {rr}')
             
             x3 = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
-            ax.plot(x3 / self.x_unit_value, self.fit_result[r].eval(x=x3), 'm-')
-            fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+            ax.plot(x3 / self.x_unit_value, self.fit_result[rr].eval(x=x3), 'm-')
+            fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[rr].params.values()])
             ax.add_artist(AnchoredText(fit_text, loc='upper right', prop={'color':'m'}))
 
-            fig.savefig(os.path.join(self.data_path, f'{r}_SubspaceNormalized.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}_SubspaceNormalized.png'))
+            self.figures[rr] = fig
         
         
     @staticmethod
@@ -1002,7 +1039,7 @@ class Scan:
         The gain passed in here take value [-1.0, 1.0).
         We need to make it integer between [-32768, 32768) for set_awg_gain instruction.
         Still, this is useful when we assign the gain to register and treat it as a variable.
-        When we call set_awg_gain instruction in Q1ASM program, we can just pass negative gain * 32768.
+        When we call set_awg_gain with Immediate in Q1ASM program, we can just pass negative gain * 32768.
         """
         assert -1 <= gain < 1, 'The gain must between [-1.0, 1.0).'
         gain = round(gain * gain_resolution)
@@ -1028,7 +1065,7 @@ class Scan2D(Scan):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  scan_name: str,
                  x_plot_label: str, 
                  x_plot_unit: str, 
@@ -1051,7 +1088,7 @@ class Scan2D(Scan):
         Scan.__init__(self,
                       cfg=cfg, 
                       drive_qubits=drive_qubits,
-                      readout_resonators=readout_resonators,
+                      readout_tones=readout_tones,
                       scan_name=scan_name,
                       x_plot_label=x_plot_label, 
                       x_plot_unit=x_plot_unit, 
@@ -1170,17 +1207,17 @@ class Scan2D(Scan):
         """
         self.figures = {}
 
-        for r in self.readout_resonators:
-            data = self.measurement[r]['to_fit']
+        for rr in self.readout_resonators:
+            data = self.measurement[rr]['to_fit']
             n_subplots = len(data)
             xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
             ylabel = self.y_plot_label + f'[{self.y_plot_unit}]'
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             
             fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=dpi)
 
             for l in range(n_subplots):
-                level = self.cfg[f'variables.{r}/readout_levels'][l]
+                level = self.cfg[f'variables.{rr}/readout_levels'][l]
                 this_title = title + fr', $P_{{{level}}}$' if self.classification_enable else title
                 
                 image = ax[l].imshow(data[l], cmap='RdBu_r', interpolation='none', aspect='auto', 
@@ -1191,8 +1228,8 @@ class Scan2D(Scan):
                 ax[l].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
                 fig.colorbar(image, ax=ax[l], label='Probability/Coordinate', location='top')
                 
-            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig
 
 
     def plot_IQ(self, 
@@ -1208,8 +1245,9 @@ class Scan2D(Scan):
         """
         if self.cfg['variables.common/plot_IQ'] is False: return
 
-        for r in self.readout_resonators:
-            Is, Qs = self.measurement[r][IQ_key]
+        for rt_ in self.readout_tones_:
+            rr, subtone = rt_.split('_')
+            Is, Qs = self.measurement[rr][subtone][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
 
@@ -1220,8 +1258,8 @@ class Scan2D(Scan):
                     c, cmap = (None, None)
                                     
                     if self.classification_enable:
-                        c = self.measurement[r][c_key][:,y,x]
-                        cmap = LSC.from_list(None, plt.cm.tab10(self.cfg[f'variables.{r}/readout_levels']), 12)
+                        c = self.measurement[rr][c_key][:,y,x]
+                        cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
 
                     fig, ax = plt.subplots(1, 1, dpi=dpi)
                     ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -1229,11 +1267,11 @@ class Scan2D(Scan):
                     ax.axhline(color='k', ls='dashed')
                     ax.set(xlabel='I', ylabel='Q', title=f'y{y}_x{x}', aspect='equal', 
                            xlim=(left, right), ylim=(bottom, top))
-                    fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'y{y}_x{x}.png'))
+                    fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'y{y}_x{x}.png'))
                     plt.close(fig)
                     
                     if self.heralding_enable:
-                        mask = self.measurement[r][mask_key][:,x] 
+                        mask = self.measurement[rr][mask_key][:,x] 
                         I_masked = np.ma.MaskedArray(I, mask=mask)
                         Q_masked = np.ma.MaskedArray(Q, mask=mask)
                         c_masked = np.ma.MaskedArray(c, mask=mask)
@@ -1244,6 +1282,6 @@ class Scan2D(Scan):
                         ax.axhline(color='k', ls='dashed')
                         ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                                 xlim=(left, right), ylim=(bottom, top))
-                        fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'heralded_y{y}_x{x}.png'))
+                        fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_y{y}_x{x}.png'))
                         plt.close(fig)
 

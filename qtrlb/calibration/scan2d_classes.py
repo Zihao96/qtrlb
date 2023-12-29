@@ -12,7 +12,7 @@ from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
 from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
-                                        get_readout_fidelity
+                                        get_readout_fidelity, sort_points_by_distance
 
 
 
@@ -21,7 +21,7 @@ class ChevronScan(Scan2D, RabiScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  length_start: float,
                  length_stop: float,
                  length_points: int,
@@ -39,7 +39,7 @@ class ChevronScan(Scan2D, RabiScan):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='Chevron',
                          x_plot_label='Pulse Length',
                          x_plot_unit='ns',
@@ -106,7 +106,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  amp_start: float,
                  amp_stop: float,
                  amp_points: int,
@@ -126,7 +126,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ACStarkSpectroscopy',
                          x_plot_label='Drive Frequency',
                          x_plot_unit='MHz',
@@ -162,8 +162,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         """
         super().set_waveforms_acquisitions(add_special_waveforms=False)
 
-        for tone in self.tones:
-            if not tone.startswith('R'): continue
+        for tone in self.readout_tones:
             waveforms = {'ACStark': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
                                                           shape=self.cfg[f'variables.{tone}/pulse_shape']), 
                                      'index': self.stimulation_waveform_idx}}
@@ -230,28 +229,28 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         We won't fit 2D data, instead, we treat each amp as an independent spectroscopy and fit it.
         See Scan.fit_data() as reference.
         """
-        self.fit_result = {r: [] for r in self.readout_resonators}
+        self.fit_result = {rr: [] for rr in self.readout_resonators}
         if self.fitmodel is None: return
         if x is None: x = self.x_values
         
-        for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']
+        for i, rr in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']
 
             for j in range(self.y_points):
                 try:
-                    result = fit(input_data=self.measurement[r]['to_fit'][level_index][j],
+                    result = fit(input_data=self.measurement[rr]['to_fit'][level_index][j],
                                  x=x, fitmodel=self.fitmodel, t=self.qubit_pulse_length_ns * u.ns,
                                  **fitting_kwargs)
-                    self.fit_result[r].append(result)
+                    self.fit_result[rr].append(result)
                     
                     params = {v.name:{'value':v.value, 'stderr':v.stderr} for v in result.params.values()}
-                    self.measurement[r][f'fit_result_{j}'] = params
-                    self.measurement[r]['fit_model'] = str(result.model)
+                    self.measurement[rr][f'fit_result_{j}'] = params
+                    self.measurement[rr]['fit_model'] = str(result.model)
                 except Exception:
                     self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
-                    print(f'Scan: Failed to fit {r} {j}-th amp data. ')
-                    self.measurement[r][f'fit_result_{j}'] = None
-                    self.measurement[r]['fit_model'] = str(self.fitmodel)
+                    print(f'Scan: Failed to fit {rr} {j}-th amp data. ')
+                    self.measurement[rr][f'fit_result_{j}'] = None
+                    self.measurement[rr]['fit_model'] = str(self.fitmodel)
     
 
     def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
@@ -259,8 +258,8 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         Here we will save all the plot without showing in console or make them attributes.
         See Scan.plot_main() as reference.
         """
-        for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
+        for i, rr in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
 
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
@@ -269,20 +268,20 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
             for j, amp in enumerate(self.y_values):
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
-                ax.plot(self.x_values / self.x_unit_value, self.measurement[r]['to_fit'][level_index][j], 'k.')
+                ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][level_index][j], 'k.')
                 ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', ylabel=ylabel, 
-                       title=f'{self.datetime_stamp}, {self.scan_name}, {r}, Amp{amp}')
+                       title=f'{self.datetime_stamp}, {self.scan_name}, {rr}, Amp{amp}')
 
-                if self.measurement[r][f'fit_result_{j}'] is not None: 
+                if self.measurement[rr][f'fit_result_{j}'] is not None: 
                     # Raise resolution of fit result for smooth plot.
                     x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
-                    y = self.fit_result[r][j].eval(x=x)
+                    y = self.fit_result[rr][j].eval(x=x)
                     ax.plot(x / self.x_unit_value, y, 'm-')
                     
-                    fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[r][j].params.values()])
+                    fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[rr][j].params.values()])
                     ax.add_artist(AnchoredText(fit_text, loc=text_loc, prop={'color':'m'}))
 
-                fig.savefig(os.path.join(self.data_path, f'{r}_amp{j}.png'))
+                fig.savefig(os.path.join(self.data_path, f'{rr}_amp{j}.png'))
                 plt.close('all')
 
 
@@ -303,20 +302,35 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
     def process_data(self, compensate_ED: bool = False):
         """
         Here we override the parent method since the processing for this Scan has no similarity to \
-        other Scan. Code is similar to CalibrateClassification.fit_data()
+        other Scan. Code is similar to CalibrateClassification.fit_data().
+
+        Note from Zihao(12/18/2023):
+        At the current measurement, keys like 'R4/a' will typically only have 'IQrotated_readout' inside, \
+        while all GMM prediction and average/normalization should be in keys like 'R4'.
+        In this function, we treat it specially since the RTS is really designed for single readout_tone.
         """
         self.x_values = self.x_values.astype(int)
 
         shape = (2, self.n_reps, self.y_points, self.x_points)
         electrical_delay = self.cfg['variables.common/electrical_delay'] if compensate_ED else 0
         phase_offset = np.exp(1j * 2 * np.pi * self.y_values * electrical_delay)
+
+        # Loop over each resonator
+        for rr, data_dict in self.measurement.items():
+            # Loop over its subtones and collect all IQ.  
+            multitone_IQ_readout = []
+            for subtone, subtone_dict in data_dict.items():
+                # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
+                if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+
+                angle = self.cfg[f'process.{rr}/{subtone}/IQ_rotation_angle']
+                subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
+                subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], angle)
+                multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
+
+            multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
         
-        for r, data_dict in self.measurement.items():
-            # First get averaged complex IQ vector for each y_value to plot spectrum.
-            data_dict['Reshaped_readout'] = np.array(data_dict['Heterodyned_readout']).reshape(shape)
-            data_dict['IQrotated_readout'] = rotate_IQ(data_dict['Reshaped_readout'], 
-                                                       angle=self.cfg[f'process.{r}/IQ_rotation_angle'])
-            data_dict['IQaveraged_readout'] = np.mean(data_dict['IQrotated_readout'], axis=1)
+            data_dict['IQaveraged_readout'] = np.mean(multitone_IQ_readout, axis=1)
             data_dict['IQcomplex_readout'] = (data_dict['IQaveraged_readout'][0]
                                              + 1j * data_dict['IQaveraged_readout'][1])
             data_dict['IQEDcompensated_readout'] = (data_dict['IQcomplex_readout'].T * phase_offset).T
@@ -328,18 +342,28 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
             for y in range(self.y_points):
                 sub_dict = {}
                 means = np.zeros((self.x_points, 2))
-                covariances = np.zeros(self.x_points)
+                covariances = np.zeros((self.x_points, 2))
                 
                 for x in range(self.x_points):
-                    data = data_dict['IQrotated_readout'][..., y, x]
-                    mean, covariance = gmm_fit(data, n_components=1)
-                    means[x] = mean[0]
-                    covariances[x] = covariance[0]
+                    data = multitone_IQ_readout[..., y, x]
+                    gmm = gmm_fit(data, n_components=1)
+                    means[x] = gmm.means_[0]
+                    covariances[x] = gmm.covariances_[0]
                     # Because the default form is one more layer nested.
+
+                # Refit with multi-component model.
+                # It's better for poor state preparation or decay during readout.
+                if hasattr(self, 'refine_mixture_fitting') and self.refine_mixture_fitting is True:
+                    gmm = gmm_fit(data, n_components=self.x_points, 
+                                  refine=True, means=means, covariances=covariances)
+                    means_new, covariances_new = gmm.means_, gmm.covariances_
+                    indices = sort_points_by_distance(means_new, means)
+                    means = means_new[indices]
+                    covariances = covariances_new[indices]
                     
                 sub_dict['means'] = means
                 sub_dict['covariances'] = covariances
-                sub_dict['GMMpredicted'] = gmm_predict(data_dict['IQrotated_readout'][..., y, :], 
+                sub_dict['GMMpredicted'] = gmm_predict(multitone_IQ_readout[..., y, :], 
                                                        means=means, covariances=covariances,
                                                        lowest_level=self.x_start)
                 sub_dict['confusionmatrix'] = normalize_population(sub_dict['GMMpredicted'], 
@@ -370,28 +394,28 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         """
         self.figures = {}
 
-        for r in self.readout_resonators:
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+        for rr in self.readout_resonators:
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = 'Readout Fidelity [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
-            ax.plot(self.y_values / self.y_unit_value, self.measurement[r]['to_fit'][0], 'k.')
+            ax.plot(self.y_values / self.y_unit_value, self.measurement[rr]['to_fit'][0], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
-            if self.fit_result[r] is not None: 
+            if self.fit_result[rr] is not None: 
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.y_start, self.y_stop, self.y_points * 3)  
-                y = self.fit_result[r].eval(x=x)
+                y = self.fit_result[rr].eval(x=x)
                 ax.plot(x / self.y_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[rr].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
-            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig
 
             
     def plot_spectrum(self):
@@ -400,10 +424,10 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         For readout amplitude and length, it may not be approprite to call it spectrum.
         But, you get what I mean here :)
         """
-        for r in self.readout_resonators:
-            data = self.measurement[r]['IQEDcompensated_readout']
+        for rr in self.readout_resonators:
+            data = self.measurement[rr]['IQEDcompensated_readout']
             
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = ('IQ-Phase [rad]', 'IQ-Amplitude [a.u.]')
             
@@ -420,7 +444,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
 
             ax[0].legend()
             ax[1].legend()
-            fig.savefig(os.path.join(self.data_path, f'{r}_spectrum.png'))
+            fig.savefig(os.path.join(self.data_path, f'{rr}_spectrum.png'))
             
             
     def plot_IQ(self):
@@ -428,8 +452,9 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Plot IQ data for all y_values, each y_value will have a plot with all levels.
         Code is similar to Scan.plot_IQ()
         """
-        for r in self.readout_resonators:
-            Is, Qs = self.measurement[r]['IQrotated_readout']
+        for rt_ in self.readout_tones_:
+            rr, subtone = rt_.split('_')
+            Is, Qs = self.measurement[rr][subtone]['IQrotated_readout']
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
             
@@ -437,9 +462,9 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                 fig, ax = plt.subplots(1, self.x_points, figsize=(6 * self.x_points, 6), dpi=150)
                 
                 for x in range(self.x_points):
-                    I = self.measurement[r]['IQrotated_readout'][0,:,y,x]
-                    Q = self.measurement[r]['IQrotated_readout'][1,:,y,x]
-                    c = self.measurement[r]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
+                    I = self.measurement[rr][subtone]['IQrotated_readout'][0,:,y,x]
+                    Q = self.measurement[rr][subtone]['IQrotated_readout'][1,:,y,x]
+                    c = self.measurement[rr]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
                     cmap = LSC.from_list(None, plt.cm.tab10(self.x_values), 12)
                     
                     ax[x].scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -448,7 +473,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     ax[x].set(xlabel='I', ylabel='Q', title=fr'${{\left|{self.x_values[x]}\right\rangle}}$', 
                               aspect='equal', xlim=(left, right), ylim=(bottom, top))
                     
-                fig.savefig(os.path.join(self.data_path, f'{r}_IQplots', f'{y}.png'))
+                fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'{y}.png'))
                 plt.close(fig)        
         
         
@@ -456,7 +481,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  detuning_start: float, 
@@ -466,11 +491,12 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = QuadModel):
+                 fitmodel: Model = QuadModel,
+                 refine_mixture_fitting: bool = False):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ReadoutFrequency',
                          x_plot_label='Level',
                          x_plot_unit='arb',
@@ -488,18 +514,20 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)  
         
+        self.refine_mixture_fitting = refine_mixture_fitting
+
 
     def add_yinit(self):
         super().add_yinit()
         
-        for r in self.readout_resonators:
-            ssb_freq_start = self.y_start + self.cfg[f'variables.{r}/mod_freq']
+        for rt in self.readout_tones:
+            ssb_freq_start = self.y_start + self.cfg[f'variables.{rt}/mod_freq']
             ssb_freq_start_4 = self.frequency_translator(ssb_freq_start)
             
             yinit = f"""
                     move             {ssb_freq_start_4},R6
             """
-            self.sequences[r]['program'] += yinit
+            self.sequences[rt]['program'] += yinit
         
         
     def add_readout(self):
@@ -532,7 +560,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         
     def add_yvalue(self):
         ssb_freq_step_4 = self.frequency_translator(self.y_step)
-        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+        for rt in self.readout_tones:  self.sequences[rt]['program'] += f"""
                     add              R6,{ssb_freq_step_4},R6    """
 
 
@@ -548,24 +576,25 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         level_to_fit = self.make_it_list(level_to_fit)
         assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
 
-        for i, r in enumerate(self.readout_resonators):
+        for i, rt in enumerate(self.readout_tones):
             # Fit
+            rr, _ = rt.split('/')
             level = level_to_fit[i]
-            data_to_fit = self.measurement[r]['IQEDcompensated_readout'][:, level]
-            x = self.y_values + self.cfg[f'variables.{r}/freq']
+            data_to_fit = self.measurement[rr]['IQEDcompensated_readout'][:, level]
+            x = self.y_values + self.cfg[f'variables.{rt}/freq']
             try:
                 result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
             except Exception:
-                print(f'ReadoutFrequencyScan: Failed to fit {r} resonator.')
+                print(f'ReadoutFrequencyScan: Failed to fit {rr} resonator.')
                 continue
 
             # Add fitting result to self.measurement
             params = {v.name: {'value': v.value, 'stderr': v.stderr} for v in result.params.values()}
-            self.measurement[r][f'fit_result_level{level}'] = params
+            self.measurement[rr][f'fit_result_level{level}'] = params
             
             # Plot
             data_reeval = result.eval(x=x)
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = ('IQ-Phase [rad]', 'IQ-Amplitude [a.u.]')
 
@@ -583,7 +612,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
             ax[0].legend(loc=text_loc)
             ax[1].add_artist(anchored_text)
-            fig.savefig(os.path.join(self.data_path, f'{r}_level{level}_fit.png'))
+            fig.savefig(os.path.join(self.data_path, f'{rr}_level{level}_fit.png'))
 
         self.save_data()
 
@@ -605,7 +634,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
@@ -615,11 +644,12 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = None,
+                 refine_mixture_fitting: bool = False):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          scan_name='ReadoutAmplitude',
                          x_plot_label='Level',
                          x_plot_unit='arb',
@@ -635,18 +665,20 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)  
-        
+                         fitmodel=fitmodel)
+
+        self.refine_mixture_fitting = refine_mixture_fitting  
+
 
     def add_yinit(self):
         super().add_yinit()
         
-        for r in self.readout_resonators:
+        for rt in self.readout_tones:
             gain = round(self.y_start * 32768)
             yinit = f"""
                     move             {gain},R6
             """
-            self.sequences[r]['program'] += yinit
+            self.sequences[rt]['program'] += yinit
         
         
     def add_readout(self):
@@ -679,7 +711,7 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
         
     def add_yvalue(self):
         gain_step = round(self.y_step * 32768)
-        for r in self.readout_resonators:  self.sequences[r]['program'] += f"""
+        for rt in self.readout_tones:  self.sequences[rt]['program'] += f"""
                     add              R6,{gain_step},R6    """
 
 
@@ -697,7 +729,7 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
     def __init__(self,
                  cfg: MetaManager, 
                  drive_qubits: str | list[str],
-                 readout_resonators: str | list[str],
+                 readout_tones: str | list[str],
                  level_start: int,
                  level_stop: int,
                  amp_start: float, 
@@ -710,11 +742,12 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = None,
+                 refine_mixture_fitting: bool = False):
 
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
-                         readout_resonators=readout_resonators,
+                         readout_tones=readout_tones,
                          level_start=level_start,
                          level_stop=level_stop,
                          amp_start=amp_start, 
@@ -724,7 +757,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)
+                         fitmodel=fitmodel,
+                         refine_mixture_fitting=refine_mixture_fitting)
 
         self.scan_name = 'ReadoutLengthAmp'
         self.length_start = length_start
@@ -772,8 +806,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
 
             # Make the sub folder, self.data_path will be updated here.
             self.data_path = os.path.join(self.main_data_path, f'{self.resonator_pulse_length_ns}ns')
-            os.makedirs(os.path.join(self.data_path, f'{self.readout_resonators[0]}_IQplots'))
             os.makedirs(os.path.join(self.data_path, 'Jsons'))
+            for rt_ in self.readout_tones_: os.makedirs(os.path.join(self.data_path, 'IQplots', rt_))
 
             # Run as usual, but using the new self.data_path.
             self.make_sequence() 
@@ -805,32 +839,32 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         self.data_all_lengths = {}
         self.figures = {}
         
-        for r in self.readout_resonators:
-            self.data_all_lengths[r] = [measurement[r]['to_fit'][0] for measurement in self.measurements]
+        for rr in self.readout_resonators:
+            self.data_all_lengths[rr] = [measurement[rr]['to_fit'][0] for measurement in self.measurements]
             # Index 0 is from process_data in ReadoutTemplateScan.
                 
-            title = f'{self.datetime_stamp}, Readout Length-Amp Scan, {r}'  
+            title = f'{self.datetime_stamp}, Readout Length-Amp Scan, {rr}'  
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             ylabel = self.length_plot_label + f'[{self.length_plot_unit}]'
             
             fig, ax = plt.subplots(1, 1, figsize=(8, 8), dpi=300)
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
-            image = ax.imshow(self.data_all_lengths[r], cmap='RdBu_r', interpolation='none', aspect='auto', 
+            image = ax.imshow(self.data_all_lengths[rr], cmap='RdBu_r', interpolation='none', aspect='auto', 
                               origin='lower', extent=[np.min(self.y_values), 
                                                       np.max(self.y_values), 
                                                       np.min(self.length_values) / self.length_unit_value, 
                                                       np.max(self.length_values) / self.length_unit_value])
             fig.colorbar(image, ax=ax, label='Fidelity', location='top')
-            fig.savefig(os.path.join(self.main_data_path, f'{r}_full_result.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.main_data_path, f'{rr}_full_result.png'))
+            self.figures[rr] = fig
 
         
 class DRAGWeightScan(Scan2D):
     def __init__(self, 
                  cfg: MetaManager, 
                  drive_qubits: str | list[str], 
-                 readout_resonators: str | list[str], 
+                 readout_tones: str | list[str], 
                  weight_start: float, 
                  weight_stop: float, 
                  weight_points: int, 
@@ -843,7 +877,7 @@ class DRAGWeightScan(Scan2D):
                  fitmodel: Model = QuadModel):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
-                         readout_resonators=readout_resonators, 
+                         readout_tones=readout_tones, 
                          scan_name='DRAGWeight', 
                          x_plot_label='Pulse Order', 
                          x_plot_unit='arb', 
@@ -966,7 +1000,7 @@ class DRAGWeightScan(Scan2D):
         but (n_levels, y_points) where we take difference between the two x_points.
         """
         super().process_data()
-        for r, data_dict in self.measurement.items(): 
+        for data_dict in self.measurement.values(): 
             data_dict['to_fit_raw'] = data_dict['to_fit']
             data_dict['to_fit'] = (data_dict['to_fit_raw'][..., 0] - data_dict['to_fit_raw'][..., 1]) ** 2
 
@@ -982,9 +1016,9 @@ class DRAGWeightScan(Scan2D):
         """
         self.figures = {}
         
-        for i, r in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{r}/lowest_readout_levels']      
-            title = f'{self.datetime_stamp}, {self.scan_name}, {r}'
+        for i, rr in enumerate(self.readout_resonators):
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
             xlabel = self.y_plot_label + f'[{self.y_plot_unit}]'
             if self.classification_enable:
                 ylabel = fr'Difference of $P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
@@ -992,19 +1026,19 @@ class DRAGWeightScan(Scan2D):
                 ylabel = 'Difference of I-Q Coordinate (Rotated) [a.u.]'
             
             fig, ax = plt.subplots(1, 1, dpi=150)
-            ax.plot(self.y_values / self.y_unit_value, self.measurement[r]['to_fit'][level_index], 'k.')
+            ax.plot(self.y_values / self.y_unit_value, self.measurement[rr]['to_fit'][level_index], 'k.')
             ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
             
-            if self.fit_result[r] is not None: 
+            if self.fit_result[rr] is not None: 
                 # Raise resolution of fit result for smooth plot.
                 x = np.linspace(self.y_start, self.y_stop, self.y_points * 3)  
-                y = self.fit_result[r].eval(x=x)
+                y = self.fit_result[rr].eval(x=x)
                 ax.plot(x / self.y_unit_value, y, 'm-')
                 
                 # AnchoredText stolen from Ray's code.
-                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[r].params.values()])
+                fit_text = '\n'.join([f'{v.name} = {v.value:0.5g}' for v in self.fit_result[rr].params.values()])
                 anchored_text = AnchoredText(fit_text, loc=text_loc, prop={'color':'m'})
                 ax.add_artist(anchored_text)
 
-            fig.savefig(os.path.join(self.data_path, f'{r}.png'))
-            self.figures[r] = fig
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig

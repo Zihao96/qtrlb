@@ -17,7 +17,7 @@ class MixerCorrection:
     
         Attributes:
             cfg: A MetaManager
-            tone: 'Q2/12', 'Q3/ACStark', 'R4a', 'R4c'
+            tone: 'Q2/12', 'Q3/ACStark', 'R4/a', 'R4/c'
             amp: Float number between 0 and 1.
             waveform_length: Integer between [4,16384]. Don't change.
     """
@@ -212,7 +212,7 @@ class MixerAutoCorrection(MixerCorrection):
         Attributes:
             sa: A spectrum analyer object.
             cfg: A MetaManager
-            tone: 'Q2/12', 'Q3/ACStark', 'R4a', 'R4c'
+            tone: 'Q2/12', 'Q3/ACStark', 'R4/a', 'R4/c'
             amp: Float number between 0 and 1.
             waveform_length: Integer between [4,16384]. Don't change.
     """
