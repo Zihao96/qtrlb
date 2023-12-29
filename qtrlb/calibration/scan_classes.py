@@ -950,7 +950,9 @@ class CalibrateClassification(LevelScan):
             fig.savefig(os.path.join(self.data_path, f'{rr}_Population_new.png'))
             plt.close(fig)
 
-            self.figures[rr] = plot_corr_matrix(self.measurement[rr]['confusionmatrix_new'])
+            fig = plot_corr_matrix(self.measurement[rr]['confusionmatrix_new'])
+            fig.savefig(os.path.join(self.data_path, f'{rr}_corr_matrix_new.png'))
+            self.figures[rr] = fig
         
         
     def plot_IQ(self):
