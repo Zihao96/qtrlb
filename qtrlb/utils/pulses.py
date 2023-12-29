@@ -87,7 +87,13 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
             elif gate.startswith('H3'):
                 pulse_df.loc[f'{row_name}/01', col_name] = f'{gate}_01'
                 pulse_df.loc[f'{row_name}/12', col_name] = f'{gate}_12'
-            
+
+            elif gate.startswith('D'):
+                nlevels = int(gate[1:])
+                for n in range(nlevels-1):
+                    subspace = f'{n}{n+1}'
+                    pulse_df.loc[f'{row_name}/{subspace}', col_name] = f'{gate}_{subspace}'
+
             else:
                 raise ValueError(f"Pulses: Gate {gate} hasn't been defined.")
             
@@ -146,7 +152,8 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
                     play             0,1,{length} 
         """
         
-    elif pulse_string.startswith('Y'):
+    elif pulse_string.startswith('Y'): # TODO: fix this for negative modulation frequencies (swap
+                                       # the order of the phase changes)
         # Y = Z90 * X * Z-90, operator order, so Z-90 first.
         angle = pulse_string[1:]
         tone_dict = cfg[f'variables.{tone}']
@@ -165,7 +172,12 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         
     elif pulse_string.startswith('Z'):
         angle = pulse_string[1:]
-        angle = round(float(angle) / 360 * 1e9)
+        tone_dict = cfg[f'variables.{tone}']
+        # making sure we handle negative frequencies correctly - EC 2023-11-29
+        if tone_dict['mod_freq'] > 0:
+            angle = round(float(angle) / 360 * 1e9)
+        else:
+            angle = round((1 - float(angle) / 360) * 1e9)
         
         pulse_program = f"""
                     set_ph_delta     {angle}
@@ -192,7 +204,28 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
                     play             {waveform_index},{waveform_index+1},{length}
                     set_ph_delta     {postphase}
         """
-    
+
+    elif pulse_string.startswith('D'):
+        # displacements as gates - EC 2023-11-28
+        # it's a displacement of some sort. extract the dimension:
+        gate_string, subspace = pulse_string.split('_')
+        nlevels = int(gate_string[1:])
+
+        # get the pulse_dict and extract the parameters
+        pulse_dict = cfg[f'gates.D{nlevels}:{tone}']
+        mod_freq_sign = np.sign(pulse_dict['mod_freq'])
+        freq = round(4 * (pulse_dict['mod_freq'] + mod_freq_sign * pulse_dict['detuning']))
+        gain = round(pulse_dict['amp_reference'] * pulse_dict['amp_scale_factor'] * 32768)
+        gain_drag = -round(pulse_dict['DRAG_weight'] * gain)
+        waveform_index = pulse_dict['waveform_index']
+
+        # build the pulse_program
+        pulse_program = f"""
+                    set_freq         {freq}
+                    set_awg_gain     {gain},{gain_drag}
+                    play             {waveform_index},{waveform_index+1},{length}
+        """
+
     else:
         raise ValueError(f'Pulses: The pulse "{pulse_string}" cannot be interpreted.')
     
