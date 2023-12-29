@@ -869,7 +869,7 @@ class Scan:
                                   
                 if self.classification_enable:
                     c = self.measurement[rr][c_key][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
+                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
