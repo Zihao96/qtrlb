@@ -12,7 +12,8 @@ from qtrlb.benchmark.state_tomography_tools import TOMOGRAPHY_GATE_SETS, calcula
 class StateTomography(Scan):
     """ State tomography for multiple qudit system.
         Require all drive_qubits to use same subspace.
-        Any state preparation or special gate before tomography can done by pre_gate.
+        Any state preparation or special gate before tomography can be done by pre_gate.
+        Thus, user should usually set main_tones to be 'Q#/01'.
         Allow passing in a gate_set with minimal key 'd' and 'gates', or a string of built-in gate_set.
     """
     def __init__(
