@@ -948,6 +948,7 @@ class CalibrateClassification(LevelScan):
             ax[1].legend()
             ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}')
             fig.savefig(os.path.join(self.data_path, f'{rr}_Population_new.png'))
+            fig.clear()
             plt.close(fig)
 
             fig = plot_corr_matrix(self.measurement[rr]['confusionmatrix_new'])

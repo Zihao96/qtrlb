@@ -878,6 +878,7 @@ class Scan:
                 ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                        xlim=(left, right), ylim=(bottom, top))
                 fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'{x}.png'))
+                fig.clear()
                 plt.close(fig)
                 
                 if self.heralding_enable:
@@ -893,6 +894,7 @@ class Scan:
                    ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
                           xlim=(left, right), ylim=(bottom, top))
                    fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_{x}.png'))
+                   fig.clear()
                    plt.close(fig)
 
 
@@ -915,6 +917,7 @@ class Scan:
             ax[1].legend()
             ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}')
             fig.savefig(os.path.join(self.data_path, f'{rr}_Population.png'))
+            fig.clear()
             plt.close(fig)
 
 
