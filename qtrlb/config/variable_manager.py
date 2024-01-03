@@ -115,7 +115,7 @@ class VariableManager(Config):
         Notice fr is a little bit tricky, but doesn't influence the result too much.
         """
         try:
-            from qtrlb.utils.transmon_parameters3 import falpha_to_EJEC, get_bare_frequency
+            from qtrlb.utils.transmon_utils import falpha_to_EJEC, get_bare_frequency
         except ModuleNotFoundError:
             print('Missing the module to run such function')
             return
