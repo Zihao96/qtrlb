@@ -942,6 +942,11 @@ class DRAGWeightScan(Scan2D):
             ssb_freq = self.cfg[f'variables.{tone}/mod_freq'] + self.cfg[f'variables.{tone}/pulse_detuning']
             ssb_freq_4 = round(ssb_freq * 4)
 
+            if ssb_freq_4 >= 0:
+                angle_90, angle_90n = round(250e6), round(750e6)
+            else:
+                angle_90, angle_90n = round(750e6), round(250e6)
+
             main = f"""
                     jge              R3,2,@XpiYhalf
                     jlt              R3,2,@YpiXhalf
@@ -951,19 +956,19 @@ class DRAGWeightScan(Scan2D):
                     set_awg_gain     R11,R6
                     play             0,1,{self.qubit_pulse_length_ns} 
 
-                    set_ph_delta     {round(750e6)}
+                    set_ph_delta     {angle_90n}
                     set_awg_gain     R13,R12
                     play             0,1,{self.qubit_pulse_length_ns}
-                    set_ph_delta     {round(250e6)}
+                    set_ph_delta     {angle_90}
 
                     jmp              @end_main
 
         YpiXhalf:
-                    set_ph_delta     {round(750e6)}
+                    set_ph_delta     {angle_90n}
                     set_freq         {ssb_freq_4}
                     set_awg_gain     R11,R6
                     play             0,1,{self.qubit_pulse_length_ns}
-                    set_ph_delta     {round(250e6)}
+                    set_ph_delta     {angle_90}
 
                     set_awg_gain     R13,R12
                     play             0,1,{self.qubit_pulse_length_ns} 
