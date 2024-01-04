@@ -812,6 +812,7 @@ class CalibrateClassification(LevelScan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  save_cfg: bool = True,
+                 verbose: bool = False,
                  refine_mixture_fitting: bool = True):
 
         super().__init__(cfg=cfg,
@@ -825,6 +826,7 @@ class CalibrateClassification(LevelScan):
                          n_seqloops=n_seqloops)
         
         self.save_cfg = save_cfg
+        self.verbose = verbose
         self.refine_mixture_fitting = refine_mixture_fitting
         assert self.classification_enable, 'Please turn on classification.'
           
@@ -922,7 +924,7 @@ class CalibrateClassification(LevelScan):
             self.cfg[f'process.{rr}/IQ_covariances'] = covariances
             self.cfg[f'process.{rr}/corr_matrix'] = data_dict['confusionmatrix_new']
         
-        if self.save_cfg: self.cfg.save()
+        if self.save_cfg: self.cfg.save(verbose=self.verbose)
         
         
     def plot_main(self, dpi: int = 150):

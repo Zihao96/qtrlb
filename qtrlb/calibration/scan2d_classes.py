@@ -382,9 +382,14 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
 
         
     def plot(self):
-        self.plot_main()
-        self.plot_spectrum()
-        if self.cfg['variables.common/plot_IQ']: self.plot_IQ()
+        try:
+            self.plot_main()
+            self.plot_spectrum()
+            if self.cfg['variables.common/plot_IQ']: self.plot_IQ()
+        except Exception:
+            self.plotting_traceback = traceback.format_exc()
+            print(f'RTS: Failed to plot {self.datetime_stamp} data. See RTS.plotting_traceback.')
+            self.figures = {rr: None for rr in self.readout_resonators}
         
 
     def plot_main(self, text_loc: str = 'lower right'):

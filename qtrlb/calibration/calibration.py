@@ -762,42 +762,48 @@ class Scan:
                 self.measurement[rr]['fit_model'] = str(self.fit_result[rr].model)
             except Exception:
                 self.fitting_traceback = traceback.format_exc()  # Return a string to debug.
-                print(f'Scan: Failed to fit {rr} data. See traceback by print scan.fitting_traceback.')
+                print(f'Scan: Failed to fit {rr} data. See traceback by print Scan.fitting_traceback.')
                 self.measurement[rr]['fit_result'] = None
                 self.measurement[rr]['fit_model'] = str(self.fitmodel)
                 
 
     def plot(self):
         """
-        Plot the experiment result and save them into data directory.
+        Plot the measurement result and save figures into experiment directory.
         """
-        self.plot_main()
-        if self.cfg.DAC.test_mode: return
+        try:
+            self.plot_main()
+            if self.cfg.DAC.test_mode: return
 
-        if self.customized_data_process is not None:
+            if self.customized_data_process is not None:
 
-            if self.customized_data_process.endswith('sequential'):
-                self.plot_multitone_populations()
-                self.plot_IQ(c_key='MultitonePredicted_readout')
+                if self.customized_data_process.endswith('sequential'):
+                    self.plot_multitone_populations()
+                    self.plot_IQ(c_key='MultitonePredicted_readout')
 
-            elif self.customized_data_process.endswith('mask'):
-                self.plot_multitone_populations()
-                self.plot_IQ(c_key='MultitonePredicted_readout', mask_key='Mask_union')
+                elif self.customized_data_process.endswith('mask'):
+                    self.plot_multitone_populations()
+                    self.plot_IQ(c_key='MultitonePredicted_readout', mask_key='Mask_union')
 
-            elif self.customized_data_process.endswith('corr'):
-                self.plot_multitone_populations()
+                elif self.customized_data_process.endswith('corr'):
+                    self.plot_multitone_populations()
+                    self.plot_IQ()
+
+                else:
+                    print(f'Scan: Cannot plot population and IQ for {self.customized_data_process}')
+                    return
+
+            elif self.classification_enable: 
+                self.plot_populations()
                 self.plot_IQ()
 
             else:
-                print(f'Scan: Cannot plot population and IQ for {self.customized_data_process}')
-                return
+                self.plot_IQ()
 
-        elif self.classification_enable: 
-            self.plot_populations()
-            self.plot_IQ()
-
-        else:
-            self.plot_IQ()
+        except Exception:
+            self.plotting_traceback = traceback.format_exc()
+            print(f'Scan: Failed to plot {self.datetime_stamp} data. See Scan.plotting_traceback.')
+            self.figures = {rr: None for rr in self.readout_resonators}
 
 
     def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
@@ -869,7 +875,8 @@ class Scan:
                                   
                 if self.classification_enable:
                     c = self.measurement[rr][c_key][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
+                    color_array = plt.cm.tab10(list(range(c.min(), c.max()+1)))
+                    cmap = LSC.from_list(None, [(i / c.max(), color) for i, color in enumerate(color_array)], 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -1198,9 +1205,14 @@ class Scan2D(Scan):
         The IQ plots are also a lot, but we can turn it off in yaml easily.
         Sometimes I have to do it quickly. I'm sorry.
         """
-        self.plot_main()
-        if self.cfg.DAC.test_mode: return
-        self.plot_IQ()
+        try:
+            self.plot_main()
+            if self.cfg.DAC.test_mode: return
+            self.plot_IQ()
+        except Exception:
+            self.plotting_traceback = traceback.format_exc()
+            print(f'Scan2D: Failed to plot {self.datetime_stamp} data. See Scan2D.plotting_traceback.')
+            self.figures = {rr: None for rr in self.readout_resonators}
 
 
     def plot_main(self, dpi: int = 150):

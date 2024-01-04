@@ -1,6 +1,7 @@
 import os
 import json
 import numpy as np
+import matplotlib.pyplot as plt
 from lmfit import Model
 from abc import ABCMeta, abstractmethod
 from qtrlb.config.config import MetaManager
@@ -75,6 +76,7 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
         self.fit_data()
         self.save_data()
         self.plot_full_result()
+        self.plot_full_populations()
         self.n_runs += 1
 
 
@@ -153,6 +155,25 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
 
             self.figures[rr].savefig(os.path.join(self.main_data_path, f'{rr}.png'))
             self.figures[rr].canvas.draw()
+
+    
+    def plot_full_populations(self, dpi: int = 150):
+        """
+        Plot the population for each level averaged over all repeats and randoms.
+        """
+        for rr in self.readout_resonators:
+            fig, ax = plt.subplots(1, 1, dpi=dpi)
+            
+            for i, level in enumerate(self.cfg[f'variables.{rr}/readout_levels']):
+                ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][i], 
+                        c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                
+            ax.set(xlabel=f'{self.x_plot_label}[{self.x_plot_unit}]', ylabel='Populations', 
+                   title=f'{self.datetime_stamp}, {self.scan_name}, {rr}', ylim=(-0.05, 1.05))
+            ax.legend()
+            fig.savefig(os.path.join(self.data_path, f'{rr}_Population.png'))
+            fig.clear()
+            plt.close(fig)
 
 
 class RB1QB(RB1QBBase):
