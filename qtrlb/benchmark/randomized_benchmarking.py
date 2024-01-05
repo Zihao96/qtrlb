@@ -690,7 +690,7 @@ class RB1QBDRAGWeightSweep(RB1QBBase):
 
             step = self.gain_translator(tone_dict['amp_180'] * self.x_step)
             step_half = self.gain_translator(tone_dict['amp_90'] * self.x_step)
-            step_half_neg = self.gain_translator(tone_dict['amp_90'] * self.x_step)
+            step_half_neg = self.gain_translator(-1 * tone_dict['amp_90'] * self.x_step)
 
             self.sequences[tone]['program'] += f"""
                     add              R4,{step},R4
