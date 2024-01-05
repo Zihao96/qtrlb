@@ -875,8 +875,7 @@ class Scan:
                                   
                 if self.classification_enable:
                     c = self.measurement[rr][c_key][:,x]
-                    color_array = plt.cm.tab10(list(range(c.min(), c.max()+1)))
-                    cmap = LSC.from_list(None, [(i / c.max(), color) for i, color in enumerate(color_array)], 12)
+                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
 
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
@@ -893,6 +892,7 @@ class Scan:
                    I_masked = np.ma.MaskedArray(I, mask=mask)
                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
                    c_masked = np.ma.MaskedArray(c, mask=mask)
+                   cmap = LSC.from_list(None, plt.cm.tab10(list(range(c_masked.min(), c_masked.max()+1))), 12)
                    
                    fig, ax = plt.subplots(1, 1, dpi=dpi)
                    ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
@@ -1290,6 +1290,7 @@ class Scan2D(Scan):
                         I_masked = np.ma.MaskedArray(I, mask=mask)
                         Q_masked = np.ma.MaskedArray(Q, mask=mask)
                         c_masked = np.ma.MaskedArray(c, mask=mask)
+                        cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
                         
                         fig, ax = plt.subplots(1, 1, dpi=dpi)
                         ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
