@@ -953,7 +953,8 @@ class DRAGWeightScan(Scan2D):
                  post_gate: dict[str: list[str]] = None, 
                  n_seqloops: int = 1000, 
                  level_to_fit: int | list[int] = None, 
-                 fitmodel: Model = QuadModel):
+                 fitmodel: Model = QuadModel,
+                 error_amplification_factor: int = 0):
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits, 
                          readout_tones=readout_tones, 
@@ -976,6 +977,7 @@ class DRAGWeightScan(Scan2D):
                          level_to_fit=level_to_fit, 
                          fitmodel=fitmodel)
         
+        self.error_amplification_factor = error_amplification_factor
         for tone in self.main_tones:
             assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_start < 1, 'Start value exceed range.'
             assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_stop < 1, 'Stop value exceed range.'
@@ -1015,6 +1017,7 @@ class DRAGWeightScan(Scan2D):
         Here I use jge and jlt instruction to realize the conditional instructions.
         For more information, please refer to:
         https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/documentation/sequencer.html
+        To implement error amplification method, we will make R14 = - R11, R15 = - R6, R16 = 0.
         """
 
         for tone in self.main_tones:
@@ -1026,15 +1029,27 @@ class DRAGWeightScan(Scan2D):
             else:
                 angle_90, angle_90n = round(750e6), round(250e6)
 
-            main = f"""
+            main = (f"""
+                    move             0,R16
+                    sub              R16,R11,R14
+                    sub              R16,R6,R15
                     jge              R3,2,@XpiYhalf
                     jlt              R3,2,@YpiXhalf
 
         XpiYhalf:
                     set_freq         {ssb_freq_4}
                     set_awg_gain     R11,R6
-                    play             0,1,{self.qubit_pulse_length_ns} 
+                    play             0,1,{self.qubit_pulse_length_ns}
+            """
 
+                  + f"""
+                    set_awg_gain     R14,R15
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    set_awg_gain     R11,R6
+                    play             0,1,{self.qubit_pulse_length_ns}
+            """ * self.error_amplification_factor
+                    
+                  + f""" 
                     set_ph_delta     {angle_90n}
                     set_awg_gain     R13,R12
                     play             0,1,{self.qubit_pulse_length_ns}
@@ -1047,15 +1062,24 @@ class DRAGWeightScan(Scan2D):
                     set_freq         {ssb_freq_4}
                     set_awg_gain     R11,R6
                     play             0,1,{self.qubit_pulse_length_ns}
-                    set_ph_delta     {angle_90}
+            """
 
+                  + f"""
+                    set_awg_gain     R14,R15
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    set_awg_gain     R11,R6
+                    play             0,1,{self.qubit_pulse_length_ns}
+            """ * self.error_amplification_factor
+                    
+                  + f"""
+                    set_ph_delta     {angle_90}
                     set_awg_gain     R13,R12
                     play             0,1,{self.qubit_pulse_length_ns} 
 
                     jmp              @end_main
 
         end_main:
-            """
+            """)
             self.sequences[tone]['program'] += main
 
         for tone in self.rest_tones:
