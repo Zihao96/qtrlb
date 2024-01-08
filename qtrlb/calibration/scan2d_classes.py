@@ -97,6 +97,82 @@ class ChevronScan(Scan2D, RabiScan):
 
     def fit_data(self, x=None, **fitting_kwargs):
         super().fit_data(x=x, y=self.y_values, **fitting_kwargs)
+
+
+class AmplitudeDetuningScan(Scan2D, Spectroscopy):
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int,
+                 amp_start: float,
+                 amp_stop: float,
+                 amp_points: int,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None,
+                 error_amplification_factor: int = 1):
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='AmplitudeDetuningScan',
+                         x_plot_label='Pulse Detuning',
+                         x_plot_unit='MHz',
+                         x_start=detuning_start,
+                         x_stop=detuning_stop,
+                         x_points=detuning_points,
+                         y_plot_label='Stimulation Amplitude', 
+                         y_plot_unit='arb', 
+                         y_start=amp_start, 
+                         y_stop=amp_stop, 
+                         y_points=amp_points, 
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+        
+        self.error_amplification_factor = error_amplification_factor
+
+
+    def add_yinit(self):
+        """
+        Here R6 is the gain on main path and R11 is the gain of the DRAG path.
+        """
+        super().add_yinit()
+        
+        for tone in self.main_tones:
+            start = self.gain_translator(self.y_start)
+            start_drag = self.gain_translator(self.y_start * self.cfg[f'variables.{tone}/DRAG_weight'])
+            yinit = f"""
+                    move             {start},R6     
+                    move             {start_drag},R11
+            """
+            self.sequences[tone]['program'] += yinit
+
+
+    def add_main(self):
+        super().add_main(gain='R6', gain_drag='R11')
+
+
+    def add_yvalue(self):
+        for tone in self.main_tones:            
+            step = self.gain_translator(self.y_step)
+            step_drag = self.gain_translator(self.y_step * self.cfg[f'variables.{tone}/DRAG_weight'])
+                    
+            self.sequences[tone]['program'] += f""" 
+                    add              R6,{step},R6
+                    add              R11,{step_drag},R11
+            """
         
 
 class ACStarkSpectroscopy(Scan2D, Spectroscopy):
@@ -128,7 +204,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                          drive_qubits=drive_qubits,
                          readout_tones=readout_tones,
                          scan_name='ACStarkSpectroscopy',
-                         x_plot_label='Drive Frequency',
+                         x_plot_label='Pulse Detuning',
                          x_plot_unit='MHz',
                          x_start=detuning_start,
                          x_stop=detuning_stop,

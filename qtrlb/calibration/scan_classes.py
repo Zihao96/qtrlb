@@ -60,10 +60,10 @@ class DriveAmplitudeScan(Scan):
 
         for tone in self.main_tones:
             start = self.gain_translator(self.x_start)
-            start_DRAG = self.gain_translator(self.x_start * self.cfg[f'variables.{tone}/DRAG_weight'])
+            start_drag = self.gain_translator(self.x_start * self.cfg[f'variables.{tone}/DRAG_weight'])
             xinit = f"""
                     move             {start},R4     
-                    move             {start_DRAG},R11
+                    move             {start_drag},R11
             """
             self.sequences[tone]['program'] += xinit
             
@@ -73,7 +73,7 @@ class DriveAmplitudeScan(Scan):
             tone_dict = self.cfg[f'variables.{tone}']
             
             step = self.gain_translator(self.x_step)
-            step_DRAG = self.gain_translator(self.x_step * tone_dict['DRAG_weight'])
+            step_drag = self.gain_translator(self.x_step * tone_dict['DRAG_weight'])
             freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
                     
             main = (f"""
@@ -87,7 +87,7 @@ class DriveAmplitudeScan(Scan):
 
                  + f""" 
                     add              R4,{step},R4
-                    add              R11,{step_DRAG},R11
+                    add              R11,{step_drag},R11
             """)
             self.sequences[tone]['program'] += main
 
@@ -152,11 +152,11 @@ class Spectroscopy(Scan):
             self.sequences[tone]['program'] += xinit
             
             
-    def add_main(self):
+    def add_main(self, gain: str = None, gain_drag: str = None):
         for tone in self.main_tones:
             step = self.frequency_translator(self.x_step)
-            gain = round(self.cfg[f'variables.{tone}']['amp_180'] * 32768)
-            gain_drag = round(gain * self.cfg[f'variables.{tone}']['DRAG_weight'])
+            if gain is None: gain = round(self.cfg[f'variables.{tone}']['amp_180'] * 32768)
+            if gain_drag is None: gain_drag = round(gain * self.cfg[f'variables.{tone}']['DRAG_weight'])
 
                     
             main = (f"""
