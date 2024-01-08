@@ -4,13 +4,7 @@
 # There is also some code that is not ready for integration.
 # =============================================================================
 
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt 
-import qtrlb.utils.units as u
-from scipy.stats import norm
 from collections.abc import Iterable
-from qtrlb.processing.fitting import gaussian1d_func
 
 
 def compare_dict(dict_raw: dict, dict_template: dict, key: str = ''):
