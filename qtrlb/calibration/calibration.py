@@ -6,14 +6,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import qtrlb.utils.units as u
 from copy import deepcopy
-from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.misc import COLOR_LIST, tone_to_qudit, find_subtones, split_subspace
+from qtrlb.utils.tone_utils import tone_to_qudit, find_subtones, split_subspace
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
 from qtrlb.processing.fitting import fit
+from qtrlb.processing.plotting import COLOR_LIST, plot_IQ
 
 
 
@@ -856,7 +856,6 @@ class Scan:
         Furthermore, if we enable heralding, we will also make plot for those data passed heralding test. 
         
         Note from Zihao(03/02/2023):
-        The cmap trick is stolen from previous code and assume we have at most 12 levels to plot.
         Only when somebody really try to write this code do they realize how difficult it is.
         With for-for-if three layers nested, this is the best I can do.
         The heralding enable is protected since we have self.check_attribute().
@@ -868,41 +867,28 @@ class Scan:
             Is, Qs = self.measurement[rr][subtone][IQ_key]
             left, right = (np.min(Is), np.max(Is))
             bottom, top = (np.min(Qs), np.max(Qs))
+
             for x in range(self.x_points):
                 I = Is[:,x]
                 Q = Qs[:,x]
-                c, cmap = (None, None)
-                                  
-                if self.classification_enable:
-                    c = self.measurement[rr][c_key][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
-
+                c = self.measurement[rr][c_key][:,x] if self.classification_enable else None
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
-                ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
-                ax.axvline(color='k', ls='dashed')    
-                ax.axhline(color='k', ls='dashed')
-                ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
-                       xlim=(left, right), ylim=(bottom, top))
+                ax = plot_IQ(ax, I, Q, c, title=f'{x}', xlim=(left, right), ylim=(bottom, top))
                 fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'{x}.png'))
                 fig.clear()
                 plt.close(fig)
                 
                 if self.heralding_enable:
-                   mask = self.measurement[rr][mask_key][:,x] 
-                   I_masked = np.ma.MaskedArray(I, mask=mask)
-                   Q_masked = np.ma.MaskedArray(Q, mask=mask)
-                   c_masked = np.ma.MaskedArray(c, mask=mask)
-                   cmap = LSC.from_list(None, plt.cm.tab10(list(range(c_masked.min(), c_masked.max()+1))), 12)
-                   
-                   fig, ax = plt.subplots(1, 1, dpi=dpi)
-                   ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
-                   ax.axvline(color='k', ls='dashed')    
-                   ax.axhline(color='k', ls='dashed')
-                   ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
-                          xlim=(left, right), ylim=(bottom, top))
-                   fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_{x}.png'))
-                   fig.clear()
-                   plt.close(fig)
+                    mask = self.measurement[rr][mask_key][:,x] 
+                    I_masked = np.ma.MaskedArray(I, mask=mask)
+                    Q_masked = np.ma.MaskedArray(Q, mask=mask)
+                    c_masked = np.ma.MaskedArray(c, mask=mask)
+                    fig, ax = plt.subplots(1, 1, dpi=dpi)
+                    ax = plot_IQ(ax, I_masked, Q_masked, c_masked, 
+                                 title=f'{x}', xlim=(left, right), ylim=(bottom, top))
+                    fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_{x}.png'))
+                    fig.clear()
+                    plt.close(fig)
 
 
     def plot_populations(self, dpi: int = 150):
@@ -1270,19 +1256,11 @@ class Scan2D(Scan):
                 for x in range(self.x_points):
                     I = Is[:,y,x]
                     Q = Qs[:,y,x]
-                    c, cmap = (None, None)
-                                    
-                    if self.classification_enable:
-                        c = self.measurement[rr][c_key][:,y,x]
-                        cmap = LSC.from_list(None, plt.cm.tab10(list(range(min(c), max(c)+1))), 12)
-
+                    c = self.measurement[rr][c_key][:,y,x] if self.classification_enable else None
                     fig, ax = plt.subplots(1, 1, dpi=dpi)
-                    ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
-                    ax.axvline(color='k', ls='dashed')    
-                    ax.axhline(color='k', ls='dashed')
-                    ax.set(xlabel='I', ylabel='Q', title=f'y{y}_x{x}', aspect='equal', 
-                           xlim=(left, right), ylim=(bottom, top))
+                    ax = plot_IQ(ax, I, Q, c, title=f'y{y}_x{x}', xlim=(left, right), ylim=(bottom, top))
                     fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'y{y}_x{x}.png'))
+                    fig.clear()
                     plt.close(fig)
                     
                     if self.heralding_enable:
@@ -1290,14 +1268,10 @@ class Scan2D(Scan):
                         I_masked = np.ma.MaskedArray(I, mask=mask)
                         Q_masked = np.ma.MaskedArray(Q, mask=mask)
                         c_masked = np.ma.MaskedArray(c, mask=mask)
-                        cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
-                        
                         fig, ax = plt.subplots(1, 1, dpi=dpi)
-                        ax.scatter(I_masked, Q_masked, c=c_masked, cmap=cmap, alpha=0.2)
-                        ax.axvline(color='k', ls='dashed')    
-                        ax.axhline(color='k', ls='dashed')
-                        ax.set(xlabel='I', ylabel='Q', title=f'{x}', aspect='equal', 
-                                xlim=(left, right), ylim=(bottom, top))
+                        ax = plot_IQ(ax, I_masked, Q_masked, c_masked,
+                                     title=f'y{y}_x{x}', xlim=(left, right), ylim=(bottom, top))
                         fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'heralded_y{y}_x{x}.png'))
+                        fig.clear()
                         plt.close(fig)
 

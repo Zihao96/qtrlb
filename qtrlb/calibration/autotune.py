@@ -5,7 +5,7 @@ from qtrlb.calibration.calibration import Scan
 from qtrlb.calibration.scan_classes import RamseyScan, DriveAmplitudeScan
 from qtrlb.calibration.scan2d_classes import DRAGWeightScan
 from qtrlb.processing.fitting import QuadModel
-from qtrlb.utils.misc import tone_to_qudit
+from qtrlb.utils.tone_utils import tone_to_qudit
 
 
 

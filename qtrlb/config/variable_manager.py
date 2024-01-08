@@ -1,6 +1,6 @@
 import qtrlb.utils.units as u
 from qtrlb.config.config import Config
-from qtrlb.utils.misc import split_subspace
+from qtrlb.utils.tone_utils import split_subspace
 
 
 

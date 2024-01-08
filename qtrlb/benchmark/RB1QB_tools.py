@@ -1,6 +1,5 @@
 import secrets
 import numpy as np
-from copy import deepcopy
 from qiskit import QuantumCircuit
 from qiskit import BasicAer
 from qiskit.compiler import transpile

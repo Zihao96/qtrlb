@@ -3,13 +3,13 @@ import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
-from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib.offsetbox import AnchoredText
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
+from qtrlb.processing.plotting import plot_IQ
 from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity, sort_points_by_distance
@@ -385,7 +385,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         try:
             self.plot_main()
             self.plot_spectrum()
-            if self.cfg['variables.common/plot_IQ']: self.plot_IQ()
+            self.plot_IQ()
         except Exception:
             self.plotting_traceback = traceback.format_exc()
             print(f'RTS: Failed to plot {self.datetime_stamp} data. See RTS.plotting_traceback.')
@@ -457,6 +457,8 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Plot IQ data for all y_values, each y_value will have a plot with all levels.
         Code is similar to Scan.plot_IQ()
         """
+        if self.cfg['variables.common/plot_IQ'] is False: return
+
         for rt_ in self.readout_tones_:
             rr, subtone = rt_.split('_')
             Is, Qs = self.measurement[rr][subtone]['IQrotated_readout']
@@ -470,15 +472,11 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
                     I = self.measurement[rr][subtone]['IQrotated_readout'][0,:,y,x]
                     Q = self.measurement[rr][subtone]['IQrotated_readout'][1,:,y,x]
                     c = self.measurement[rr]['GMMfitted'][f'{y}']['GMMpredicted'][:,x]
-                    cmap = LSC.from_list(None, plt.cm.tab10(self.x_values), 12)
-                    
-                    ax[x].scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
-                    ax[x].axvline(color='k', ls='dashed')    
-                    ax[x].axhline(color='k', ls='dashed')
-                    ax[x].set(xlabel='I', ylabel='Q', title=fr'${{\left|{self.x_values[x]}\right\rangle}}$', 
-                              aspect='equal', xlim=(left, right), ylim=(bottom, top))
+                    ax[x] = plot_IQ(ax[x], I, Q, c, title=fr'${{\left|{self.x_values[x]}\right\rangle}}$', 
+                                    xlim=(left, right), ylim=(bottom, top))
                     
                 fig.savefig(os.path.join(self.data_path, 'IQplots', rt_, f'{y}.png'))
+                fig.clear()
                 plt.close(fig)        
         
         

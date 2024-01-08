@@ -182,7 +182,7 @@ class ExpModel2(Model):
         
     def guess(self, data, x):
         self.set_param_hint('A', value=np.max(data) - np.min(data))
-        self.set_param_hint('C', value=np.min(data))
+        self.set_param_hint('C', value=np.min(data), min=0)
         self.set_param_hint('r', value=0.99, min=0)
         return self.make_params()
     
