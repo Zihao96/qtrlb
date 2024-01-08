@@ -240,8 +240,14 @@ def sort_points_by_distance(points: np.ndarray, points_ref: np.ndarray) -> list:
 
     Return: [1, 2, 3, 0]
     """
-    indices = [np.argmin( np.linalg.norm(points-point_ref, axis=1) ) for point_ref in points_ref]
-    assert len(indices) == len(set(indices)), 'Processing: Cannot sort the array.'
+    indices = []
+    for point_ref in points_ref:
+        idx = np.argsort( np.linalg.norm(points-point_ref, axis=1) ) 
+        for i in idx:
+            if i in indices: 
+                print(f'Processing: Cannot sort the array. {i} is already in indices.')
+                continue
+            indices.append(i)
     return indices
 
 
