@@ -317,6 +317,44 @@ def plot_corr_matrix(corr_matrix: list | np.ndarray) -> plt.Figure:
     return fig
 
 
+def get_QNDness_matrix(gmm_predict_0: list | np.ndarray, 
+                       gmm_predict_1: list | np.ndarray,
+                       levels: list | np.ndarray) -> np.ndarray:
+    """
+    Calculate readout QNDness Matrix based on two temporally sequencial GMM predicted readout result.
+    The levels are list of possible state assignment result of both readout.
+    The row of returned matrix is assignment of Readout_0, the column is Readout_1.
+    """
+    gmm_predict_0 = np.array(gmm_predict_0)
+    gmm_predict_1 = np.array(gmm_predict_1)
+    QNDness_matrix = np.array(
+        [normalize_population(gmm_predict_1, levels=levels, axis=None, mask=1-(gmm_predict_0==l)) 
+        for l in levels]
+    ).T
+    return QNDness_matrix
+
+
+def plot_QNDness_matrix(QNDness_matrix: list | np.ndarray) -> plt.Figure:
+    """
+    A pretty way to visualize QNDness matrix.
+    """
+    QNDness_matrix = np.array(QNDness_matrix)
+
+    # Plot matrix in shaded orange color.
+    fig, ax = plt.subplots(1, 1, figsize=(QNDness_matrix.shape[1], QNDness_matrix.shape[0]), dpi=400)
+    ax.matshow(QNDness_matrix, cmap=plt.cm.Oranges)
+    ax.xaxis.set_ticks_position('bottom')
+    ax.set(xlabel='RO_0 output', ylabel='RO_1 output', title='Readout QNDness Matrix')
+
+    # Add value as text to that grid.
+    for row in range(QNDness_matrix.shape[0]):
+        for col in range(QNDness_matrix.shape[1]):
+            value = QNDness_matrix[row, col]
+            color = 'blue' if row == col else 'black'
+            ax.text(col, row, str(round(value, 3)), va='center', ha='center', fontsize=10, color=color)
+    return fig
+
+
 def two_tone_predict(input_data_0: list | np.ndarray, 
                      input_data_1: list | np.ndarray, 
                      levels_0: list | np.ndarray, 

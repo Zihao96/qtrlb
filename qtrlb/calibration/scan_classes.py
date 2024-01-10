@@ -10,7 +10,8 @@ from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
-    multitone_predict_sequential, multitone_predict_mask, multitone_normalize, sort_points_by_distance
+    multitone_predict_sequential, multitone_predict_mask, multitone_normalize, sort_points_by_distance, \
+    get_QNDness_matrix, plot_QNDness_matrix
 from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel, SpectroscopyModel
 
 
@@ -733,7 +734,8 @@ class LevelScan(Scan):
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list[int] = None):
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -747,7 +749,8 @@ class LevelScan(Scan):
                          pre_gate=pre_gate,
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
-                         level_to_fit=level_to_fit)
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
         
         self.x_values = self.x_values.astype(int)  # Useful for correct plot label.
 
@@ -958,8 +961,8 @@ class CalibrateClassification(LevelScan):
             self.figures[rr] = fig
         
         
-    def plot_IQ(self):
-        super().plot_IQ(c_key='GMMpredicted_new')
+    def plot_IQ(self, dpi: int = 75):
+        super().plot_IQ(c_key='GMMpredicted_new', dpi=dpi)
                
 
 class JustGate(Scan):
@@ -1133,7 +1136,8 @@ class QNDnessCheck(LevelScan):
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
-                 level_to_fit: int | list[int] = None):
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -1144,12 +1148,12 @@ class QNDnessCheck(LevelScan):
                          pre_gate=pre_gate,
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
-                         level_to_fit=level_to_fit)
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
 
         self.ringdown_time = ringdown_time
         self.ringdown_time_ns = round(ringdown_time / u.ns)
         assert self.heralding_enable, 'RQS: Please enable heralding.'
-        
 
 
     def add_heralding(self):
@@ -1163,6 +1167,40 @@ class QNDnessCheck(LevelScan):
         super().add_readout(name='Readout_0', acq_index=0)  # Will become readout in self.measurement
         self.add_wait('RingDown', self.ringdown_time_ns-round(self.cfg.variables['common/tof'] * 1e9))
         super().add_readout(name='Readout_1', acq_index=1)  # will become heralding in self.measurement
+
+
+    def fit_data(self):
+        """
+        Calculate QNDness matrix based on processed GMM predicted population.
+        We do it here to save QNDness_matrix to measurement.hdf5. 
+        """
+        for rr in self.readout_resonators:
+            self.measurement[rr]['QNDness_matrix'] = get_QNDness_matrix(
+                self.measurement[rr]['GMMpredicted_readout'],
+                self.measurement[rr]['GMMpredicted_heralding'],
+                self.x_values
+            )
+
+
+    def plot_main(self):
+        """
+        Plot and save the QNDness matrix.
+        """
+        self.figures = {}
+        for rr in self.readout_resonators:
+            fig = plot_QNDness_matrix(self.measurement[rr]['QNDness_matrix'])
+            fig.savefig(os.path.join(self.data_path, f'{rr}_QNDness_matrix.png'))
+            self.figures[rr] = fig
+
+
+    def plot_IQ(self, IQ_key: str = 'IQrotated_readout', c_key: str = 'GMMpredicted_readout', dpi: int = 75):
+        """
+        We do a hack here by set heralding enable to false and plot_IQ before change it back.
+        Unfortunately, we cannot plot and save two readout IQ at same time since their filename will overlap.
+        """
+        self.heralding_enable = False
+        super().plot_IQ(IQ_key, c_key, dpi=dpi)
+        self.heralding_enable = True
 
 
 class TwoToneROCalibration(LevelScan):
