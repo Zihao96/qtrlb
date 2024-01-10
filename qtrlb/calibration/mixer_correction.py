@@ -269,6 +269,7 @@ class MixerAutoCorrection(MixerCorrection):
         # Start optimization.
         self.set_sa()
         self.old_spectrum = self.sa.data
+        self.lo_result, self.sb_result = None, None
 
         if which.lower() == 'both':
             self.minimize_lo()
@@ -343,10 +344,10 @@ class MixerAutoCorrection(MixerCorrection):
         self.sa.set('freq_center', self.lo_freq)
         self.sa.set('freq_span', '2MHz')
         self.sa.set('res_bw', '10kHz')
-        result = minimize(self.loss_func_lo, x0=(0,0), method=self.minimize_method, 
-                          bounds=((-84,73), (-84,73)), options = {'maxiter' : self.lo_maxiter})
-        self.set_offset0(result.x[0])
-        self.set_offset1(result.x[1])
+        self.lo_result = minimize(self.loss_func_lo, x0=(0,0), method=self.minimize_method, 
+                                  bounds=((-84,73), (-84,73)), options = {'maxiter' : self.lo_maxiter})
+        self.set_offset0(self.lo_result.x[0])
+        self.set_offset1(self.lo_result.x[1])
 
 
     def loss_func_lo(self, x) -> float:
@@ -366,15 +367,15 @@ class MixerAutoCorrection(MixerCorrection):
         """
         Minimize the SB tone using scipy.optimize.minimize.
         Here we zoom into the SB tone such that there is only one wide peak on screen.
-        We amplify the gain ratio (0.5-2.0) 100 times to avoid vanishing/exploding gradients.
+        We amplify the gain ratio (0.5-2.0) 10 times to avoid vanishing/exploding gradients.
         """
         self.sa.set('freq_center', self.sb_freq)
         self.sa.set('freq_span', '2MHz')
         self.sa.set('res_bw', '10kHz')
-        result = minimize(self.loss_func_sb, x0=(100, 0), method=self.minimize_method, 
-                          bounds=((50,200), (-45,45)), options={'maxiter': self.sb_maxiter})
-        self.set_gain_ratio(result.x[0]/100)
-        self.set_phase_offset(result.x[1])
+        self.sb_result = minimize(self.loss_func_sb, x0=(10, 0), method=self.minimize_method, 
+                                  bounds=((5,20), (-45,45)), options={'maxiter': self.sb_maxiter})
+        self.set_gain_ratio(self.sb_result.x[0]/10)
+        self.set_phase_offset(self.sb_result.x[1])
 
 
     def loss_func_sb(self, x) -> float:
@@ -383,7 +384,7 @@ class MixerAutoCorrection(MixerCorrection):
         Here x[0] will be offset0, x[1] will be offset1.
         Here we read marker several times and take average to reduce fluctuation.
         """
-        self.set_gain_ratio(x[0]/100)
+        self.set_gain_ratio(x[0]/10)
         self.set_phase_offset(x[1])
         time.sleep(self.readout_delay_time)
 

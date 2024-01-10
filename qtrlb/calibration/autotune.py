@@ -20,6 +20,7 @@ def autotune(
         rams_AD: float,
         normalize_subspace: bool = False,
         show_plot: bool = True,
+        require_confirmation: bool = False,
         verbose: bool = False,
         **autotune_kwargs) -> tuple[Scan]:
     """
@@ -28,6 +29,8 @@ def autotune(
     Change hardware configuration and cooldown/warmup fridge won't be considered here.
     autotune_kwargs take arguments common to all four scans here, such as pre_gate/main_tones
     """
+    assert show_plot >= require_confirmation, 'Autotune: show_plot must be True if require_confirmation'
+
     if 'main_tones' in autotune_kwargs:
         main_tones = Scan.make_it_list(autotune_kwargs['main_tones'])
         main_tone = main_tones[0]
@@ -51,27 +54,46 @@ def autotune(
                              amp_start=amp_180*0.85/0.9, amp_stop=amp_180*0.95/0.9, amp_points=41, 
                              error_amplification_factor=9, fitmodel=QuadModel, 
                              level_to_fit=level_to_fit, **autotune_kwargs)
-    
+    # Run Ramsey
     ramsp.run(f'AD+{round(rams_AD/u.kHz)}kHz_autotune')
     ramsn.run(f'AD-{round(rams_AD/u.kHz)}kHz_autotune')
+
+    # Normalize the subspace population if we enable classification.
     if normalize_subspace:
         plt.close(ramsp.figures[rr])
         plt.close(ramsn.figures[rr])
         ramsp.normalize_subspace_population()
         ramsn.normalize_subspace_population()
+
+    # Check whether we should go on or stop
+    if require_confirmation:
+        plt.show()
+        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        if not confirmation: return
+
+    # Update parameters.
     freq_p = ramsp.fit_result[rr].params['freq'].value
     freq_n = ramsn.fit_result[rr].params['freq'].value
     cfg[f'variables.{main_tone}/freq'] -= round((freq_p - freq_n) / 2)
     cfg.save(verbose=verbose)
     cfg.load()  # Load will help to generate correct mod_freq.
 
+    # Run DAS
     das.run('EAx9_autotune')
+
+    # Check whether we should go on or stop
+    if require_confirmation:
+        plt.show()
+        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        if not confirmation: return
+
+    # Update parameters.
     cfg[f'variables.{main_tone}/amp_180'] = das.fit_result[rr].params['x0'].value
     cfg[f'variables.{main_tone}/amp_90'] = das.fit_result[rr].params['x0'].value / 2 
     cfg.save(verbose=verbose)
     cfg.load()
 
-    # DWS is Scan2D doesn't support heralding yet.
+    # DWS is Scan2D and doesn't support heralding yet. Turn it off temperorily.
     heralding = False
     if cfg[f'variables.common/heralding'] is True:
         heralding = True
@@ -79,10 +101,19 @@ def autotune(
         cfg.save(verbose=verbose)
         cfg.load()
 
+    # Instantiate DWS and run it
     dws = DRAGWeightScan(cfg, drive_qubits, readout_tones, subspace=subspace, 
                          weight_start=weight-0.3, weight_stop=weight+0.3, weight_points=31, 
                          level_to_fit=level_to_fit, **autotune_kwargs)
     dws.run('autotune')
+
+    # Check whether we should go on or stop
+    if require_confirmation:
+        plt.show()
+        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        if not confirmation: return
+
+    # Update parameters.
     cfg[f'variables.{main_tone}/DRAG_weight'] = dws.fit_result[rr].params['x0'].value
     cfg[f'variables.common/heralding'] = heralding
     cfg.save(verbose=verbose)
