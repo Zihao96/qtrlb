@@ -8,10 +8,11 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 PI = np.pi
 
 
-# A list of string for commonly used hex color.
-COLOR_LIST = plt.rcParams['axes.prop_cycle'].by_key()['color']
-cmap_set3 = mpl.cm.get_cmap('Set3')
-COLOR_LIST.extend([mpl.colors.rgb2hex(cmap_set3(i)) for i in range(12)])
+# A list of string for commonly used RGBA color.
+COLOR_LIST = np.concatenate((
+    mpl.colors.to_rgba_array(plt.rcParams['axes.prop_cycle'].by_key()['color']),
+    [mpl.colormaps['Set3'](i) for i in range(12)]
+))
 
 
 def plot_IQ(ax: plt.Axes, I: np.ndarray, Q: np.ndarray, c: np.ndarray = None, **plot_setting):
@@ -19,7 +20,8 @@ def plot_IQ(ax: plt.Axes, I: np.ndarray, Q: np.ndarray, c: np.ndarray = None, **
     Make scatter IQ plot with possible color and color map. Return the plt.Figure object.
     """
     if c is not None: 
-        cmap = LSC.from_list(None, plt.cm.tab10(list(range(c.min(), c.max()+1))), 12)
+        cmap = LSC.from_list('qtrlb', COLOR_LIST[c.min(): c.max()+1])
+        c = (c - c.min()) / c.max()  # Normalize the color to [0, 1].
     else:
         cmap = None
     ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
