@@ -68,7 +68,7 @@ def autotune(
     # Check whether we should go on or stop
     if require_confirmation:
         plt.show()
-        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        confirmation = input('Autotune: press 1 to update parameter, any others to cancel.').startswith('1')
         if not confirmation: return
 
     # Update parameters.
@@ -84,7 +84,7 @@ def autotune(
     # Check whether we should go on or stop
     if require_confirmation:
         plt.show()
-        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        confirmation = input('Autotune: press 1 to update parameter, any others to cancel.').startswith('1')
         if not confirmation: return
 
     # Update parameters.
@@ -110,7 +110,7 @@ def autotune(
     # Check whether we should go on or stop
     if require_confirmation:
         plt.show()
-        confirmation = bool(input('Autotune: Enter 1 to continue and update, 0 to stop.'))
+        confirmation = input('Autotune: press 1 to update parameter, any others to cancel.').startswith('1')
         if not confirmation: return
 
     # Update parameters.
