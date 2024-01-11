@@ -34,8 +34,10 @@ def autotune(
     if 'main_tones' in autotune_kwargs:
         main_tones = Scan.make_it_list(autotune_kwargs['main_tones'])
         main_tone = main_tones[0]
+        subtone = main_tone.split('/')[1]
     else: 
         main_tone = f'{drive_qubits}/{subspace}'
+        subtone = subspace
 
     rr = tone_to_qudit(Scan.make_it_list(readout_tones)[0])
     amp_180 = cfg[f'variables.{main_tone}/amp_180']
@@ -62,8 +64,8 @@ def autotune(
     if normalize_subspace:
         plt.close(ramsp.figures[rr])
         plt.close(ramsn.figures[rr])
-        ramsp.normalize_subspace_population()
-        ramsn.normalize_subspace_population()
+        ramsp.normalize_subspace_population(subtone)
+        ramsn.normalize_subspace_population(subtone)
 
     # Check whether we should go on or stop
     if require_confirmation:
