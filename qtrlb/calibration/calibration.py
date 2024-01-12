@@ -99,7 +99,7 @@ class Scan:
         self.make_tones_list()
         
         self.x_unit_value = getattr(u, self.x_plot_unit)
-        self.subspace_gate = {tone.split('/')[0]: [f'X180_{l}{l+1}' for l in range(int(tone.split('/')[1][0]))] 
+        self.subspace_gate = {tone.split('/')[0]: [f'X180_{l}{l+1}' for l in range(split_subspace(tone.split('/')[1])[0])] 
                               for tone in self.main_tones if tone.startswith('Q')}
         self.readout_gate = {rr: ['RO_' + '_'.join(tone.split('/')[1] for tone in find_subtones(rr, self.readout_tones))] 
                              for rr in self.readout_resonators}
@@ -232,7 +232,7 @@ class Scan:
 
         # Determine tones list from self.subspace.
         for i, qubit in enumerate(self.drive_qubits):
-            highest_level = int(self.subspace[i][-1])
+            highest_level = split_subspace(self.subspace[i])[-1]
 
             for level in range(highest_level):
                 self.tones.append(f'{qubit}/{level}{level+1}')
