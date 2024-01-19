@@ -2,10 +2,49 @@ import numpy as np
 import matplotlib.pyplot as plt
 from functools import reduce
 from scipy.linalg import sqrtm
+from itertools import combinations
 from qtrlb.benchmark.RB1QB_tools import unitary
 PI = np.pi
 
 
+
+
+def get_simplest_gate_sets(d: int) -> list[list[str]]:
+    """
+    Return the simplest gate sets for single qudit state tomography of dimension d.
+    We will map each off-diagonal element to diagonal by one of the gates in gate list.
+    I choose them such that these sets will populate high level DOWN before measurement.
+
+    Example: d = 4
+    gate_list = [['I'],
+                ['X90_01'],  # 01
+                ['Y90_01'],
+                ['X90_12'],  # 12
+                ['Y90_12'],
+                ['X90_23'],  # 23
+                ['Y90_23'],
+                ['X180_12', 'X90_01'],  # 02
+                ['X180_12', 'Y90_01'],
+                ['X180_23', 'X90_12'],  # 13
+                ['X180_23', 'Y90_12'],
+                ['X180_23', 'X180_12', 'X90_01'],  # 03
+                ['X180_23', 'X180_12', 'Y90_01']] 
+    """
+    gate_list = [['I']]
+    level_pairs = combinations([l for l in range(d)], 2)
+
+    # Low and high will be two integers like (1, 4).
+    for low, high in level_pairs:
+        # ['X180_34', 'X180_23'] + ['X90_12']
+        gate_x = [f'X180_{high-i-1}{high-i}' for i in range(high-low-1)]
+        gate_x += [f'X90_{low}{low+1}']
+        gate_list.append(gate_x)
+
+        gate_y = [f'X180_{high-i-1}{high-i}' for i in range(high-low-1)]
+        gate_y += [f'Y90_{low}{low+1}']
+        gate_list.append(gate_y)
+
+    return gate_list
 
 
 TOMOGRAPHY_GATE_SETS = {
@@ -34,94 +73,11 @@ TOMOGRAPHY_GATE_SETS = {
                 ['X180_01','X90_12'],
                 ['X180_01','Y90_12'],
                 ['X180_12','X180_01']]
-    },
-    # Ask professor or Liz for why :)
-    # I choose them such that these set will populate high level DOWN before measurement.
-    'Prof_3': {
-        'd': 3,
-        'gates': [['I'],
-                ['X90_01'],
-                ['Y90_01'],
-                ['X90_12'],
-                ['Y90_12'],
-                ['X180_12','X90_01'],
-                ['X180_12','Y90_01']]
-    },
-    'Prof_4': {
-        'd': 4,
-        'gates':[['I'],
-                ['X90_01'],  # 01
-                ['Y90_01'],
-                ['X90_12'],  # 12
-                ['Y90_12'],
-                ['X90_23'],  # 23
-                ['Y90_23'],
-                ['X180_12', 'X90_01'],  # 02
-                ['X180_12', 'Y90_01'],
-                ['X180_23', 'X90_12'],  # 13
-                ['X180_23', 'Y90_12'],
-                ['X180_23', 'X180_12', 'X90_01'],  # 03
-                ['X180_23', 'X180_12', 'Y90_01']]
-    },
-    'Prof_5': {
-        'd': 5,
-        'gates':[['I'],
-                ['X90_01'],  # 01
-                ['Y90_01'],
-                ['X90_12'],  # 12
-                ['Y90_12'],
-                ['X90_23'],  # 23
-                ['Y90_23'],
-                ['X90_34'],  # 34
-                ['Y90_34'],
-                ['X180_12', 'X90_01'],  # 02
-                ['X180_12', 'Y90_01'],
-                ['X180_23', 'X90_12'],  # 13
-                ['X180_23', 'Y90_12'],
-                ['X180_34', 'X90_23'],  # 24
-                ['X180_34', 'Y90_23'],
-                ['X180_23', 'X180_12', 'X90_01'],  # 03
-                ['X180_23', 'X180_12', 'Y90_01'],
-                ['X180_34', 'X180_23', 'X90_12'],  # 14
-                ['X180_34', 'X180_23', 'Y90_12'],
-                ['X180_34', 'X180_23', 'X180_12', 'X90_01'],  # 04
-                ['X180_34', 'X180_23', 'X180_12', 'Y90_01']]
-    },
-    'Prof_6': {
-        'd': 6,
-        'gates':[['I'],
-                ['X90_01'],  # 01
-                ['Y90_01'],
-                ['X90_12'],  # 12
-                ['Y90_12'],
-                ['X90_23'],  # 23
-                ['Y90_23'],
-                ['X90_34'],  # 34
-                ['Y90_34'],
-                ['X90_45'],  # 45
-                ['Y90_45'],
-                ['X180_12', 'X90_01'],  # 02
-                ['X180_12', 'Y90_01'],
-                ['X180_23', 'X90_12'],  # 13
-                ['X180_23', 'Y90_12'],
-                ['X180_34', 'X90_23'],  # 24
-                ['X180_34', 'Y90_23'],
-                ['X180_45', 'X90_34'],  # 35
-                ['X180_45', 'Y90_34'],
-                ['X180_23', 'X180_12', 'X90_01'],  # 03
-                ['X180_23', 'X180_12', 'Y90_01'],
-                ['X180_34', 'X180_23', 'X90_12'],  # 14
-                ['X180_34', 'X180_23', 'Y90_12'],
-                ['X180_45', 'X180_34', 'X90_23'],  # 25
-                ['X180_45', 'X180_34', 'Y90_23'],
-                ['X180_34', 'X180_23', 'X180_12', 'X90_01'],  # 04
-                ['X180_34', 'X180_23', 'X180_12', 'Y90_01'],
-                ['X180_45', 'X180_34', 'X180_23', 'X90_12'],  # 15
-                ['X180_45', 'X180_34', 'X180_23', 'Y90_12'],
-                ['X180_45', 'X180_34', 'X180_23', 'X180_12', 'X90_01'],  # 05
-                ['X180_45', 'X180_34', 'X180_23', 'X180_12', 'Y90_01']]
     }
 }
+
+for i in range(3, 20):
+    TOMOGRAPHY_GATE_SETS[f'Simplest_{i}'] = {'d': i, 'gates': get_simplest_gate_sets(i)}
 
 
 ################################################## 
