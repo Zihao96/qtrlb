@@ -361,6 +361,31 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                 fig.savefig(os.path.join(self.data_path, f'{rr}_amp{j}.png'))
                 plt.close('all')
 
+    
+    def plot_populations(self, dpi: int = 150):
+        """
+        Here we will save all the plot without showing in console or make them attributes.
+        See Scan.plot_population() as reference.
+        """
+        for rr in self.readout_resonators:
+            for j, amp in enumerate(self.y_values):
+                fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
+                for i, level in enumerate(self.cfg[f'variables.{rr}/readout_levels']):
+                    ax[0].plot(self.x_values / self.x_unit_value, self.measurement[rr]['PopulationNormalized_readout'][i][j], 
+                               c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                    ax[1].plot(self.x_values / self.x_unit_value, self.measurement[rr]['PopulationCorrected_readout'][i][j], 
+                               c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+
+                xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
+                ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
+                ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
+                ax[0].legend()
+                ax[1].legend()
+                ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}, Amp{amp}')
+                fig.savefig(os.path.join(self.data_path, f'{rr}_Population_Amp{j}.png'))
+                fig.clear()
+                plt.close('all')
+
 
 class ReadoutTemplateScan(Scan2D, LevelScan):
     """ Sweep a readout parameter (freq/amp/length) with different qubit state.
