@@ -261,14 +261,15 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
     def add_main(self):
         for tone in self.tones:
 
-            if tone.startswith('R'):
+            if tone in self.readout_tones:
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+                idx = self.stimulation_waveform_idx
                 main = f"""
                 #-----------Main-----------
                     set_freq         {freq}
                     set_awg_gain     R6,R6
                     reset_ph
-                    play             1,1,{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
+                    play             {idx},{idx},{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
                 """
 
             elif tone in self.main_tones:

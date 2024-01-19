@@ -981,7 +981,7 @@ class Scan:
             fig, ax = plt.subplots(1, 1, dpi=dpi)
             ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit_SubspaceNormalized'], 'k.')
             ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', 
-                   ylabel=fr'$\frac{{P_{level_high}}}{{P_{level_high} + P_{level_low}}}$',
+                   ylabel=fr'$\frac{{P_{{{level_high}}}}}{{P_{{{level_high}}} + P_{{{level_low}}}}}$',
                    title=f'{self.datetime_stamp}, {self.scan_name}, {rr}')
             
             x3 = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
