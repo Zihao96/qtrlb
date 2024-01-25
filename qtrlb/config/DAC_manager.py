@@ -35,6 +35,8 @@ class DACManager(Config):
             self.qblox = Cluster(self['name'], self['address']) 
 
         self.qblox.reset()
+        self.set_automated_control(self['automated_control'])
+        self.set_fan_speed(self['fan_speed'])
         self.load()
     
     
@@ -58,7 +60,7 @@ class DACManager(Config):
         This function should be called after we know which specific tones will be used.
         The tones should be list of string like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
         """
-        self.qblox.reset()
+        # self.qblox.reset()
         self.disconnect_existed_map()
         self.disable_all_lo()
         
@@ -108,6 +110,29 @@ class DACManager(Config):
             file_path = os.path.join(jsons_path, f'{tone_}_sequence.json')
             self.sequencer[tone].sequence(file_path)
     
+
+    def set_automated_control(self, on: bool) -> None:
+        """
+        Set the automated control on/off of Qblox Cluster.
+        """
+        if not isinstance(on, bool): raise TypeError(f'DACManager: on {on} is not boolean variables.')
+        return self.qblox._write(f'CTRL:ENA {int(on)}')
+    
+
+    def get_fan_speed(self) -> int:
+        """
+        Get the fan speed of Qblox Cluster in RPM.
+        """
+        return int(self.qblox._read('STATus:QUEStionale:FANS:BP0:SPEed?'))
+
+
+    def set_fan_speed(self, RPM: int = None) -> None:
+        """
+        Set the fan speed of Qblox Cluster in RPM.
+        """
+        if not 0 < int(RPM) < 5400: raise ValueError(f'DACManager: RPM {RPM} is not in range (0, 5400).')
+        return self.qblox._write(f'STATus:QUEStionale:FANS:BP0:SPEed {int(RPM)}')
+
     
     def disconnect_existed_map(self):
         """
