@@ -123,7 +123,7 @@ class DACManager(Config):
         """
         Get the fan speed of Qblox Cluster in RPM.
         """
-        return int(self.qblox._read('STATus:QUEStionale:FANS:BP0:SPEed?'))
+        return int(self.qblox._read('STATus:QUEStionable:FANS:BP0:SPEed?'))
 
 
     def set_fan_speed(self, RPM: int = None) -> None:
@@ -131,7 +131,7 @@ class DACManager(Config):
         Set the fan speed of Qblox Cluster in RPM.
         """
         if not 0 < int(RPM) < 5400: raise ValueError(f'DACManager: RPM {RPM} is not in range (0, 5400).')
-        return self.qblox._write(f'STATus:QUEStionale:FANS:BP0:SPEed {int(RPM)}')
+        return self.qblox._write(f'STATus:QUEStionable:FANS:BP0:SPEed {int(RPM)}')
 
     
     def disconnect_existed_map(self):
