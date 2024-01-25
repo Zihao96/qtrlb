@@ -34,7 +34,7 @@ class DACManager(Config):
         else:
             self.qblox = Cluster(self['name'], self['address']) 
 
-        self.qblox.reset()
+        self.reset()
         self.set_automated_control(self['automated_control'])
         self.set_fan_speed(self['fan_speed'])
         self.load()
@@ -52,7 +52,17 @@ class DACManager(Config):
         for tone in self.varman['tones']:
             self.module[tone] = getattr(self.qblox, 'module{}'.format(self.varman[f'{tone}/mod']))
             self.sequencer[tone] = getattr(self.module[tone], 'sequencer{}'.format(self.varman[f'{tone}/seq']))
-             
+
+
+    def reset(self):
+        """
+        Reset the instrument to default state.
+        We will also fix fan speed if needed.
+        """
+        self.qblox.reset()
+        self.set_automated_control(self['automated_control'])
+        if not self['automated_control']: self.set_fan_speed(self['fan_speed'])
+
         
     def implement_parameters(self, tones: list, jsons_path: str):
         """
@@ -60,7 +70,7 @@ class DACManager(Config):
         This function should be called after we know which specific tones will be used.
         The tones should be list of string like: ['Q3/01', 'Q3/12', 'Q3/23', 'Q4/01', 'Q4/12', 'R3', 'R4'].
         """
-        # self.qblox.reset()
+        self.reset()
         self.disconnect_existed_map()
         self.disable_all_lo()
         
