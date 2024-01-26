@@ -136,7 +136,7 @@ class DACManager(Config):
         return int(self.qblox._read('STATus:QUEStionable:FANS:BP0:SPEed?'))
 
 
-    def set_fan_speed(self, RPM: int = None) -> None:
+    def set_fan_speed(self, RPM: int) -> None:
         """
         Set the fan speed of Qblox Cluster in RPM.
         """
