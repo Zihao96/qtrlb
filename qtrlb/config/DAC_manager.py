@@ -33,10 +33,10 @@ class DACManager(Config):
             self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         else:
             self.qblox = Cluster(self['name'], self['address']) 
+            self.reset()
+            self.set_automated_control(self['automated_control'])
+            self.set_fan_speed(self['fan_speed'])
 
-        self.reset()
-        self.set_automated_control(self['automated_control'])
-        self.set_fan_speed(self['fan_speed'])
         self.load()
     
     
