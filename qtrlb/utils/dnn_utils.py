@@ -54,7 +54,7 @@ class ModelTraining:
                  device: str,
                  Model: type, 
                  Loss_fn: type, 
-                 Optimizer: torch.optim.Optimizer,
+                 Optimizer: type,
                  train_data_tensor: torch.Tensor, 
                  train_label_tensor: torch.Tensor,
                  batch_size: int,
@@ -340,6 +340,6 @@ class KFoldCrossValidation(ModelTraining):
 
         ax.plot(np.arange(len(y)), y_mean / self.k, label='Mean', color='black')
         ax.set(xlabel='Epochs', ylabel='Validation Accuracy', title='Validation Accuracy', 
-               ylim=(0.9, 0.95), xlim=(0, self.epochs))
+               ylim=ylim, xlim=(0, self.epochs))
         ax.legend(loc=text_loc)
         ax.grid()
