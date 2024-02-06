@@ -8,10 +8,10 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 PI = np.pi
 
 
-# A list of string for commonly used RGBA color.
+# 18 commonly used RGBA colors.
 COLOR_LIST = np.concatenate((
     mpl.colors.to_rgba_array(plt.rcParams['axes.prop_cycle'].by_key()['color']),
-    [mpl.colormaps['Set3'](i) for i in range(12)]
+    [mpl.colormaps['Set2'](i) for i in range(8)]
 ))
 
 
