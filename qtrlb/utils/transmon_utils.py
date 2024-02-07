@@ -17,7 +17,7 @@ GHz = 1. # Use GHz for all frequency, anharmonicity and energy, unless specified
 # Anharmonicity should be negative and called "alpha" below.
 
 
-# The two functions below are for bare transmon.
+# The three functions below are for bare transmon.
 def EJEC_to_falpha(EJ, EC, ng=0.0, ncut=50, truncated_dim=50):
     tmon = scq.Transmon(EJ=EJ, EC=EC, ng=ng, ncut=ncut, truncated_dim=truncated_dim)
     energies = tmon.eigenvals(evals_count=3)
@@ -59,7 +59,23 @@ def falpha_to_EJEC(f01, alpha, method='BFGS', options={'gtol': 1e-07}):
     if result.fun > 1e-6:
         print('The estimated frequency of such EJEC may exceed 1MHz !!!')
     return EJ, EC
-                     
+
+
+def f_EJEC_to_alpha(f01: float, EJEC_ratio: float, ng: float = 0.5, method: str = 'BFGS', 
+                    options: dict = {'gtol': 1e-07}) -> float:
+    """
+    Given a fixed f_01, find the closest anharmonicity that gives the targeting EJ/EC.
+    """
+    def obj_fun(EC):
+        EJ = EJEC_ratio * EC
+        f, _ = EJEC_to_falpha(EJ, EC, ng=ng)
+        return (f-f01)**2
+    
+    EC_guess = (8*EJEC_ratio) ** -0.5 * f01  # Eq.(2.12) in transmon paper.
+    result = minimize(obj_fun, x0=EC_guess, method=method, options=options)
+    _, alpha = EJEC_to_falpha(EJEC_ratio * result.x, result.x, ng=0.5)
+    return alpha
+
 
 # The two function below are for coupled transmon-resonator system.
 def EJ_EC_fr_g_to_coupled_freq(EJ, EC, fr_b, g, ng=0.5, r_levels=50, q_levels=5):
