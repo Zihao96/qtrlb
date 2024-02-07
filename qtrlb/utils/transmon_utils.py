@@ -97,7 +97,7 @@ def EJ_EC_fr_g_to_coupled_freq(EJ, EC, fr_b, g, ng=0.5, r_levels=50, q_levels=5)
     f12_c = eigenenergies_sorted[(2, 0)] - eigenenergies_sorted[(1, 0)]
     alpha_c = f12_c - f01_c
     fr_c = eigenenergies_sorted[(0, 1)] - eigenenergies_sorted[(0, 0)]
-    chi_c = eigenenergies_sorted[(1, 1)] - eigenenergies_sorted[(1, 0)] - fr_c
+    chi_c = (eigenenergies_sorted[(1, 1)] - eigenenergies_sorted[(1, 0)] - fr_c) / 2
 
     return f01_c, alpha_c, fr_c, chi_c, eigenenergies_sorted
 
