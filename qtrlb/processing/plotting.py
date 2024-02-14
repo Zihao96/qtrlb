@@ -8,12 +8,99 @@ from matplotlib.colors import LinearSegmentedColormap as LSC
 PI = np.pi
 
 
-# 18 commonly used RGBA colors.
-COLOR_LIST = np.concatenate((
-    mpl.colors.to_rgba_array(plt.rcParams['axes.prop_cycle'].by_key()['color']),
-    [mpl.colormaps['Set2'](i) for i in range(8)]
-))
+################################################## 
+# Color science
 
+CIE_MATRIX = np.array([
+    [-0.14282, 1.54924, -0.95641],
+    [-0.32466, 1.57837, -0.73191],
+    [-0.68202, 0.77073, 0.56332]
+])
+
+
+def sort_color_list_hue(color_list: list | np.ndarray) -> np.ndarray:
+    """
+    Sort the color list by the hue of the color.
+    """
+    color_list = np.array(color_list)
+    hsv = mpl.colors.rgb_to_hsv(color_list[:, :3])
+    return color_list[np.argsort(hsv[:, 0])]
+
+
+def calculate_CCT(color: list | np.ndarray) -> float:
+    """
+    Calculate the Correlated Color Temperature (CCT) of the color.
+    Ref: https://dsp.stackexchange.com/questions/8949/how-to-calculate-the-color-temperature-tint-of-the-colors-in-an-image
+    """
+    color = np.array(color)
+    cie_value = np.matmul(CIE_MATRIX, color[:3])
+    illmn = cie_value[1]
+    x, y = cie_value[:2] / np.sum(cie_value)
+    n = (x - 0.3320) / (0.1858 - y)
+    cct = -449 * n**3 + 3525 * n**2 - 6823.3 * n + 5520.33
+    return cct, illmn
+
+
+def sort_color_list_CCT(color_list: list | np.ndarray) -> np.ndarray:
+    """
+    Sort the color list by the CCT and illuminance of the color.
+    """
+    color_list = np.array(color_list)
+    ccts, illmns = np.zeros(len(color_list)), np.zeros(len(color_list))
+    
+    for l, color in enumerate(color_list):
+        ccts[l], illmns[l] = calculate_CCT(color)
+    return color_list[np.argsort(ccts)]
+
+
+def plot_color_list(color_list: list | np.ndarray, dpi: int = 400):
+    """
+    Plot the color list in the color space.
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(3.375, 3.375), dpi=dpi)
+    for l, color in enumerate(color_list):
+        ax.plot((0, 1), (l, l), color=color)
+    ax.set_xticks([])
+    ax.set_yticks(np.arange(len(color_list)), np.arange(len(color_list)), fontsize=6)
+    ax.tick_params(axis='y', direction='in', length=2)
+    return fig
+
+
+def get_color_list(name: str = 'wzh') -> np.ndarray:
+    """
+    Get commonly used colors for plotting.
+    """
+    if name == 'wzh':
+        # Sorted by the hue of the color
+        color_list = np.concatenate((
+            mpl.colors.to_rgba_array(plt.rcParams['axes.prop_cycle'].by_key()['color']),
+            [mpl.colormaps['Set2'](i) for i in range(7)]
+        ))
+        color_list = sort_color_list_hue(color_list)
+        color_list[[2,16]] = color_list[[16,2]]
+        color_list[6] = color_list[6] * np.array([0.9, 0.9, 0.9, 1.0])
+        color_list = np.delete(color_list, 14, axis=0)
+
+    elif name == 'matplotlib':
+        # Matplotlib default
+        color_list = np.concatenate((
+            mpl.colors.to_rgba_array(plt.rcParams['axes.prop_cycle'].by_key()['color']),
+            [mpl.colormaps['Set2'](i) for i in range(7)]
+        ))
+
+    else:
+        raise ValueError(f'The color list name {name} is not recognized.')
+
+    return color_list
+
+
+COLOR_LIST = get_color_list()
+
+
+
+
+##################################################
+# Plotting functions
 
 def plot_IQ(ax: plt.Axes, I: np.ndarray, Q: np.ndarray, c: np.ndarray = None, **plot_setting):
     """
