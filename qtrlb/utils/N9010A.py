@@ -29,6 +29,7 @@ class N9010A:
         'excursion_status': ':CALCulate:MARKer:PEAK:EXCursion:STATe',
         'threshold': ':CALCulate:MARKer:PEAK:THReshold',
         'threshold_status': ':CALCulate:MARKer:PEAK:THReshold:STATe',
+        'continuous_sweep':'INIT:CONT',
         'sweep_points': ':SWEep:POINts'
     }    
 
@@ -47,7 +48,7 @@ class N9010A:
 
     def __init__(self, ip_address: str = '192.168.1.14'):
         self.ip_address = ip_address
-        self.resource_name = f'TCPIP0::{self.ip_address}::INSTR'
+        self.resource_name = f'TCPIP0::{self.ip_address}::inst0::INSTR'
         self.inst = pyvisa.ResourceManager().open_resource(self.resource_name)
 
 

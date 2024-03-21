@@ -312,10 +312,11 @@ class MixerAutoCorrection(MixerCorrection):
         It will be triggered when we change ref_level from 0 dBm to higher.
         """
         # A wide span with all three peaks on screen.
+        self.sa.set('continuous_sweep', 'ON')
         self.sa.set('freq_center', self.lo_freq)
         self.sa.set('freq_span', 2.4 * abs(self.mod_freq))
         self.sa.set('res_bw', abs(self.mod_freq) * 2e-4)
-        self.sa.set('vid_bw_auto')
+        self.sa.set('vid_bw_auto', 'ON')
         self.sa.set('ref_level', '20')
 
         # Set three markers on three peaks.

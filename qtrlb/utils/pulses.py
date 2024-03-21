@@ -218,17 +218,25 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
 
         # get the pulse_dict and extract the parameters
         pulse_dict = cfg[f'gates.D{nlevels}:{tone}']
+        pulse_length_ns = round(pulse_dict['length'] * 1e9)
         mod_freq_sign = np.sign(pulse_dict['mod_freq'])
+        freq_nodetuning = round(4 * pulse_dict['mod_freq'])
         freq = round(4 * (pulse_dict['mod_freq'] + mod_freq_sign * pulse_dict['detuning']))
         gain = round(pulse_dict['amp_reference'] * pulse_dict['amp_scale_factor'] * 32768)
         gain_drag = -round(pulse_dict['DRAG_weight'] * gain)
         waveform_index = pulse_dict['waveform_index']
 
+        # compensate for the phase accumulated while we were detuned
+        phase_offset = round((-1 * mod_freq_sign * pulse_dict['detuning'] * length) % 1e9)
+
         # build the pulse_program
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
-                    play             {waveform_index},{waveform_index+1},{length}
+                    play             {waveform_index},{waveform_index+1},{pulse_length_ns}
+                    set_freq         {freq_nodetuning}
+                    set_ph_delta     {phase_offset}
+                    upd_param        4
         """
 
     else:
