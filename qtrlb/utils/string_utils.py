@@ -14,8 +14,6 @@ def find_nth_occurrence(string: str, substring: str, n: int) -> re.Match:
     for i, rematch in enumerate(re.finditer(substring, string)):
         if i == n: return rematch
 
-    raise ValueError(f'No {n}th occurrence of {substring} in {string}.')
-
 
 def replace_except_nth_occurrence(string: str, substring: str, new_substring: str, n: int) -> str:
     """
@@ -25,7 +23,7 @@ def replace_except_nth_occurrence(string: str, substring: str, new_substring: st
         replace_except_nth_occurrence('hello world', 'l', 'x', 2)
         Return 'hexxo world'
     """
-    rematch = find_nth_occurrence(string, substring, n)
+    if (rematch := find_nth_occurrence(string, substring, n)) is None: return string
     new_string = (
         string[:rematch.start()].replace(substring, new_substring) 
         + string[rematch.start(): rematch.end()]
