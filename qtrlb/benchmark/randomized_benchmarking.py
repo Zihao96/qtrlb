@@ -8,6 +8,7 @@ from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.calibration.scan_classes import Spectroscopy
 from qtrlb.processing.fitting import ExpModel2
+from qtrlb.utils.string_utils import replace_except_nth_occurrence, remove_identical_neighbor_pattern
 from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
 
 
@@ -254,6 +255,8 @@ class RB1QB(RB1QBBase):
         self.add_main()
         self.end_seqloop()
 
+        self.optimize_sequence_program()
+
 
     def add_main(self):
         """
@@ -287,6 +290,28 @@ class RB1QB(RB1QBBase):
             self.add_gate(self.post_gate, 'Postgate', add_label=add_label, concat_df=concat_df)
             self.add_readout(name+'RO', add_label=add_label, concat_df=concat_df)
             self.add_sequence_end()
+
+    
+    def optimize_sequence_program(self):
+        """
+        Shorten the sequence program by removing unnecessary instructions.
+        Here we remove the repeated set_freq and set_awg_gain.
+        """
+        for tone in self.tones: 
+            if not tone.startswith('Q'): continue
+            tone_dict = self.cfg[f'variables.{tone}']
+            freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
+            
+            program = replace_except_nth_occurrence(
+                string=self.sequences[tone]['program'],
+                substring=f'                    set_freq         {freq}\n',
+                new_substring='',
+                n=0)
+
+            self.sequences[tone]['program'] = remove_identical_neighbor_pattern(
+                string=program,
+                pattern='[ \t]+set_awg_gain.*\n'
+            )
 
 
 class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
