@@ -115,6 +115,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
     """
     
     if pulse_string == 'I':
+        # Must allow update parameters such that Z-I-Z-X make Z pulse works.
         pulse_program = '' if length == 0 else f"""
                     upd_param        {length}
         """
@@ -175,6 +176,8 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         """
         
     elif pulse_string.startswith('Z'):
+        # Usually should expect to take 0 time and allow Z0 pulse which is empty string.
+        # A finite Z gate, for example S gate in RB, should be decomposed into Z90 pulse and I.
         angle = pulse_string[1:]
         tone_dict = cfg[f'variables.{tone}']
 
@@ -184,7 +187,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         else:
             angle = round((1 - float(angle) / 360) * 1e9)
         
-        pulse_program = f"""
+        pulse_program = '' if angle == 0 else f"""
                     set_ph_delta     {angle}
         """
         pulse_program += '' if length == 0 else f""" 
