@@ -8,6 +8,7 @@ from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.calibration.scan_classes import Spectroscopy
 from qtrlb.processing.fitting import ExpModel2
+from qtrlb.utils.tone_utils import split_subspace
 from qtrlb.utils.string_utils import replace_except_nth_occurrence, remove_identical_neighbor_pattern
 from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
 
@@ -312,6 +313,19 @@ class RB1QB(RB1QBBase):
                 string=program,
                 pattern='[ \t]+set_awg_gain.*\n'
             )
+
+
+    def normalize_subspace_population(self, subspace: str | list[str] = None, dpi: int = 150):
+        """
+        Allow user to fit and plot only the population inside main subspace to compensate overall decay.
+        It will overwrite the self.fit_result and self.figures, but not the saved plot and fit_result in hdf5.
+
+        Here we need to fit the lower level instead of higher level.
+        It doesn't work for '910'. This is a quick hack, but useful for now..
+        """
+        if subspace is None: 
+            subspace = [main_tone.split('/')[1][::-1] for main_tone in self.main_tones]
+        return super().normalize_subspace_population(subspace, dpi)
 
 
 class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):

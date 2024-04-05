@@ -18,17 +18,17 @@ class MixerCorrection:
         Attributes:
             cfg: A MetaManager
             tone: 'Q2/12', 'Q3/ACStark', 'R4/a', 'R4/c'
-            amp: Float number between 0 and 1.
+            amp: Float number between 0 and 1. Default is the amp_180 in cfg.
             waveform_length: Integer between [4,16384]. Don't change.
     """
     def __init__(self, 
                  cfg: MetaManager, 
                  tone: str ,
-                 amp: float = 0.1,
+                 amp: float = None,
                  waveform_length: int = 40):
         self.cfg = cfg
         self.tone = tone
-        self.amp = amp
+        self.amp = self.cfg.variables[f'{tone}/amp_180'] if amp is None else amp
         self.waveform_length = waveform_length
         
         # These are pointers to actual object in qblox driver.
@@ -213,14 +213,14 @@ class MixerAutoCorrection(MixerCorrection):
             sa: A spectrum analyer object.
             cfg: A MetaManager
             tone: 'Q2/12', 'Q3/ACStark', 'R4/a', 'R4/c'
-            amp: Float number between 0 and 1.
+            amp: Float number between 0 and 1. Default is the amp_180 in cfg.
             waveform_length: Integer between [4,16384]. Don't change.
     """
     def __init__(self, 
                  sa: N9010A,
                  cfg: MetaManager, 
                  tone: str,
-                 amp: float = 0.1,
+                 amp: float = None,
                  waveform_length: int = 40):
         
         super().__init__(cfg, tone, amp, waveform_length)
