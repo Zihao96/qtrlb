@@ -275,8 +275,8 @@ class RB1QB(RB1QBBase):
 
             main_gate = {}
             for tone in self.main_tones:
-                qubit, subspace = tone.split('/')
-                main_gate[qubit] = [f'{gate}_{subspace}' for gate in primitive_gate]
+                qudit, subtone = tone.split('/')
+                main_gate[qudit] = [f'{gate}_{subtone}' if gate != 'I' else 'I' for gate in primitive_gate]
             
             name = f'RBpoint{j}'
             lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
