@@ -116,7 +116,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
     
     if pulse_string == 'I':
         pulse_program = '' if length == 0 else f"""
-                    wait             {length}
+                    upd_param        {length}
         """
         
     elif pulse_string == 'RO':
