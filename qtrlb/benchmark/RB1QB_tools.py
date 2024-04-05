@@ -39,17 +39,20 @@ CLIFFORD_SET_1QB = {
 # Primitive gate in list should be in time order which will be excuted left to right.
 # I generate these decomposition by 'transpile_unitary_to_circuit' and actually looking at the circuit.
 # The primitive gate set here is ['X180', 'X90', 'X-90', 'Z180', 'Z90', 'Z270', 'I'].
+# In principle, each Clifford gate should take finite time.
+# By our convention, Identity take finite time and upd_param, where Z gate take no time in RB.
+# So 'Z', 'S', '-S' should be decomposed with addition of Identity gate.
 CLIFFORD_TO_PRIMITIVE = {
     'I': ['I'],
     'X': ['X180'],
     'Y': ['Z180', 'X180'],
-    'Z': ['Z180'],
+    'Z': ['Z180', 'I'],
     'V': ['X90'],
     '-V': ['X-90'],
     'h': ['Z90', 'X90', 'Z270'],
     '-h': ['Z270', 'X90', 'Z90'],
-    'S': ['Z90'],
-    '-S': ['Z270'],
+    'S': ['Z90', 'I'],
+    '-S': ['Z270', 'I'],
     'H_xy': ['Z270', 'X180'],
     'H_xz': ['Z90', 'X90', 'Z90'],
     'H_yz': ['X90', 'Z180'],
@@ -171,6 +174,7 @@ def generate_RB_Clifford_gates(n_gates: int, Clifford_set: dict = CLIFFORD_SET_1
 
 
 def generate_RB_primitive_gates(Clifford_gates: list[str],
+                                remove_identity: bool = False,
                                 Clifford_to_primitive: dict = CLIFFORD_TO_PRIMITIVE) -> list[str]:
     """
     Transpile all Clifford gate in a gate list into primitive_gate.
@@ -181,21 +185,21 @@ def generate_RB_primitive_gates(Clifford_gates: list[str],
     for Clifford_gate in Clifford_gates:
         primitive_gates.extend(Clifford_to_primitive[Clifford_gate])
         
-    return optimize_circuit(primitive_gates)
+    return optimize_circuit(primitive_gates, remove_identity)
     
 
-def optimize_circuit(gates: list[str]) -> list[str]:
+def optimize_circuit(gates: list[str], remove_identity: bool = False) -> list[str]:
     """
-    Remove all Identity and combine all adjacent Z gates.
+    Combine all adjacent Z gates, and if required, remove all Identity.
     I'm sorry. This is for Qblox. Hopefully it's fast enough.
     """
-    gates = [gate for gate in gates if gate != 'I']
+    if remove_identity: gates = [gate for gate in gates if gate != 'I']
     optimized_gates = []
     
     i = 0
     while i < len(gates):
-        # If it's X gate, when we just keep it
-        if gates[i].startswith('X'): 
+        # If it's X or I gate, when we just keep it
+        if gates[i].startswith(('X', 'I')): 
             optimized_gates.append(gates[i])
             i += 1
             
@@ -204,7 +208,7 @@ def optimize_circuit(gates: list[str]) -> list[str]:
             
             # This j tells number of consecutive Z gates.
             for j, gate in enumerate(gates[i:]):
-                if gate.startswith('X'): break
+                if gate.startswith(('X', 'I')): break
             
             # If we only find one Z gate, keep it
             if j <= 1: 
@@ -214,11 +218,14 @@ def optimize_circuit(gates: list[str]) -> list[str]:
             # If there is more than one, we calculate angle and keep only one gate.
             else:
                 angle = np.sum([int(gate[1:]) for gate in gates[i:i+j]]) % 360
-                combined_gate = f'Z{angle}' if angle != 0 else 'I'
-                optimized_gates.append(combined_gate) 
+                optimized_gates.append(f'Z{angle}') 
                 i += j
+        
+        # Protection
+        else:
+            raise ValueError(f'Cannot process/optimize gate {gates[i]}!')
             
-    optimized_gates = [gate for gate in optimized_gates if gate != 'I']
+    if remove_identity: optimized_gates = [gate for gate in optimized_gates if gate != 'I']
     return optimized_gates
 
 

@@ -8,7 +8,6 @@ from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.calibration.scan_classes import Spectroscopy
 from qtrlb.processing.fitting import ExpModel2
-from qtrlb.utils.tone_utils import split_subspace
 from qtrlb.utils.string_utils import replace_except_nth_occurrence, remove_identical_neighbor_pattern
 from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_primitive_gates
 
@@ -18,10 +17,10 @@ from qtrlb.benchmark.RB1QB_tools import generate_RB_Clifford_gates, generate_RB_
 class RB1QBBase(Scan, metaclass=ABCMeta):
     """ Base class for Randomized Benchmarking type of experiments.
         User must overload the __init__, make_sequence and add_main for child class.
-        A integer n_random need to be specified during __init__
+        A integer 'n_random' and a boolean 'remove_identity' need to be specified during __init__
     """
     @abstractmethod
-    def __init__(self, n_random: int):
+    def __init__(self, n_random: int, remove_identity: bool = False, **kwargs):
         return
         
         
@@ -91,7 +90,7 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
         Its shape is uncertain because of the optimize_circuit.
         """
         self.Clifford_gates = generate_RB_Clifford_gates(self.n_gates)
-        self.primitive_gates = generate_RB_primitive_gates(self.Clifford_gates)    
+        self.primitive_gates = generate_RB_primitive_gates(self.Clifford_gates, self.remove_identity)
         super().make_sequence()
 
 
@@ -199,6 +198,7 @@ class RB1QB(RB1QBBase):
             n_gates_stop: int,
             n_gates_points: int,
             n_random: int = 30,
+            remove_identity: bool = False,
             subspace: str | list[str] = None,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
@@ -228,6 +228,7 @@ class RB1QB(RB1QBBase):
         assert self.x_step.is_integer(), 'All n_gates should be integer.'
         self.x_values = self.x_values.astype(int)
         self.n_random = n_random
+        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -243,7 +244,7 @@ class RB1QB(RB1QBBase):
         self.primitive_gates = []
         for i, n_gates in enumerate(self.x_values):
             self.Clifford_gates.append(generate_RB_Clifford_gates(n_gates))
-            self.primitive_gates.append(generate_RB_primitive_gates(self.Clifford_gates[i]))            
+            self.primitive_gates.append(generate_RB_primitive_gates(self.Clifford_gates[i], self.remove_identity))
         # =============================================================================
         # Here self.Clifford_gates is nested list with shape (self.x_points, n_gates+1)
         # Each element is a string of Clifford gate name, such as 'S', '-C_-xyz'. 
@@ -278,8 +279,7 @@ class RB1QB(RB1QBBase):
                 main_gate[qubit] = [f'{gate}_{subspace}' for gate in primitive_gate]
             
             name = f'RBpoint{j}'
-            lengths = [self.qubit_pulse_length_ns 
-                       if not gate.startswith('Z') or gate.startswith('I') else 0
+            lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
                        for gate in primitive_gate]
             
             self.add_sequence_start()
@@ -343,6 +343,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             detuning_points: int, 
             n_gates: int = 100,
             n_random: int = 30,
+            remove_identity: bool = False,
             subspace: str | list[str] = None,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
@@ -371,6 +372,7 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
         
         self.n_gates = n_gates
         self.n_random = n_random
+        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -388,8 +390,8 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             qubit, subspace = tone.split('/')
             main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
 
-        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
-                  for gate in self.primitive_gates]
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
+                   for gate in self.primitive_gates]
         
         self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
@@ -423,6 +425,7 @@ class RB1QBAmp180Sweep(RB1QBBase):
             amp180_points: int, 
             n_gates: int = 100,
             n_random: int = 30,
+            remove_identity: bool = False,
             subspace: str | list[str] = None,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
@@ -451,6 +454,7 @@ class RB1QBAmp180Sweep(RB1QBBase):
         
         self.n_gates = n_gates
         self.n_random = n_random
+        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -484,8 +488,8 @@ class RB1QBAmp180Sweep(RB1QBBase):
             qubit, subspace = tone.split('/')
             main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
 
-        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
-                  for gate in self.primitive_gates]
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
+                   for gate in self.primitive_gates]
         
         self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
@@ -526,6 +530,7 @@ class RB1QBAmp90Sweep(RB1QBBase):
             amp90_points: int, 
             n_gates: int = 100,
             n_random: int = 30,
+            remove_identity: bool = False,
             subspace: str | list[str] = None,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
@@ -554,6 +559,7 @@ class RB1QBAmp90Sweep(RB1QBBase):
         
         self.n_gates = n_gates
         self.n_random = n_random
+        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -593,8 +599,8 @@ class RB1QBAmp90Sweep(RB1QBBase):
             qubit, subspace = tone.split('/')
             main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
 
-        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
-                  for gate in self.primitive_gates]
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
+                   for gate in self.primitive_gates]
         
         self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
@@ -645,6 +651,7 @@ class RB1QBDRAGWeightSweep(RB1QBBase):
             weight_points: int, 
             n_gates: int = 100,
             n_random: int = 30,
+            remove_identity: bool = False,
             subspace: str | list[str] = None,
             main_tones: str | list[str] = None,
             pre_gate: dict[str: list[str]] = None,
@@ -673,6 +680,7 @@ class RB1QBDRAGWeightSweep(RB1QBBase):
         
         self.n_gates = n_gates
         self.n_random = n_random
+        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -717,8 +725,8 @@ class RB1QBDRAGWeightSweep(RB1QBBase):
             qubit, subspace = tone.split('/')
             main_gate[qubit] = [f'{gate}_{subspace}' for gate in self.primitive_gates]
 
-        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') or gate.startswith('I') else 0
-                  for gate in self.primitive_gates]
+        lengths = [self.qubit_pulse_length_ns if not gate.startswith('Z') else 0
+                   for gate in self.primitive_gates]
         
         self.add_gate(main_gate, 'RB', lengths, add_label=False, concat_df=False)
 
