@@ -212,9 +212,9 @@ def calculate_tomography_gates(tomography_gates_list: list[dict[str: list[str]]]
 def calculate_single_qudit_density_matrix(populations: np.ndarray, 
                                           tomography_gates_list: list[dict[str: list[str]]]) -> np.ndarray:
     """
-    Give a measured population with shape (n_readout_levels, n_tomography_gates) and a gates list, \
-    return a density matrix.
-    Whethere the matrix is positive semi-definite is not guaranteed here.
+    Calculate density matrix for given measured population and tomography gates list.
+    The population should have shape (n_readout_levels, n_tomography_gates).
+    It is not guaranteed that the returned matrix is positive semi-definite here.
     """
     d = populations.shape[0]
 

@@ -29,7 +29,7 @@ class DACManager(Config):
         Cluster.close_all()
         self.test_mode = test_mode
         if self.test_mode:
-            dummy_cfg = {2:'Cluster QCM-RF', 4:'Cluster QCM-RF', 6:'Cluster QCM-RF', 8:'Cluster QRM-RF'}
+            dummy_cfg = {2:'Cluster QCM-RF', 6:'Cluster QCM-RF', 10:'Cluster QCM-RF', 14:'Cluster QRM-RF'}
             self.qblox = Cluster(name='cluster', dummy_cfg=dummy_cfg)
         else:
             self.qblox = Cluster(self['name'], self['address']) 
