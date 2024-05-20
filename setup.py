@@ -2,10 +2,10 @@ from setuptools import setup
 from platform import platform
 
 install_requires = [
-    'qblox-instruments>=0.10.0',
+    'qblox-instruments==0.10.0',
+    'scipy',
     'scikit-learn',
     'scqubits>=3.1.0',
-    'scipy==1.10.0',
     'matplotlib==3.6.3',
     'lmfit==1.1.0',
     'qiskit==0.42.1',
