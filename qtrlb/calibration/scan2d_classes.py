@@ -7,6 +7,7 @@ from matplotlib.offsetbox import AnchoredText
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.utils.waveforms import get_waveform
+from qtrlb.utils.general_utils import make_it_list
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
 from qtrlb.processing.plotting import plot_IQ
@@ -678,7 +679,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         """
         Fit frequency and quality factor of resonators for a given level, then plot results.
         """
-        level_to_fit = self.make_it_list(level_to_fit)
+        level_to_fit = make_it_list(level_to_fit)
         assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
 
         for i, rt in enumerate(self.readout_tones):

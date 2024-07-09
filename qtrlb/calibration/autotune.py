@@ -6,6 +6,7 @@ from qtrlb.calibration.scan_classes import RamseyScan, DriveAmplitudeScan
 from qtrlb.calibration.scan2d_classes import DRAGWeightScan
 from qtrlb.processing.fitting import QuadModel
 from qtrlb.utils.tone_utils import tone_to_qudit
+from qtrlb.utils.general_utils import make_it_list
 
 
 
@@ -32,14 +33,14 @@ def autotune(
     assert show_plot >= require_confirmation, 'Autotune: show_plot must be True if require_confirmation'
 
     if 'main_tones' in autotune_kwargs:
-        main_tones = Scan.make_it_list(autotune_kwargs['main_tones'])
+        main_tones = make_it_list(autotune_kwargs['main_tones'])
         main_tone = main_tones[0]
         subtone = main_tone.split('/')[1]
     else: 
         main_tone = f'{drive_qubits}/{subspace}'
         subtone = subspace
 
-    rr = tone_to_qudit(Scan.make_it_list(readout_tones)[0])
+    rr = tone_to_qudit(make_it_list(readout_tones)[0])
     amp_180 = cfg[f'variables.{main_tone}/amp_180']
     weight = cfg[f'variables.{main_tone}/DRAG_weight']
 

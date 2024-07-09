@@ -12,6 +12,7 @@ from qtrlb.config.config import MetaManager
 from qtrlb.utils.tone_utils import tone_to_qudit, find_subtones, split_subspace
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.pulses import dict_to_DataFrame, gate_transpiler, pulse_interpreter
+from qtrlb.utils.general_utils import make_it_list
 from qtrlb.processing.fitting import fit
 from qtrlb.processing.plotting import COLOR_LIST, plot_IQ
 
@@ -67,20 +68,20 @@ class Scan:
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None):
         self.cfg = cfg
-        self.drive_qubits = self.make_it_list(drive_qubits)
-        self.readout_tones = self.make_it_list(readout_tones)
+        self.drive_qubits = make_it_list(drive_qubits)
+        self.readout_tones = make_it_list(readout_tones)
         self.scan_name = scan_name
         self.x_plot_label = x_plot_label
         self.x_plot_unit = x_plot_unit
         self.x_start = x_start
         self.x_stop = x_stop
         self.x_points = x_points
-        self.subspace = self.make_it_list(subspace, ['01' for _ in self.drive_qubits])
-        self.main_tones = self.make_it_list(main_tones)
+        self.subspace = make_it_list(subspace, ['01' for _ in self.drive_qubits])
+        self.main_tones = make_it_list(main_tones)
         self.pre_gate = pre_gate if pre_gate is not None else {}
         self.post_gate = post_gate if post_gate is not None else {}
         self.n_seqloops = n_seqloops
-        self.level_to_fit = self.make_it_list(level_to_fit, 
+        self.level_to_fit = make_it_list(level_to_fit, 
                                               [self.cfg[f'variables.{rr}/lowest_readout_levels'] 
                                                for rr in self.readout_resonators])
         self.fitmodel = fitmodel
@@ -609,7 +610,7 @@ class Scan:
         gate_df = dict_to_DataFrame(gate, name, self.qudits)  # Each row is a qudit.
 
         default_lengths = [self.qubit_pulse_length_ns for _ in range(gate_df.shape[1])]
-        lengths = self.make_it_list(lengths, default_lengths) 
+        lengths = make_it_list(lengths, default_lengths) 
         assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
 
         pulse_df = gate_transpiler(gate_df, self.tones)  # Rightnow it gives same number of columns as gate_df.
@@ -948,7 +949,7 @@ class Scan:
         """ 
         A covenient method for change level_to_fit then redo fit and plot.
         """
-        self.level_to_fit = self.make_it_list(level_to_fit)
+        self.level_to_fit = make_it_list(level_to_fit)
         assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level for all resonators.'
         self.fit_data()
         self.plot_main()
@@ -959,7 +960,7 @@ class Scan:
         Allow user to fit and plot only the population inside main subspace to compensate overall decay.
         It will overwrite the self.fit_result and self.figures, but not the saved plot and fit_result in hdf5.
         """
-        subspace = self.make_it_list(subspace, self.subspace)
+        subspace = make_it_list(subspace, self.subspace)
         assert self.classification_enable, 'This function only work when enabling classification.'
         assert len(subspace) == len(self.readout_resonators), 'Please specify fitting subspace for each resonator.'
 
@@ -991,19 +992,6 @@ class Scan:
 
             fig.savefig(os.path.join(self.data_path, f'{rr}_SubspaceNormalized.png'))
             self.figures[rr] = fig
-        
-        
-    @staticmethod
-    def make_it_list(thing, default: list = None):
-        """
-        A crucial, life-saving function.
-        """
-        if isinstance(thing, list):
-            return thing
-        elif thing is None:
-            return [] if default is None else default
-        else:
-            return [thing]
     
     
     @staticmethod
