@@ -17,10 +17,12 @@ from lmfit import Model
 from lmfit.models import SineModel, QuadraticModel
 from numpy import exp, sin
 from scipy.signal import find_peaks
+from utils.general_utils import make_it_list
 PI = np.pi
 
 
-def fit(input_data: list | np.ndarray, x: list | np.ndarray, fitmodel: Model, **fitting_kwargs):
+def fit(input_data: list | np.ndarray, x: list | np.ndarray, fitmodel: Model, 
+        fixed_parameters: list[str] = None, **fitting_kwargs):
     """
     Fit data based on a given mathematical model.
     User can choose Model in this file or built-in lmfit Model.
@@ -31,10 +33,14 @@ def fit(input_data: list | np.ndarray, x: list | np.ndarray, fitmodel: Model, **
     """
     input_data = np.array(input_data)
     x = np.array(x)
+    fixed_parameters = make_it_list(fixed_parameters)
+
     fitmodel = fitmodel()
     params = fitmodel.guess(input_data, x, **fitting_kwargs)
-    result = fitmodel.fit(input_data, params=params, x=x, **fitting_kwargs)
-    return result
+    for param in fixed_parameters:
+        params[param].vary = False
+        
+    return fitmodel.fit(input_data, params=params, x=x, **fitting_kwargs)
 
 
 def exp_sin_func(x, tau, freq, phase, A, C):
