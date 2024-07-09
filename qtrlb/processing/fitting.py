@@ -17,7 +17,7 @@ from lmfit import Model
 from lmfit.models import SineModel, QuadraticModel
 from numpy import exp, sin
 from scipy.signal import find_peaks
-from utils.general_utils import make_it_list
+from qtrlb.utils.general_utils import make_it_list
 PI = np.pi
 
 
