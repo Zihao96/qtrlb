@@ -8,6 +8,7 @@ import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
+from qtrlb.utils.general_utils import make_it_list
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
     multitone_predict_sequential, multitone_predict_mask, multitone_normalize, sort_points_by_distance, \
@@ -1201,6 +1202,107 @@ class QNDnessCheck(LevelScan):
         self.heralding_enable = False
         super().plot_IQ(IQ_key, c_key, dpi=dpi)
         self.heralding_enable = True
+
+
+class Ionization(Scan):
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 amp_start: float,
+                 amp_stop: float,
+                 amp_points: int,
+                 stimulation_tones: str | list[str],
+                 stimulation_pulse_length: float,
+                 ringdown_time: float, 
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None,
+                 stimulation_waveform_idx: int = 1):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='Ionization',
+                         x_plot_label='Stimulation Amplitude', 
+                         x_plot_unit='arb', 
+                         x_start=amp_start, 
+                         x_stop=amp_stop, 
+                         x_points=amp_points, 
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+
+        self.stimulation_tones = make_it_list(stimulation_tones)
+        self.stimulation_pulse_length = stimulation_pulse_length
+        self.ringdown_time = ringdown_time
+        self.stimulation_waveform_idx = stimulation_waveform_idx
+
+        self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
+        self.ringdown_time_ns = round(ringdown_time / u.ns)
+
+        assert set(self.stimulation_tones).issubset(set(self.tones)), 'Inz: stimulation_tones do not exist.'
+        assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
+            f'Inz: The stimulation + readout pulse cannot exceed 16384ns.'
+
+
+    def set_waveforms_acquisitions(self):
+        """
+        Add the simulation waveform to sequence_dict.
+        """
+        super().set_waveforms_acquisitions(add_special_waveforms=False)
+
+        for tone in self.stimulation_tones:
+            waveforms = {'stimulation': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
+                                                              shape=self.cfg[f'variables.{tone}/pulse_shape']), 
+                                         'index': self.stimulation_waveform_idx}}
+            self.sequences[tone]['waveforms'].update(waveforms)
+
+
+    def add_xinit(self):
+        """
+        Here R4 is the amplitude of stimulation pulse.
+        """
+        super().add_xinit()
+        
+        for tone in self.stimulation_tones:
+            x_start = self.gain_translator(self.x_start)
+            self.sequences[tone]['program'] += f"""
+                    move             {x_start},R4
+            """
+
+
+    def add_main(self):
+        for tone in self.tones:
+
+            if tone in self.stimulation_tones:
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+                idx = self.stimulation_waveform_idx
+                step = self.gain_translator(self.x_step)
+                main = f"""
+                #-----------Main-----------
+                    set_freq         {freq}
+                    set_awg_gain     R4,R4
+                    reset_ph
+                    play             {idx},{idx},{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
+                    add              R4,{step},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
+                """
+
+            self.sequences[tone]['program'] += main
 
 
 class TwoToneROCalibration(LevelScan):

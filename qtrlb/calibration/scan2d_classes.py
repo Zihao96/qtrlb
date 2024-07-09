@@ -235,14 +235,14 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
     def set_waveforms_acquisitions(self):
         """
-        Add the simulation waveform to sequence_dict.
+        Add the stimulation waveform to sequence_dict.
         """
         super().set_waveforms_acquisitions(add_special_waveforms=False)
 
         for tone in self.readout_tones:
-            waveforms = {'ACStark': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
+            waveforms = {'stimulation': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
                                                           shape=self.cfg[f'variables.{tone}/pulse_shape']), 
-                                     'index': self.stimulation_waveform_idx}}
+                                         'index': self.stimulation_waveform_idx}}
             self.sequences[tone]['waveforms'].update(waveforms)
 
 

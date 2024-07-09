@@ -334,7 +334,7 @@ class Scan:
 
                 waveforms = {'1qMAIN': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                         'index': 0},
-                             '1qDRAG': {'data': get_waveform(length, shape+'_derivative', **waveform_kwargs), 
+                             '1qDRAG': {'data': get_waveform(length, f'{shape}_derivative', **waveform_kwargs), 
                                         'index': 1}}
                 acquisitions = {}
             
@@ -345,7 +345,7 @@ class Scan:
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                     'index': 0}}
                 
-                acquisitions = {'readout':   {'num_bins': self.num_bins, 'index': 0}}
+                acquisitions = {'readout': {'num_bins': self.num_bins, 'index': 0}}
                 if self.heralding_enable: acquisitions['heralding'] = {'num_bins': self.num_bins, 'index': 1}
             
             
