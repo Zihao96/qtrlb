@@ -1222,7 +1222,8 @@ class Ionization(Scan):
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,
-                 stimulation_waveform_idx: int = 1):
+                 stimulation_waveform_idx: int = 1,
+                 stimulation_acquisition_idx: int = 2):
 
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
@@ -1245,6 +1246,7 @@ class Ionization(Scan):
         self.stimulation_pulse_length = stimulation_pulse_length
         self.ringdown_time = ringdown_time
         self.stimulation_waveform_idx = stimulation_waveform_idx
+        self.stimulation_acquisition_idx = stimulation_acquisition_idx
 
         self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
         self.ringdown_time_ns = round(ringdown_time / u.ns)
@@ -1264,7 +1266,9 @@ class Ionization(Scan):
             waveforms = {'stimulation': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
                                                               shape=self.cfg[f'variables.{tone}/pulse_shape']), 
                                          'index': self.stimulation_waveform_idx}}
+            scquisitions = {'stimulation': {'num_bins': self.num_bins, 'index': self.stimulation_acquisition_idx}}
             self.sequences[tone]['waveforms'].update(waveforms)
+            self.sequences[tone]['acquisitions'].update(scquisitions)
 
 
     def add_xinit(self):
@@ -1281,25 +1285,28 @@ class Ionization(Scan):
 
 
     def add_main(self):
-        for tone in self.tones:
+        length = self.stimulation_pulse_length_ns + self.ringdown_time_ns
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+        step = self.gain_translator(self.x_step)
 
+        for tone in self.tones:
             if tone in self.stimulation_tones:
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
-                idx = self.stimulation_waveform_idx
-                step = self.gain_translator(self.x_step)
+
                 main = f"""
                 #-----------Main-----------
                     set_freq         {freq}
                     set_awg_gain     R4,R4
                     reset_ph
-                    play             {idx},{idx},{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
+                    play             {self.stimulation_waveform_idx},{self.stimulation_waveform_idx},{tof_ns} 
+                    acquire          {self.stimulation_acquisition_idx},R1,{length-tof_ns}
                     add              R4,{step},R4
                 """
 
             else:
                 main = f"""
                 #-----------Main-----------
-                    wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
+                    wait             {length}
                 """
 
             self.sequences[tone]['program'] += main
