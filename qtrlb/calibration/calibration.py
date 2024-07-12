@@ -703,17 +703,17 @@ class Scan:
         self.measurement = {rr: {} for rr in self.readout_resonators}
 
         for rt in self.readout_tones:
+            meas_sub = {}
+            for key in self.sequences[rt]['acquisitions'].keys():
+                meas_sub[f'Heterodyned_{key}'] = [[],[]]
+                if keep_raw: meas_sub[f'raw_{key}'] = [[],[]]
+
             rr, subtone = rt.split('/')
-            self.measurement[rr][subtone] = {
-                'raw_readout': [[],[]],  # First element for I, second element for Q.
-                'raw_heralding': [[],[]],
-                'Heterodyned_readout': [[],[]],
-                'Heterodyned_heralding':[[],[]]
-            }
+            self.measurement[rr][subtone] = meas_sub
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(self.tones, self.measurement, keep_raw, self.heralding_enable)
+            self.cfg.DAC.start_sequencer(self.tones, self.measurement, self.jsons_path, keep_raw)
             print(f'Scan: Pyloop {i} finished!')
 
 

@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from qtrlb.config.config import Config
 from qtrlb.config.variable_manager import VariableManager
 from qblox_instruments import Cluster
@@ -185,7 +186,7 @@ class DACManager(Config):
                 print(f'Failed to disable LO for module type {module.module_type}')
 
 
-    def start_sequencer(self, tones: list, measurement: dict, keep_raw: bool = False, heralding_enable: bool = False):
+    def start_sequencer(self, tones: list, measurement: dict, jsons_path: str, keep_raw: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.
@@ -212,38 +213,37 @@ class DACManager(Config):
             if not rt.startswith('R'): continue
             rr, subtone = rt.split('/')
 
+            # We load its sequence json to get all keys in the acquisition.
+            with open(os.path.join(jsons_path, f'{rr}_{subtone}_sequence.json'), 'r', encoding='utf-8') as file:
+                sequence_dict = json.load(file)
+                acq_keys = sequence_dict['acquisition'].keys()
+
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{rt}/mod'])]
             seq_idx = int(self.varman[f'{rt}/seq'])
            
             # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
             self.module[rt].get_acquisition_state(seq_idx, timeout)  
 
-            # Store the raw (scope) data from buffer of FPGA to RAM of instrument.
+            # Store the raw (scope) data from buffer of FPGA to larger RAM of instrument.
             if keep_raw: 
-                self.module[rt].store_scope_acquisition(seq_idx, 'readout')
-                if heralding_enable: self.module[rt].store_scope_acquisition(seq_idx, 'heralding')
+                for key in acq_keys:
+                    self.module[rt].store_scope_acquisition(seq_idx, key)
             
             # Retrive the heterodyned result (binned data) back to python in Host PC.
             data = self.module[rt].get_acquisitions(seq_idx)
             
-            # Clear the memory of instrument. 
-            # It's necessary otherwise the acquisition result will accumulate and be averaged.
-            self.module[rt].delete_acquisition_data(seq_idx, 'readout')
-            if heralding_enable: self.module[rt].delete_acquisition_data(seq_idx, 'heralding')
-            
-            # Append list of each repetition into measurement dictionary.
-            measurement[rr][subtone]['Heterodyned_readout'][0].append(data['readout']['acquisition']['bins']['integration']['path0']) 
-            measurement[rr][subtone]['Heterodyned_readout'][1].append(data['readout']['acquisition']['bins']['integration']['path1'])
-            if heralding_enable:
-                measurement[rr][subtone]['Heterodyned_heralding'][0].append(data['heralding']['acquisition']['bins']['integration']['path0']) 
-                measurement[rr][subtone]['Heterodyned_heralding'][1].append(data['heralding']['acquisition']['bins']['integration']['path1'])
+            for key in acq_keys:
+                # Append list of each repetition into measurement dictionary.
+                measurement[rr][subtone][f'Heterodyned_{key}'][0].append(data[key]['acquisition']['bins']['integration']['path0']) 
+                measurement[rr][subtone][f'Heterodyned_{key}'][1].append(data[key]['acquisition']['bins']['integration']['path1'])
 
-            if keep_raw:
-                measurement[rr][subtone]['raw_readout'][0].append(data['readout']['acquisition']['scope']['path0']['data']) 
-                measurement[rr][subtone]['raw_readout'][1].append(data['readout']['acquisition']['scope']['path1']['data'])
-                if heralding_enable:
-                    measurement[rr][subtone]['raw_heralding'][0].append(data['heralding']['acquisition']['scope']['path0']['data']) 
-                    measurement[rr][subtone]['raw_heralding'][1].append(data['heralding']['acquisition']['scope']['path1']['data'])
+                if keep_raw:
+                    measurement[rr][subtone][f'raw_{key}'][0].append(data[key]['acquisition']['scope']['path0']['data']) 
+                    measurement[rr][subtone][f'raw_{key}'][1].append(data[key]['acquisition']['scope']['path1']['data'])
+
+                # Clear the memory of instrument. 
+                # It's necessary otherwise the acquisition result will accumulate and be averaged.
+                self.module[rt].delete_acquisition_data(seq_idx, key)
 
         # In case of the sequencers don't stop correctly.
         # Do not call qblox.reset() here since it will make debugging difficult.
