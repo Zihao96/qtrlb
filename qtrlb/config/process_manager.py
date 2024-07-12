@@ -86,31 +86,13 @@ class ProcessManager(Config):
 
             # Loop over each resonator
             for rr, data_dict in measurement.items():
-                # Loop over its subtones and collect all IQ.   
-                multitone_IQ_readout = []
-                multitone_IQ_heralding = []
-                for subtone, subtone_dict in data_dict.items():
-                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
-                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+                multitone_IQ = self.preprocess_IQ(rr, data_dict, shape)
 
-                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
-                    subtone_dict['Reshaped_heralding'] = np.array(subtone_dict['Heterodyned_heralding']).reshape(shape)
-
-                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
-                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
-                    subtone_dict['IQrotated_heralding'] = rotate_IQ(subtone_dict['Reshaped_heralding'], 
-                                                                    angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
-                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
-                    multitone_IQ_heralding.append(subtone_dict['IQrotated_heralding'])
-
-                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
-                multitone_IQ_heralding = np.concatenate(multitone_IQ_heralding, axis=0)
-
-                data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ_readout, 
+                data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ['readout'], 
                                                                 means=self[f'{rr}/IQ_means'], 
                                                                 covariances=self[f'{rr}/IQ_covariances'],
                                                                 lowest_level=self[f'{rr}/lowest_readout_levels'])
-                data_dict['GMMpredicted_heralding'] = gmm_predict(multitone_IQ_heralding, 
+                data_dict['GMMpredicted_heralding'] = gmm_predict(multitone_IQ['heralding'], 
                                                                   means=self[f'{rr}/IQ_means'], 
                                                                   covariances=self[f'{rr}/IQ_covariances'],
                                                                   lowest_level=self[f'{rr}/lowest_readout_levels'])
@@ -135,20 +117,9 @@ class ProcessManager(Config):
         elif self['classification'] is True:
             # Loop over each resonator
             for rr, data_dict in measurement.items():
-                # Loop over its subtones and collect all IQ.   
-                multitone_IQ_readout = []
-                for subtone, subtone_dict in data_dict.items():
-                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
-                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
-
-                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
-                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
-                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
-                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
-
-                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
+                multitone_IQ = self.preprocess_IQ(rr, data_dict, shape)
                 
-                data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ_readout, 
+                data_dict['GMMpredicted_readout'] = gmm_predict(multitone_IQ['readout'], 
                                                                 means=self[f'{rr}/IQ_means'], 
                                                                 covariances=self[f'{rr}/IQ_covariances'],
                                                                 lowest_level=self[f'{rr}/lowest_readout_levels'])
@@ -166,29 +137,49 @@ class ProcessManager(Config):
         else:
             # Loop over each resonator
             for rr, data_dict in measurement.items():
-                # Loop over its subtones and collect all IQ.  
-                multitone_IQ_readout = []
-                for subtone, subtone_dict in data_dict.items():
-                    # Check whether k is name of subtones. Otherwise if k is process name, we skip it.
-                    if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+                multitone_IQ = self.preprocess_IQ(rr, data_dict, shape)
 
-                    subtone_dict['Reshaped_readout'] = np.array(subtone_dict['Heterodyned_readout']).reshape(shape)
-                    subtone_dict['IQrotated_readout'] = rotate_IQ(subtone_dict['Reshaped_readout'], 
-                                                                  angle=self[f'{rr}/{subtone}/IQ_rotation_angle'])
-                    multitone_IQ_readout.append(subtone_dict['IQrotated_readout'])
-
-                multitone_IQ_readout = np.concatenate(multitone_IQ_readout, axis=0)
-
-                data_dict['IQaveraged_readout'] = np.mean(multitone_IQ_readout, axis=1)
+                data_dict['IQaveraged_readout'] = np.mean(multitone_IQ['readout'], axis=1)
 
                 if self['IQautorotation']:
-                    data_dict['IQautorotated_readout'] = autorotate_IQ(multitone_IQ_readout, 
+                    data_dict['IQautorotated_readout'] = autorotate_IQ(multitone_IQ['readout'], 
                                                                        n_components=self[f'{rr}/n_readout_levels'])
                     data_dict['IQaveraged_readout'] = np.mean(data_dict['IQautorotated_readout'], axis=1)
         
                 data_dict['to_fit'] = data_dict['IQaveraged_readout']
 
 
+    def preprocess_IQ(self, readout_resonator: str, data_dict: dict, shape: tuple):
+        """
+        Preprocess the IQ data of a resonator.
+        It will reshape, rotate, and IQ for each tone and concatenate all of them.
+        The shape is usually (2, n_reps, x_points) for base Scan and (2, n_reps, y_points, x_points) for 2D Scan.
+        !*-*This function will change data_dict in-place*-*!
+        """
+        multitone_IQ = {}
+
+        # Loop over each subtone
+        for subtone, subtone_dict in data_dict.items():
+            # Check whether the key is name of subtones. Otherwise if key is process name, we skip it.
+            if not (isinstance(subtone_dict, dict) and 'Heterodyned_readout' in subtone_dict): continue
+            
+            # Loop over all possible acquisition keys.
+            acq_keys = [key.split('_')[1] for key in subtone_dict.keys() if key.startswith('Heterodyned')]
+            for key in acq_keys:
+                subtone_dict[f'Reshaped_{key}'] = np.array(subtone_dict[f'Heterodyned_{key}']).reshape(shape)
+                subtone_dict[f'IQrotated_{key}'] = rotate_IQ(subtone_dict[f'Reshaped_{key}'], 
+                                                             angle=self[f'{readout_resonator}/{subtone}/IQ_rotation_angle'])
+                
+                if key in multitone_IQ:
+                    multitone_IQ[key].append(subtone_dict[f'IQrotated_{key}'])
+                else:
+                    multitone_IQ[key] = [subtone_dict[f'IQrotated_{key}']]
+        
+        # Concatenate for each acquisition key.
+        for k, v in multitone_IQ.items():
+            multitone_IQ[k] = np.concatenate(v, axis=0)
+
+        return multitone_IQ
 
 
     ##################################################           
