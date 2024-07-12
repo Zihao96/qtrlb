@@ -1219,7 +1219,7 @@ class Ionization(Scan):
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
                  post_gate: dict[str: list[str]] = None,
-                 n_seqloops: int = 10,
+                 n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,
                  stimulation_waveform_idx: int = 1):
