@@ -216,7 +216,7 @@ class DACManager(Config):
             # We load its sequence json to get all keys in the acquisition.
             with open(os.path.join(jsons_path, f'{rr}_{subtone}_sequence.json'), 'r', encoding='utf-8') as file:
                 sequence_dict = json.load(file)
-                acq_keys = sequence_dict['acquisition'].keys()
+                acq_keys = sequence_dict['acquisitions'].keys()
 
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{rt}/mod'])]
             seq_idx = int(self.varman[f'{rt}/seq'])
