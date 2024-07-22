@@ -186,7 +186,7 @@ class DACManager(Config):
                 print(f'Failed to disable LO for module type {module.module_type}')
 
 
-    def start_sequencer(self, tones: list, measurement: dict, jsons_path: str, keep_raw: bool = False):
+    def start_sequencer(self, tones: list, readout_tones: list, measurement: dict, jsons_path: str, keep_raw: bool = False):
         """
         Ask the instrument to start sequencer.
         Then store the Heterodyned result into measurement.
@@ -208,9 +208,7 @@ class DACManager(Config):
         # Really start sequencer.
         self.qblox.start_sequencer()  
 
-        for rt in tones:
-            # Only loop over readout_tone.
-            if not rt.startswith('R'): continue
+        for rt in readout_tones:
             rr, subtone = rt.split('/')
 
             # We load its sequence json to get all keys in the acquisition.

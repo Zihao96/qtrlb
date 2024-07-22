@@ -719,7 +719,7 @@ class Scan:
         
         print('Scan: Start sequencer.')
         for i in range(self.n_pyloops):
-            self.cfg.DAC.start_sequencer(self.tones, self.measurement, self.jsons_path, keep_raw)
+            self.cfg.DAC.start_sequencer(self.tones, self.readout_tones, self.measurement, self.jsons_path, keep_raw)
             print(f'Scan: Pyloop {i} finished!')
 
 
