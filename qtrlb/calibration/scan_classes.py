@@ -1225,6 +1225,8 @@ class Ionization(Scan):
                  stimulation_waveform_idx: int = 1,
                  stimulation_acquisition_idx: int = 2):
 
+        self.stimulation_tones = make_it_list(stimulation_tones)
+
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,
                          readout_tones=readout_tones,
@@ -1242,7 +1244,6 @@ class Ionization(Scan):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel)
 
-        self.stimulation_tones = make_it_list(stimulation_tones)
         self.stimulation_pulse_length = stimulation_pulse_length
         self.ringdown_time = ringdown_time
         self.stimulation_waveform_idx = stimulation_waveform_idx
@@ -1254,6 +1255,16 @@ class Ionization(Scan):
         assert set(self.stimulation_tones).issubset(set(self.tones)), 'Inz: stimulation_tones do not exist.'
         assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
             f'Inz: The stimulation + readout pulse cannot exceed 16384ns.'
+
+
+    def make_tones_list(self):
+        """
+        Add stimulation tones to self.tones.
+        The method here may change the order of self.tones, but not main_tones and readout_tones.
+        """
+        super().make_tones_list()
+        self.tones += self.stimulation_tones
+        self.tones = list(set(self.tones))
 
 
     def set_waveforms_acquisitions(self):

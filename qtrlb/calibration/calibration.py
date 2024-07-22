@@ -699,6 +699,12 @@ class Scan:
         Inside each resonator should be its subtones and consistent name of processing.
         After all loops, the 'Heterodyned_readout' usually has shape (2, n_pyloops, n_seqloops*x_points).
         We will reshape it to (2, n_reps, x_points) later by ProcessManager, where n_reps = n_seqloops * n_pyloops.
+
+        Note from Zihao(07/22/2024):
+        I use the fact that from Python 3.7 and later, dictionary is ordered.
+        This helps us keep a consistent order of the readout tones.
+        As long as the users use same order between CalibrateClassification and other experiments, \
+        they will have correct multitone GMM processing result.
         """
         self.measurement = {rr: {} for rr in self.readout_resonators}
 
