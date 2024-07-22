@@ -675,7 +675,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
 
 
     def fit_resonator(self, level_to_fit: int | list[int], text_loc: str = 'lower right',
-                      fitmodel: Model = ResonatorHangerTransmissionModel):
+                      fitmodel: Model = ResonatorHangerTransmissionModel, **fitting_kwargs):
         """
         Fit frequency and quality factor of resonators for a given level, then plot results.
         """
@@ -689,7 +689,7 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
             data_to_fit = self.measurement[rr]['IQEDcompensated_readout'][:, level]
             x = self.y_values + self.cfg[f'variables.{rt}/freq']
             try:
-                result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel)
+                result = fit(input_data=data_to_fit, x=x, fitmodel=fitmodel, **fitting_kwargs)
             except Exception:
                 print(f'ReadoutFrequencyScan: Failed to fit {rr} resonator.')
                 continue
