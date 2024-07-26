@@ -9,7 +9,7 @@ from qtrlb.config.config import MetaManager
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.general_utils import make_it_list
 from qtrlb.calibration.calibration import Scan2D
-from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
+from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy, Ionization
 from qtrlb.processing.plotting import plot_IQ
 from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
@@ -176,7 +176,7 @@ class AmplitudeDetuningScan(Scan2D, Spectroscopy):
             """
         
 
-class ACStarkSpectroscopy(Scan2D, Spectroscopy):
+class ACStarkSpectroscopy(Scan2D, Spectroscopy, Ionization):
     """
     Ref: https://doi.org/10.1103/PhysRevLett.117.190503
     """
@@ -190,6 +190,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                  detuning_start: float, 
                  detuning_stop: float, 
                  detuning_points: int,
+                 stimulation_tones: str | list[str],
                  stimulation_pulse_length: float,
                  ringdown_time: float, 
                  subspace: str | list[str] = None,
@@ -199,7 +200,10 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = SpectroscopyModel,
-                 stimulation_waveform_idx: int = 1):
+                 stimulation_waveform_idx: int = 1,
+                 stimulation_acquisition_idx: int = 2):
+        
+        self.stimulation_tones = make_it_list(stimulation_tones)
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -226,24 +230,14 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         self.stimulation_pulse_length = stimulation_pulse_length
         self.ringdown_time = ringdown_time
         self.stimulation_waveform_idx = stimulation_waveform_idx
+        self.stimulation_acquisition_idx = stimulation_acquisition_idx
 
         self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
         self.ringdown_time_ns = round(ringdown_time / u.ns)
+        
+        assert set(self.stimulation_tones).issubset(set(self.tones)), 'ACSS: stimulation_tones do not exist.'
         assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
             f'ACSS: The stimulation + readout pulse cannot exceed 16384ns.'
-
-
-    def set_waveforms_acquisitions(self):
-        """
-        Add the stimulation waveform to sequence_dict.
-        """
-        super().set_waveforms_acquisitions(add_special_waveforms=False)
-
-        for tone in self.readout_tones:
-            waveforms = {'stimulation': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
-                                                          shape=self.cfg[f'variables.{tone}/pulse_shape']), 
-                                         'index': self.stimulation_waveform_idx}}
-            self.sequences[tone]['waveforms'].update(waveforms)
 
 
     def add_yinit(self):
@@ -252,7 +246,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
         """
         super().add_yinit()
         
-        for tone in self.tones:
+        for tone in self.stimulation_tones:
             y_start = self.gain_translator(self.y_start)
             self.sequences[tone]['program'] += f"""
                     move             {y_start},R6
@@ -260,17 +254,19 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
 
     def add_main(self):
+        length = self.stimulation_pulse_length_ns + self.ringdown_time_ns
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+            
         for tone in self.tones:
-
-            if tone in self.readout_tones:
+            if tone in self.stimulation_tones:
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
-                idx = self.stimulation_waveform_idx
                 main = f"""
                 #-----------Main-----------
                     set_freq         {freq}
                     set_awg_gain     R6,R6
                     reset_ph
-                    play             {idx},{idx},{self.stimulation_pulse_length_ns + self.ringdown_time_ns} 
+                    play             {self.stimulation_waveform_idx},{self.stimulation_waveform_idx},{tof_ns}
+                    acquire          {self.stimulation_acquisition_idx},R1,{length-tof_ns} 
                 """
 
             elif tone in self.main_tones:
@@ -289,7 +285,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
             else:
                 main = f"""
                 #-----------Main-----------
-                    wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
+                    wait             {length}
                 """
 
             self.sequences[tone]['program'] += main
@@ -297,7 +293,7 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy):
 
     def add_yvalue(self):
         y_step = self.gain_translator(self.y_step)
-        for tone in self.tones:  self.sequences[tone]['program'] += f"""
+        for tone in self.stimulation_tones:  self.sequences[tone]['program'] += f"""
                     add              R6,{y_step},R6
         """
 

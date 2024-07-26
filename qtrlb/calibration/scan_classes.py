@@ -1270,6 +1270,11 @@ class Ionization(Scan):
     def set_waveforms_acquisitions(self):
         """
         Add the simulation waveform to sequence_dict.
+
+        Note from Zihao(2024/07/26):
+        When stimulation tone is one of the readout tones, the update method of sequence_dict is required.
+        When stimulation tone start with "R" but not actually readout tones, it still works properly.
+        The only drawback is we might have useless bins under acquisitions['readout'].
         """
         super().set_waveforms_acquisitions(add_special_waveforms=False)
 
@@ -1277,9 +1282,9 @@ class Ionization(Scan):
             waveforms = {'stimulation': {'data': get_waveform(length=self.stimulation_pulse_length_ns, 
                                                               shape=self.cfg[f'variables.{tone}/pulse_shape']), 
                                          'index': self.stimulation_waveform_idx}}
-            scquisitions = {'stimulation': {'num_bins': self.num_bins, 'index': self.stimulation_acquisition_idx}}
+            acquisitions = {'stimulation': {'num_bins': self.num_bins, 'index': self.stimulation_acquisition_idx}}
             self.sequences[tone]['waveforms'].update(waveforms)
-            self.sequences[tone]['acquisitions'].update(scquisitions)
+            self.sequences[tone]['acquisitions'].update(acquisitions)
 
 
     def add_xinit(self):
