@@ -10,7 +10,8 @@ install_requires = [
     'lmfit==1.1.0',
     'qiskit==0.42.1',
     'cirq==1.1.0',
-    'pyvisa==1.13.0'
+    'pyvisa==1.13.0',
+    'ruamel.yaml<0.18.0',
 ]
 
 if platform().startswith('macOS'): install_requires.append('pyvisa-py==0.7.0')
