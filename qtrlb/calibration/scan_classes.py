@@ -1374,7 +1374,8 @@ class IonizationRingDown(Scan):
         self.stimulation_acquisition_idx = stimulation_acquisition_idx
         self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
 
-        assert 0 < self.x_values < 65536 * u.ns, 'IRD: All ringdown time must be in range (0, 65536) ns.'
+        assert self.x_start > 0 and self.x_stop < 65536 * u.ns, \
+            'IRD: All ringdown time must be in range (0, 65536) ns.'
         assert set(self.stimulation_tones).issubset(set(self.tones)), 'IRD: stimulation_tones do not exist.'
         assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
             'IRD: The stimulation + readout pulse cannot exceed 16384ns.'
