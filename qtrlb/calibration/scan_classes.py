@@ -1369,7 +1369,7 @@ class IonizationRingDown(Scan):
                          fitmodel=fitmodel)
 
         self.stimulation_pulse_length = stimulation_pulse_length
-        self.stimulation_amp = make_it_list(stimulation_amp)
+        self.stimulation_amp = stimulation_amp
         self.stimulation_waveform_idx = stimulation_waveform_idx
         self.stimulation_acquisition_idx = stimulation_acquisition_idx
         self.stimulation_pulse_length_ns = round(stimulation_pulse_length / u.ns)
