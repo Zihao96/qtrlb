@@ -176,7 +176,7 @@ class AmplitudeDetuningScan(Scan2D, Spectroscopy):
             """
         
 
-class ACStarkSpectroscopy(Scan2D, Spectroscopy, Ionization):
+class ACStarkSpectroscopy(Scan2D, Ionization, Spectroscopy):
     """
     Ref: https://doi.org/10.1103/PhysRevLett.117.190503
     """
@@ -240,6 +240,13 @@ class ACStarkSpectroscopy(Scan2D, Spectroscopy, Ionization):
             f'ACSS: The stimulation + readout pulse cannot exceed 16384ns.'
 
 
+    def add_xinit(self):
+        """
+        We need to avoid the dependency injection here.
+        """
+        Spectroscopy.add_xinit()
+
+        
     def add_yinit(self):
         """
         Here R6 is the amplitude of stimulation pulse.
