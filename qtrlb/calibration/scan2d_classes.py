@@ -244,7 +244,7 @@ class ACStarkSpectroscopy(Scan2D, Ionization, Spectroscopy):
         """
         We need to avoid the dependency injection here.
         """
-        Spectroscopy.add_xinit()
+        Spectroscopy.add_xinit(self)
 
         
     def add_yinit(self):
