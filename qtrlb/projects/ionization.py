@@ -506,11 +506,11 @@ class IonizationSquareStimulation(Ionization):
                 main = f"""
                 #-----------Main-----------
                     set_freq         {freq}
-                    set_awg_off      R4,R4
+                    set_awg_offs     R4,R4
                     reset_ph
                     upd_param        {tof_ns} 
                     acquire          {self.stimulation_acquisition_idx},R1,{self.stimulation_pulse_length_ns-tof_ns}
-                    set_awg_off      0,0
+                    set_awg_offs     0,0
                     upd_param        {self.ringdown_time_ns}
                     add              R4,{step},R4
                 """
