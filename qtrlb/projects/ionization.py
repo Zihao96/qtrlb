@@ -476,3 +476,50 @@ class ACStarkSpectroscopy(Scan2D, Ionization, Spectroscopy):
                 fig.savefig(os.path.join(self.data_path, f'{rr}_Population_Amp{j}.png'))
                 fig.clear()
                 plt.close('all')
+
+
+class IonizationSquareStimulation(Ionization):
+    def set_waveforms_acquisitions(self):
+        """
+        Add the simulation waveform to sequence_dict.
+
+        Note from Zihao(2024/07/26):
+        When stimulation tone is one of the readout tones, the update method of sequence_dict is required.
+        When stimulation tone start with "R" but not actually readout tones, it still works properly.
+        The only drawback is we might have useless bins under acquisitions['readout'].
+        """
+        Scan.set_waveforms_acquisitions(self, add_special_waveforms=False)
+
+        for tone in self.stimulation_tones:
+            acquisitions = {'stimulation': {'num_bins': self.num_bins, 'index': self.stimulation_acquisition_idx}}
+            self.sequences[tone]['acquisitions'].update(acquisitions)
+    
+            
+    def add_main(self):
+        tof_ns = round(self.cfg.variables['common/tof'] * 1e9)
+        step = self.gain_translator(self.x_step)
+
+        for tone in self.tones:
+            if tone in self.stimulation_tones:
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+
+                main = f"""
+                #-----------Main-----------
+                    set_freq         {freq}
+                    set_awg_off      R4,R4
+                    reset_ph
+                    upd_param        {tof_ns} 
+                    acquire          {self.stimulation_acquisition_idx},R1,{self.stimulation_pulse_length_ns-tof_ns}
+                    set_awg_off      0,0
+                    upd_param        {self.ringdown_time_ns}
+                    add              R4,{step},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {self.stimulation_pulse_length_ns + self.ringdown_time_ns}
+                """
+
+            self.sequences[tone]['program'] += main
+
