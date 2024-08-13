@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
+
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan, Scan2D
@@ -522,4 +523,111 @@ class IonizationSquareStimulation(Ionization):
                 """
 
             self.sequences[tone]['program'] += main
+
+
+class IonizationLengthScan(Scan2D, Ionization):
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 amp_start: float,
+                 amp_stop: float,
+                 amp_points: int,
+                 length_start: float, 
+                 length_stop: float, 
+                 length_points: int,
+                 stimulation_tones: str | list[str],
+                 ringdown_time: float, 
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None):
+        
+        self.stimulation_tones = make_it_list(stimulation_tones)
+        
+        super().__init__(cfg=cfg, 
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='IonizationLengthScan',
+                         x_plot_label='Stimulation Amplitude',
+                         x_plot_unit='arb',
+                         x_start=amp_start,
+                         x_stop=amp_stop,
+                         x_points=amp_points,
+                         y_plot_label='Stimulation Length', 
+                         y_plot_unit='ns', 
+                         y_start=length_start, 
+                         y_stop=length_stop, 
+                         y_points=length_points, 
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel)
+        
+        self.ringdown_time = ringdown_time
+        self.ringdown_time_ns = round(ringdown_time / u.ns)
+        
+        assert set(self.stimulation_tones).issubset(set(self.tones)), 'ILS: stimulation_tones do not exist.'
+        assert 0 < self.y_values < 65536 * u.ns, 'ILS: All stimulation length must be in range (0, 65536) ns.'
+
+
+    def set_waveforms_acquisitions(self):
+        """
+        Here we won't use any waveform or do any acquisiton for the stimulation tones.
+        """
+        super(Ionization, self).set_waveforms_acquisitions(add_special_waveforms=False)
+
+
+    def add_yinit(self):
+        """
+        Here R6 is the length of stimulation pulse.
+        """
+        super().add_yinit()
+        
+        for tone in self.tones:
+            self.sequences[tone]['program'] += f"""
+                    move             {round(self.y_start / u.ns)},R6
+            """
+
+
+    def add_main(self):
+        x_step = self.gain_translator(self.x_step)
+
+        for tone in self.tones:
+            if tone in self.stimulation_tones:
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+
+                main = f"""
+                #-----------Main-----------
+                    set_freq         {freq}
+                    set_awg_offs     R4,R4
+                    reset_ph
+                    upd_param        R6
+                    set_awg_offs     0,0
+                    upd_param        {self.ringdown_time_ns}
+                    add              R4,{x_step},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             R6
+                    wait             {self.ringdown_time_ns}
+                    add              R4,{x_step},R4
+                """
+
+            self.sequences[tone]['program'] += main
+
+
+    def add_yvalue(self):
+        for tone in self.tones:  
+            self.sequences[tone]['program'] += f"""
+                    add              R6,{round(self.y_step / u.ns)},R6
+            """
 

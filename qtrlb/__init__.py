@@ -16,7 +16,7 @@ from qtrlb.benchmark.randomized_benchmarking import RB1QB, RB1QBDetuningSweep, R
 from qtrlb.benchmark.state_tomography import StateTomography, SingleQuditStateTomography
 
 from qtrlb.projects.ionization import Ionization, IonizationRingDown, ACStarkSpectroscopy, \
-    IonizationSquareStimulation
+    IonizationSquareStimulation, IonizationLengthScan
 
 from qtrlb.processing.fitting import QuadModel, SinModel, ChevronModel, ResonatorHangerTransmissionModel
 
