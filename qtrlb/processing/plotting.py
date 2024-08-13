@@ -88,6 +88,13 @@ def get_color_list(name: str = 'wzh') -> np.ndarray:
             [mpl.colormaps['Set2'](i) for i in range(7)]
         ))
 
+    elif name == 'cQED':
+        # color list used by Prof. Alexandre Blais's group
+        color_list = mpl.colors.to_rgba_array(
+            ["#2F4858", "#A02829", "#33658A", "#E6823B", "#D34E5B", "#4A8C82", 
+             "#C0A184", "#86BBD8", "#6B92A4", "#CFB54E", "#97A169", "#C9A0DC"]
+        )
+
     else:
         raise ValueError(f'The color list name {name} is not recognized.')
 
