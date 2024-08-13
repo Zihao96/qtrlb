@@ -574,7 +574,8 @@ class IonizationLengthScan(Scan2D, Ionization):
         self.ringdown_time_ns = round(ringdown_time / u.ns)
         
         assert set(self.stimulation_tones).issubset(set(self.tones)), 'ILS: stimulation_tones do not exist.'
-        assert 0 < self.y_values < 65536 * u.ns, 'ILS: All stimulation length must be in range (0, 65536) ns.'
+        assert 0 < self.y_start < self.y_stop < 65536 * u.ns, \
+            'ILS: All stimulation length must be in range (0, 65536) ns.'
 
 
     def set_waveforms_acquisitions(self):
