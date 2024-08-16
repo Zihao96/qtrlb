@@ -118,7 +118,7 @@ class ExpSinModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=exp_sin_func, *args, **kwargs)
         
-    def guess(self, data, x):
+    def guess(self, data, x, **fitting_kwargs):
         sin_model = SineModel()
         sin_params = sin_model.guess(data, x=x)
         
@@ -136,7 +136,7 @@ class ExpModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=exp_func, *args, **kwargs)
         
-    def guess(self, data, x):
+    def guess(self, data, x, **fitting_kwargs):
         self.set_param_hint('A', value=np.max(data) - np.min(data))
         self.set_param_hint('C', value=np.mean(data))
         self.set_param_hint('tau', value=(x[-1] - x[0])/2, min=0)
@@ -149,7 +149,7 @@ class QuadModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=quad_func, *args, **kwargs)
         
-    def guess(self, data, x):
+    def guess(self, data, x, **fitting_kwargs):
         quad_model = QuadraticModel()
         quad_params = quad_model.guess(data, x=x)
         
@@ -169,7 +169,7 @@ class SinModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=sin_func, *args, **kwargs)
         
-    def guess(self, data, x):
+    def guess(self, data, x, **fitting_kwargs):
         sin_model = SineModel()
         sin_params = sin_model.guess(data, x=x)
         
@@ -186,7 +186,7 @@ class ExpModel2(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=exp_func2, *args, **kwargs)
         
-    def guess(self, data, x):
+    def guess(self, data, x, **fitting_kwargs):
         self.set_param_hint('A', value=np.max(data) - np.min(data))
         self.set_param_hint('C', value=np.min(data), min=0)
         self.set_param_hint('r', value=0.99, min=0)
@@ -210,7 +210,7 @@ class SpectroscopyModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=spectroscopy_func, *args, **kwargs)
     
-    def guess(self, data: np.ndarray, x: np.ndarray, t: float):
+    def guess(self, data: np.ndarray, x: np.ndarray, t: float, **fitting_kwargs):
         # We make 't' as a fixed parameter since we don't need it.
         # The initial guess for freq_offset is crucial. It highly decides the fitting result.
         # We need to consider the peak can be both upward and downward.
@@ -228,7 +228,7 @@ class ResonatorHangerTransmissionModel(Model):
     def __init__(self, *args, **kwargs):
         super().__init__(func=resonator_hanger_transmission_func, *args, **kwargs)
 
-    def guess(self, data: np.ndarray, x: np.ndarray):
+    def guess(self, data: np.ndarray, x: np.ndarray, **fitting_kwargs):
         amplitude = np.abs(data)
         phase = np.angle(data)
 
