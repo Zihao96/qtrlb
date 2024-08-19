@@ -230,12 +230,15 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         waveform_index = pulse_dict['waveform_index']
 
         # compensate for the phase accumulated while we were detuned
-        phase_offset = round((-1 * mod_freq_sign * pulse_dict['detuning'] * length) % 1e9)
-
+        phase_90 = round((-0.25 * 1e9 * mod_freq_sign) % 1e9)
+        phase_offset = round((-1 * mod_freq_sign * pulse_dict['detuning'] * length - phase_90) % 1e9)
+        #phase_offset = round((-1 * mod_freq_sign * pulse_dict['detuning'] * length) % 1e9)
+        
         # build the pulse_program
         pulse_program = f"""
                     set_freq         {freq}
                     set_awg_gain     {gain},{gain_drag}
+                    set_ph_delta     {phase_90}
                     play             {waveform_index},{waveform_index+1},{pulse_length_ns}
                     set_freq         {freq_nodetuning}
                     set_ph_delta     {phase_offset}
