@@ -66,7 +66,9 @@ class Scan:
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 1000,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = None,
+                 **attr_kwargs):
+
         self.cfg = cfg
         self.drive_qubits = make_it_list(drive_qubits)
         self.readout_tones = make_it_list(readout_tones)
@@ -96,6 +98,7 @@ class Scan:
         self.num_bins = self.n_seqloops * self.x_points
         self.jsons_path = os.path.join(self.cfg.working_dir, 'Jsons')
         
+        for key, value in attr_kwargs.items(): setattr(self, key, value)
         self.check_attribute()
         self.make_tones_list()
         
@@ -1073,7 +1076,8 @@ class Scan2D(Scan):
                  post_gate: dict[str: list[str]] = None,
                  n_seqloops: int = 10,
                  level_to_fit: int | list[int] = None,
-                 fitmodel: Model = None):
+                 fitmodel: Model = None,
+                 **attr_kwargs):
         
         Scan.__init__(self,
                       cfg=cfg, 
@@ -1091,25 +1095,31 @@ class Scan2D(Scan):
                       post_gate=post_gate,
                       n_seqloops=n_seqloops,
                       level_to_fit=level_to_fit,
-                      fitmodel=fitmodel)
-        
-        self.y_plot_label = y_plot_label
-        self.y_plot_unit = y_plot_unit
-        self.y_start = y_start
-        self.y_stop = y_stop
-        self.y_points = y_points
-        self.num_bins = self.n_seqloops * self.x_points * self.y_points
-        
-        assert hasattr(u, self.y_plot_unit), f'The plot unit {self.y_plot_unit} has not been defined.'
-        assert self.y_stop >= self.y_start, 'Please use ascending value for y_values.'
-        assert self.num_bins <= 131072, \
-            'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+                      fitmodel=fitmodel,
+                      y_plot_label=y_plot_label,
+                      y_plot_unit=y_plot_unit,
+                      y_start=y_start,
+                      y_stop=y_stop,
+                      y_points=y_points,
+                      num_bins=n_seqloops * x_points * y_points,
+                      **attr_kwargs)
          
         self.y_values = np.linspace(self.y_start, self.y_stop, self.y_points)
         self.y_step = (self.y_stop - self.y_start) / (self.y_points-1) if self.y_points != 1 else 0
         self.y_unit_value = getattr(u, self.y_plot_unit)
-            
-            
+    
+
+    def check_attribute(self):
+        """
+        Check the attributes for 2D Scan.
+        """
+        super().check_attribute()
+        assert hasattr(u, self.y_plot_unit), f'The plot unit {self.y_plot_unit} has not been defined.'
+        assert self.y_stop >= self.y_start, 'Please use ascending value for y_values.'
+        assert self.num_bins <= 131072, \
+            'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+    
+    
     def start_loop(self):
         """
         Sequence loop is the outermost loop, then y loop, and x loop is innermost.
