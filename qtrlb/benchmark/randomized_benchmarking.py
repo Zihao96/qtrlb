@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
 from abc import ABCMeta, abstractmethod
+
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.calibration.scan_classes import Spectroscopy
@@ -96,7 +97,7 @@ class RB1QBBase(Scan, metaclass=ABCMeta):
 
     @abstractmethod
     def add_main(self):
-        super().main()
+        super().add_main()
 
 
     def save_sequence(self, jsons_path: str = None):

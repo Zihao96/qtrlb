@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
 from matplotlib.offsetbox import AnchoredText
+
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.general_utils import make_it_list
 from qtrlb.calibration.calibration import Scan2D
 from qtrlb.calibration.scan_classes import RabiScan, LevelScan, Spectroscopy
 from qtrlb.processing.plotting import plot_IQ
-from qtrlb.processing.fitting import fit, QuadModel, SpectroscopyModel, ResonatorHangerTransmissionModel
+from qtrlb.processing.fitting import fit, QuadModel, ResonatorHangerTransmissionModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
                                         get_readout_fidelity, sort_points_by_distance
 
