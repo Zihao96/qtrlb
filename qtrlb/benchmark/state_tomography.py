@@ -42,11 +42,9 @@ class StateTomography(Scan):
             main_tones=main_tones,
             pre_gate=pre_gate,
             post_gate=post_gate,
-            n_seqloops=n_seqloops)
+            n_seqloops=n_seqloops,
+            gate_set=gate_set)
         
-        assert self.classification_enable, 'STomo: Please turn on classification.'
-        assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
-        self.gate_set = gate_set
         self.generate_tomography_gates()
 
         # Set attributes for making process_data, set_acquisition and plot_population work.
@@ -54,6 +52,12 @@ class StateTomography(Scan):
         self.x_points = self.n_tomography_gates
         self.num_bins = self.n_seqloops * self.x_points
         self.x_values = np.arange(self.x_points)
+
+
+    def check_attribute(self):
+        super().check_attribute()
+        assert self.classification_enable, 'STomo: Please turn on classification.'
+        assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
 
 
     def generate_tomography_gates(self) -> None:

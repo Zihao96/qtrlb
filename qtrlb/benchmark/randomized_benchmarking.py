@@ -224,12 +224,12 @@ class RB1QB(RB1QBBase):
             post_gate=post_gate,
             n_seqloops=n_seqloops,
             level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
+            fitmodel=fitmodel,
+            n_random=n_random,
+            remove_identity=remove_identity)
         
         assert self.x_step.is_integer(), 'All n_gates should be integer.'
         self.x_values = self.x_values.astype(int)
-        self.n_random = n_random
-        self.remove_identity = remove_identity
 
 
     def make_sequence(self):
@@ -369,11 +369,10 @@ class RB1QBDetuningSweep(RB1QBBase, Spectroscopy):
             post_gate=post_gate,
             n_seqloops=n_seqloops,
             level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
-        
-        self.n_gates = n_gates
-        self.n_random = n_random
-        self.remove_identity = remove_identity
+            fitmodel=fitmodel,
+            n_gates=n_gates,
+            n_random=n_random,
+            remove_identity=remove_identity)
 
 
     def make_sequence(self):
@@ -451,11 +450,10 @@ class RB1QBAmp180Sweep(RB1QBBase):
             post_gate=post_gate,
             n_seqloops=n_seqloops,
             level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
-        
-        self.n_gates = n_gates
-        self.n_random = n_random
-        self.remove_identity = remove_identity
+            fitmodel=fitmodel,
+            n_gates=n_gates,
+            n_random=n_random,
+            remove_identity=remove_identity)
 
 
     def make_sequence(self):
@@ -556,11 +554,10 @@ class RB1QBAmp90Sweep(RB1QBBase):
             post_gate=post_gate,
             n_seqloops=n_seqloops,
             level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
-        
-        self.n_gates = n_gates
-        self.n_random = n_random
-        self.remove_identity = remove_identity
+            fitmodel=fitmodel,
+            n_gates=n_gates,
+            n_random=n_random,
+            remove_identity=remove_identity)
 
 
     def make_sequence(self):
@@ -677,11 +674,10 @@ class RB1QBDRAGWeightSweep(RB1QBBase):
             post_gate=post_gate,
             n_seqloops=n_seqloops,
             level_to_fit=level_to_fit,
-            fitmodel=fitmodel)
-        
-        self.n_gates = n_gates
-        self.n_random = n_random
-        self.remove_identity = remove_identity
+            fitmodel=fitmodel,
+            n_gates=n_gates,
+            n_random=n_random,
+            remove_identity=remove_identity)
 
 
     def make_sequence(self):

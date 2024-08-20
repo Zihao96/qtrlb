@@ -58,9 +58,8 @@ class ChevronScan(Scan2D, RabiScan):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)
-        
-        self.init_waveform_index = init_waveform_idx
+                         fitmodel=fitmodel,
+                         init_waveform_idx=init_waveform_idx)
         
         
     def add_yinit(self):
@@ -140,9 +139,8 @@ class AmplitudeDetuningScan(Scan2D, Spectroscopy):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)
-        
-        self.error_amplification_factor = error_amplification_factor
+                         fitmodel=fitmodel,
+                         error_amplification_factor=error_amplification_factor)
 
 
     def add_yinit(self):
@@ -406,9 +404,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)  
-        
-        self.refine_mixture_fitting = refine_mixture_fitting
+                         fitmodel=fitmodel,
+                         refine_mixture_fitting=refine_mixture_fitting)
 
 
     def add_yinit(self):
@@ -559,9 +556,8 @@ class ReadoutAmplitudeScan(ReadoutTemplateScan):
                          post_gate=post_gate,
                          n_seqloops=n_seqloops,
                          level_to_fit=level_to_fit,
-                         fitmodel=fitmodel)
-
-        self.refine_mixture_fitting = refine_mixture_fitting  
+                         fitmodel=fitmodel,
+                         refine_mixture_fitting=refine_mixture_fitting)
 
 
     def add_yinit(self):
@@ -790,9 +786,12 @@ class DRAGWeightScan(Scan2D):
                          post_gate=post_gate, 
                          n_seqloops=n_seqloops, 
                          level_to_fit=level_to_fit, 
-                         fitmodel=fitmodel)
+                         fitmodel=fitmodel,
+                         error_amplification_factor=error_amplification_factor)
         
-        self.error_amplification_factor = error_amplification_factor
+
+    def check_attribute(self):
+        super().check_attribute()
         for tone in self.main_tones:
             assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_start < 1, 'Start value exceed range.'
             assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_stop < 1, 'Stop value exceed range.'
