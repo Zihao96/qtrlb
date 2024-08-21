@@ -26,11 +26,6 @@ class IonizationBase(Scan, metaclass=ABCMeta):
         super().__init__(*args, **kwargs)
 
 
-    def check_attribute(self):
-        super().check_attribute()
-        assert set(self.stimulation_tones).issubset(set(self.tones)), 'INZBase: stimulation_tones do not exist.'
-
-
     def make_tones_list(self):
         """
         Add stimulation tones to self.tones.
