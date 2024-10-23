@@ -242,7 +242,7 @@ class RabiScan(Scan):
                 pulse_length_ns = round(pulse_length * 1e9)
                 if pulse_length_ns == 0: continue
             
-                index = i + self.init_waveform_index
+                index = i + self.init_waveform_idx
                 waveforms[f'{index}'] = {"data" : get_waveform(length=pulse_length_ns, 
                                                                shape=self.cfg[f'variables.{tone}/pulse_shape']),
                                          "index" : index}
@@ -269,7 +269,7 @@ class RabiScan(Scan):
         start_ns = round(self.x_start * 1e9)
         xinit = f"""
                     move             {start_ns},R4
-                    move             {self.init_waveform_index},R11
+                    move             {self.init_waveform_idx},R11
         """
         for tone in self.tones: self.sequences[tone]['program'] += xinit
         
