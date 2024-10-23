@@ -1,9 +1,11 @@
 import numpy as np
 from typing import Any
-from qtrlb.instruments.BaseInstrument import VisaInstrument
+from qtrlb.instruments.base import VISAInstrument
 
 
-class KeysightVNA_E5080B(VisaInstrument):
+
+    
+class Keysight_E5080B(VISAInstrument):
     """ Python driver for Keysight ENA VNA E5080B.
     """
 
@@ -15,7 +17,6 @@ class KeysightVNA_E5080B(VisaInstrument):
         'create_display':'DISP:WIND:STAT',
         'create_measurment': 'CALC:MEAS:DEF',
         'display_measurment':'DISP:MEAS:FEED',
-
         'read_measurment':'CALC:PAR:CAT:EXT',
         'read_window': 'DISP:CAT',
         'measurment_title':'DISP:MEAS1:TITL',
@@ -43,7 +44,6 @@ class KeysightVNA_E5080B(VisaInstrument):
         'x_data': "CALC:MEAS:X",
         'y_data': "CALC:MEAS:DATA:FDATA",
         'IQ_data': "CALC:MEAS:DATA:SDATA",
-
         'res_bw': 'SENS:SA:BANDwidth:RESolution',
         'vid_bw': 'SENS:SA:BANDwidth:VID',
         'vid_bw_auto': 'SENS:SA:BAND:VID:AUTO',
@@ -55,7 +55,7 @@ class KeysightVNA_E5080B(VisaInstrument):
     }
 
 
-    def get_marker(self, key: str, marker: int | str='1', *args: tuple[str]) -> str:
+    def get_marker(self, marker: int | str, key: str, *args: tuple[str]) -> str:
         """
         Get the value of the given marker parameter (key) from instrument.
         """
@@ -63,7 +63,7 @@ class KeysightVNA_E5080B(VisaInstrument):
         return self.inst.query(message)
 
 
-    def set_marker(self, key: str, value: Any = '',  marker: int | str='1',*args: tuple[str]) -> None:
+    def set_marker(self, marker: int | str, key: str, value: Any = '', *args: tuple[str]) -> None:
         """
         Set the value of the given marker parameter (key) from instrument.
         """
@@ -74,7 +74,7 @@ class KeysightVNA_E5080B(VisaInstrument):
     @property
     def avg_completed(self):
         """
-        Check whether the opeation, especially the averaging, has completed.
+        Check whether the averaging has completed.
         """
         state = False if self.get('avg_state') == '0' else True
         return state
@@ -82,7 +82,7 @@ class KeysightVNA_E5080B(VisaInstrument):
 
     def create_measurement(self, format: str = 'S21'):
         """
-        Create a measurement
+        Create a measurement.
         """
         self.set('preset')
         self.set('create_display', '1')

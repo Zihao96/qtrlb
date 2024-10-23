@@ -1,7 +1,9 @@
-from qtrlb.instruments.BaseInstrument import SerialInstrument
+from qtrlb.instruments.base import SerialInstrument
 
 
-class DSISignalGenerator_SG22000PRO(SerialInstrument):
+
+
+class DSI_SG22000PRO(SerialInstrument):
     """ Python driver for DS Instrument Signal Generator SG22000PRO.
     """
 

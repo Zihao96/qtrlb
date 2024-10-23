@@ -7,7 +7,7 @@ import qtrlb.utils.units as u
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from qtrlb.config.config import MetaManager
-from qtrlb.utils.N9010A import N9010A
+from qtrlb.instruments.keysight_N9010A import Keysight_N9010A
 
 
 
@@ -205,7 +205,7 @@ class MixerCorrection:
 
 
 class MixerAutoCorrection(MixerCorrection):
-    """ Automate mixer correction by using Spectrum Analyzer N9010A.
+    """ Automate mixer correction by using Signal Analyzer N9010A.
         The sb in code refer to the mirrored sideband in the signal.
         It's not the one we want to keep.
     
@@ -217,7 +217,7 @@ class MixerAutoCorrection(MixerCorrection):
             waveform_length: Integer between [4,16384]. Don't change.
     """
     def __init__(self, 
-                 sa: N9010A,
+                 sa: Keysight_N9010A,
                  cfg: MetaManager, 
                  tone: str,
                  amp: float = None,

@@ -2,16 +2,15 @@
 This file was originally written by Maddy Ramsey when she was a REU student in BlokLab in 2023 summer.
 I rewrite it later but keep her idea and main effort on construct SCPI command.
 """
-
-
-import pyvisa
 import numpy as np
 from typing import Any
+from qtrlb.instruments.base import VISAInstrument
 
 
-class N9010A:
+
+
+class Keysight_N9010A(VISAInstrument):
     """ Python driver for Keysight EXA Signal Analyzer N9010A.
-        It's designed to automate mixer correction.
     """
 
     command_dict = { 
@@ -46,28 +45,9 @@ class N9010A:
         'all_off': ':AOFF'
     }
 
-    def __init__(self, ip_address: str = '192.168.1.14'):
-        self.ip_address = ip_address
-        self.resource_name = f'TCPIP0::{self.ip_address}::inst0::INSTR'
-        self.inst = pyvisa.ResourceManager().open_resource(self.resource_name)
 
-
-    def get(self, key: str, *args: tuple[str]) -> str | np.ndarray:
-        """
-        Get the value of the given setting parameter (key) from instrument.
-        Normally it will return to the str, unless we try to get data.
-        """
-        message = ' '.join([f'{self.command_dict[key]}?', *args])
-        return self.inst.query(message)
-
-
-    def set(self, key: str, value: Any = '', *args: tuple[str]) -> None:
-        """
-        Set the value of the given setting parameter (key) to instrument.
-        Normally it will return to the str, unless we try to get data.
-        """
-        message = ' '.join([f'{self.command_dict[key]}', str(value), *args])
-        self.inst.write(message)
+    def __init__(self, ip_address: str = '192.168.1.14', **kwargs):
+        super().__init__(ip_address, **kwargs)
 
 
     def get_marker(self, marker: int | str, key: str, *args: tuple[str]) -> str:
@@ -96,8 +76,11 @@ class N9010A:
 
     @property
     def data(self):
+        """
+        Date acquired by the instrument. x is frequency, y is power.
+        """
         data_str = self.get('data')
         val_array = np.genfromtxt([data_str], delimiter=",")
-        x_vals, y_vals = val_array[0::2], val_array[1::2]
-        return x_vals, y_vals
+        x, y = val_array[0::2], val_array[1::2]
+        return x, y
 

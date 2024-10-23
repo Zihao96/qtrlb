@@ -28,18 +28,20 @@ from qtrlb.config.data_manager import DataManager
 from qtrlb.config.gate_manager import GateManager
 from qtrlb.config.config import Config, MetaManager
 
-from qtrlb.instruments.N9010A import N9010A
+from qtrlb.instruments.base import VISAInstrument, SerialInstrument
+from qtrlb.instruments.keysight_N9010A import Keysight_N9010A
+from qtrlb.instruments.keysight_E5080B import Keysight_E5080B
+from qtrlb.instruments.dsi_SG22000PRO import DSI_SG22000PRO
 
 
 
 
 def begin_measurement_session(working_dir: str, 
                               variable_suffix: str = '',
-                              test_mode: bool = False):
+                              test_mode: bool = False) -> MetaManager:
     """
     Instantiate all managers along with MetaManager, then load them.
     Return the instance of MetaManager.
-    Please do not place this function and all import above at same file as MetaManager (circular import).
     """
     yamls_path = os.path.join(working_dir, 'Yamls')
     
