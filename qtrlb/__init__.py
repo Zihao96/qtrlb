@@ -28,7 +28,7 @@ from qtrlb.config.data_manager import DataManager
 from qtrlb.config.gate_manager import GateManager
 from qtrlb.config.config import Config, MetaManager
 
-from qtrlb.utils.N9010A import N9010A
+from qtrlb.instruments.N9010A import N9010A
 
 
 
