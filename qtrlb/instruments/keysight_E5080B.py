@@ -76,7 +76,7 @@ class Keysight_E5080B(VISAInstrument):
         """
         Check whether the averaging has completed.
         """
-        state = False if self.get('avg_state') == '0' else True
+        state = False if self.get('avg_state') == '+0\n' else True
         return state
     
 
