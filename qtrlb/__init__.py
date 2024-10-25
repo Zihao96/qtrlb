@@ -21,17 +21,8 @@ from qtrlb.projects.ionization import IonizationAmpScan, IonizationAmpSquarePuls
 
 from qtrlb.processing.fitting import QuadModel, SinModel, ChevronModel, ResonatorHangerTransmissionModel
 
-from qtrlb.config.variable_manager import VariableManager
-from qtrlb.config.DAC_manager import DACManager
-from qtrlb.config.process_manager import ProcessManager
-from qtrlb.config.data_manager import DataManager
-from qtrlb.config.gate_manager import GateManager
-from qtrlb.config.config import Config, MetaManager
-
-from qtrlb.instruments.base import VISAInstrument, SerialInstrument
-from qtrlb.instruments.keysight_N9010A import Keysight_N9010A
-from qtrlb.instruments.keysight_E5080B import Keysight_E5080B
-from qtrlb.instruments.dsi_SG22000PRO import DSI_SG22000PRO
+from qtrlb.config import *
+from qtrlb.instruments import *
 
 
 
@@ -49,14 +40,18 @@ def begin_measurement_session(working_dir: str,
     dacman = DACManager(yamls_path, varman, test_mode)
     processman = ProcessManager(yamls_path, varman)
     dataman = DataManager(yamls_path, varman)
+    instman = InstrumentManager(yamls_path, varman, test_mode)
     gateman = GateManager(yamls_path, varman)
     
-    cfg = MetaManager(manager_dict={
-                        'variables':varman,
-                        'DAC':dacman,
-                        'process':processman,
-                        'data':dataman,
-                        'gates':gateman
-                        },
-                      working_dir=working_dir)
+    cfg = MetaManager(
+        manager_dict={
+            'variables': varman,
+            'DAC': dacman,
+            'process': processman,
+            'data': dataman,
+            'instruments': instman,           
+            'gates': gateman
+        },
+        working_dir=working_dir
+    )
     return cfg
