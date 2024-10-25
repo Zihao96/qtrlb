@@ -2,18 +2,20 @@ import os
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.offsetbox import AnchoredText
 from lmfit import Model
+from matplotlib.offsetbox import AnchoredText
+
 import qtrlb.utils.units as u
 from qtrlb.config.config import MetaManager
 from qtrlb.calibration.calibration import Scan
 from qtrlb.utils.waveforms import get_waveform
-from qtrlb.utils.general_utils import make_it_list
+from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel, SpectroscopyModel
 from qtrlb.processing.processing import rotate_IQ, gmm_fit, gmm_predict, normalize_population, \
     get_readout_fidelity, plot_corr_matrix, correct_population, two_tone_predict, two_tone_normalize, \
     multitone_predict_sequential, multitone_predict_mask, multitone_normalize, sort_points_by_distance, \
     get_QNDness_matrix, plot_QNDness_matrix
-from qtrlb.processing.fitting import SinModel, ExpSinModel, ExpModel, SpectroscopyModel
+
+
 
 
 class DriveAmplitudeScan(Scan):

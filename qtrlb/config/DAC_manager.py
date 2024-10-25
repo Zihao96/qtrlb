@@ -35,8 +35,6 @@ class DACManager(Config):
         else:
             self.qblox = Cluster(self['name'], self['address']) 
             self.reset()
-            self.set_automated_control(self['automated_control'])
-            self.set_fan_speed(self['fan_speed'])
 
         self.load()
     
