@@ -14,6 +14,7 @@ class Keysight_N9010A(VISAInstrument):
     """
 
     command_dict = { 
+        'idn': '*IDN',
         'freq_span': 'FREQuency:SPAN',
         'freq_span_prev': 'FREQuency:SPAN:PREVious',
         'freq_center': 'FREQuency:CENTer',
@@ -44,10 +45,6 @@ class Keysight_N9010A(VISAInstrument):
         'OFF': ':MODE OFF',
         'all_off': ':AOFF'
     }
-
-
-    def __init__(self, ip_address: str = '192.168.1.14', **kwargs):
-        super().__init__(ip_address, **kwargs)
 
 
     def get_marker(self, marker: int | str, key: str, *args: tuple[str]) -> str:
