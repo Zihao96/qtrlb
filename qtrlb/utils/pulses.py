@@ -226,7 +226,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         freq_nodetuning = round(4 * pulse_dict['mod_freq'])
         freq = round(4 * (pulse_dict['mod_freq'] + mod_freq_sign * pulse_dict['detuning']))
         gain = round(pulse_dict['amp_reference'] * pulse_dict['amp_scale_factor'] * 32768)
-        gain_drag = -round(0.5 * pulse_dict['DRAG_weight'] * gain)
+        gain_drag = round(pulse_dict['DRAG_weight'] * gain)
         waveform_index = pulse_dict['waveform_index']
 
         # compensate for the phase accumulated while we were detuned
