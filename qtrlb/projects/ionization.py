@@ -122,7 +122,7 @@ class IonizationAmpScan(IonizationBase):
                     length=self.stimulation_pulse_length_ns, 
                     shape=self.cfg[f'variables.{tone}/pulse_shape']
                 )
-                
+
             waveforms = {'stimulation': {'data': self.stimulation_waveform, 'index': self.stimulation_waveform_idx}}
             acquisitions = {'stimulation': {'num_bins': self.num_bins, 'index': self.stimulation_acquisition_idx}}
             self.sequences[tone]['waveforms'].update(waveforms)
@@ -690,7 +690,8 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = SpectroscopyModel,
                  stimulation_waveform: list = None,
-                 stimulation_waveform_idx: int = 1):
+                 stimulation_waveform_idx: int = 1,
+                 stimulation_acquisition_idx: int = 2):
         
         super().__init__(cfg=cfg, 
                          drive_qubits=drive_qubits,
@@ -718,6 +719,7 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                          ringdown_time=ringdown_time,
                          stimulation_waveform=stimulation_waveform,
                          stimulation_waveform_idx=stimulation_waveform_idx,
+                         stimulation_acquisition_idx=stimulation_acquisition_idx,
                          stimulation_pulse_length_ns=round(stimulation_pulse_length / u.ns),
                          ringdown_time_ns=round(ringdown_time / u.ns))
 
