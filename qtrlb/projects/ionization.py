@@ -765,7 +765,6 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                     set_awg_offs     {amp},{amp}
                     reset_ph
                     play             {self.stimulation_waveform_idx},{self.stimulation_waveform_idx},{length} 
-                    add              R4,{step},R4
                 """
 
             elif tone in self.main_tones:
