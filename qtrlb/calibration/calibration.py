@@ -84,8 +84,8 @@ class Scan:
         self.post_gate = post_gate if post_gate is not None else {}
         self.n_seqloops = n_seqloops
         self.level_to_fit = make_it_list(level_to_fit, 
-                                              [self.cfg[f'variables.{rr}/lowest_readout_levels'] 
-                                               for rr in self.readout_resonators])
+                                         [self.cfg[f'variables.{rr}/lowest_readout_levels'] 
+                                          for rr in self.readout_resonators])
         self.fitmodel = fitmodel
         
         self.n_runs = 0
@@ -153,8 +153,6 @@ class Scan:
         self.fit_data()
         self.save_data()
         self.plot()
-        self.n_runs += 1
-        self.measurements.append(self.measurement)
 
 
     def check_attribute(self):
@@ -339,6 +337,7 @@ class Scan:
                                         'index': 0},
                              '1qDRAG': {'data': get_waveform(length, f'{shape}_derivative', **waveform_kwargs), 
                                         'index': 1}}
+                weights = {}
                 acquisitions = {}
             
             elif tone.startswith('R'):
@@ -347,14 +346,14 @@ class Scan:
 
                 waveforms = {'RO': {'data': get_waveform(length, shape, **waveform_kwargs), 
                                     'index': 0}}
-                
+                weights = {}
                 acquisitions = {'readout': {'num_bins': self.num_bins, 'index': 0}}
                 if self.heralding_enable: acquisitions['heralding'] = {'num_bins': self.num_bins, 'index': 1}
             
             
             self.sequences[tone]['waveforms'] = waveforms
-            self.sequences[tone]['weights'] = {}
-            self.sequences[tone]['acquisitions'] = acquisitions      
+            self.sequences[tone]['weights'] = weights
+            self.sequences[tone]['acquisitions'] = acquisitions
 
         if add_special_waveforms: self.add_special_waveforms()
 
@@ -724,6 +723,9 @@ class Scan:
         for i in range(self.n_pyloops):
             self.cfg.DAC.start_sequencer(self.tones, self.readout_tones, self.measurement, self.jsons_path, keep_raw)
             print(f'Scan: Pyloop {i} finished!')
+
+        self.n_runs += 1
+        self.measurements.append(self.measurement)
 
 
     def save_data(self):
