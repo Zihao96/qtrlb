@@ -97,6 +97,9 @@ class Scan:
         self.x_step = (self.x_stop - self.x_start) / (self.x_points-1) if self.x_points != 1 else 0 
         self.num_bins = self.n_seqloops * self.x_points
         self.jsons_path = os.path.join(self.cfg.working_dir, 'Jsons')
+        self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
+        self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
+        # Last two lines just for convenience.
         
         for key, value in attr_kwargs.items(): setattr(self, key, value)
         self.check_attribute()
@@ -107,9 +110,6 @@ class Scan:
                               for tone in self.main_tones if tone.startswith('Q')}
         self.readout_gate = {rr: ['RO_' + '_'.join(tone.split('/')[1] for tone in find_subtones(rr, self.readout_tones))] 
                              for rr in self.readout_resonators}
-        self.qubit_pulse_length_ns = round(self.cfg['variables.common/qubit_pulse_length'] * 1e9)
-        self.resonator_pulse_length_ns = round(self.cfg['variables.common/resonator_pulse_length'] * 1e9)
-        # Last two lines just for convenience.
 
         
     def run(self, 
