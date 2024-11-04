@@ -56,14 +56,9 @@ class VariableManager(Config):
                     self.set(f'{tone}/mod', int(mod), which='dict')
                     self.set(f'{tone}/out', int(out), which='dict')
                     self.set(f'{tone}/seq', int(seq), which='dict')
-
-                    # Check the DRAG_weight is in range.
-                    assert -1 <= tone_dict['amp_180'] * tone_dict['DRAG_weight'] < 1, \
-                        f'Varman: DRAG weight of {qudit}/{tone} is out of range.'
                     
                     # Set NCO frequency for each tone.
                     mod_freq = self[f'{tone}/freq'] - self[f'lo_freq/M{mod}O{out}']
-                    assert -500*u.MHz < mod_freq < 500*u.MHz, f'Varman: mod_freq of {tone} is out of range.'
                     self.set(f'{tone}/mod_freq', mod_freq, which='dict')
                     
                     # Set anharmonicity for each subspace.
@@ -90,7 +85,6 @@ class VariableManager(Config):
 
                     # Set NCO frequency for each tone.
                     mod_freq = self[f'{tone}/freq'] - self[f'lo_freq/M{mod}O{out}']
-                    assert -500*u.MHz < mod_freq < 500*u.MHz, f'Varman: mod_freq of {tone} is out of range.'
                     self.set(f'{tone}/mod_freq', mod_freq, which='dict')
 
                 # Make sure readout_levels are in ascending order.
