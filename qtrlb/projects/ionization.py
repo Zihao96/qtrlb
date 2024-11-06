@@ -726,7 +726,7 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
 
     def check_attribute(self):
         super().check_attribute()
-        assert 0 <= self.y_start < self.y_stop < self.stimulation_pulse_length_ns + self.ringdown_time_ns, \
+        assert 0 <= self.y_start < self.y_stop < self.stimulation_pulse_length + self.ringdown_time, \
             "IDS: All delay time must be in range [0, stimulation_pulse_length + ringdown_time) ns."
     
 
@@ -762,7 +762,7 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                 main = f"""
                 #-----------Main-----------
                     set_freq         {freq}
-                    set_awg_offs     {amp},{amp}
+                    set_awg_gain     {amp},{amp}
                     reset_ph
                     play             {self.stimulation_waveform_idx},{self.stimulation_waveform_idx},{length} 
                 """
