@@ -70,7 +70,7 @@ class IonizationAmpScan(IonizationBase):
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = None,
                  stimulation_waveform: list = None,
-                 stimulation_waveform_idx: int = 1,
+                 stimulation_waveform_idx: int = 2,
                  stimulation_acquisition_idx: int = 2):
 
         super().__init__(cfg=cfg,
@@ -97,12 +97,6 @@ class IonizationAmpScan(IonizationBase):
                          stimulation_acquisition_idx=stimulation_acquisition_idx,
                          stimulation_pulse_length_ns=round(stimulation_pulse_length / u.ns),
                          ringdown_time_ns=round(ringdown_time / u.ns))
-        
-
-    def check_attribute(self):
-        super().check_attribute()
-        assert self.resonator_pulse_length_ns + self.stimulation_pulse_length_ns <= 16384, \
-            f'Inz: The stimulation + readout pulse cannot exceed 16384ns when using "R#" as stimulation tone.'
 
 
     def set_waveforms_acquisitions(self):
@@ -690,7 +684,7 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                  level_to_fit: int | list[int] = None,
                  fitmodel: Model = SpectroscopyModel,
                  stimulation_waveform: list = None,
-                 stimulation_waveform_idx: int = 1,
+                 stimulation_waveform_idx: int = 2,
                  stimulation_acquisition_idx: int = 2):
         
         super().__init__(cfg=cfg, 
