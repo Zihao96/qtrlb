@@ -882,3 +882,120 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                 plt.close('all')
 
 
+
+class IonizationSteadyState(IonizationBase):
+    """
+    Sweep the length of steady state drive in a typical ionization experiment:
+    state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 length_start: float,
+                 length_stop: float,
+                 length_points: int,
+                 stimulation_tones: str | list[str],
+                 stimulation_amp: float,
+                 linewidth: float,
+                 ramp_time: float,
+                 ringdown_time: float, 
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='IonizationSteadyState',
+                         x_plot_label='Drive length',
+                         x_plot_unit='us',
+                         x_start=length_start,
+                         x_stop=length_stop,
+                         x_points=length_points,
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel,
+                         stimulation_tones=make_it_list(stimulation_tones),
+                         stimulation_amp=stimulation_amp,
+                         linewidth=linewidth,
+                         ramp_time=ramp_time,
+                         ramp_time_ns=round(ramp_time / u.ns),
+                         ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+                         ringdown_time=ringdown_time,
+                         ringdown_time_ns=round(ringdown_time / u.ns))
+
+
+    def check_attribute(self):
+        super().check_attribute()
+        assert 8 * u.ns < self.x_start < self.x_stop < 65536 * u.ns, \
+            'ISS: All drive length must be in range (8, 65536) ns.'
+
+
+    def add_xinit(self):
+        """
+        Here R4 is the drive length.
+        """
+        super().add_xinit()
+        for tone in self.tones:
+            self.sequences[tone]['program'] += f"""
+                    move             {round(self.x_start * 1e9)},R4
+            """
+
+    
+    def add_main(self):
+        step_ns = round(self.x_step * 1e9)
+
+        for tone in self.tones:
+            if tone in self.stimulation_tones:
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+
+                # Calculate the three amplitude.
+                waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
+                up, hold, down = np.round(waveform * self.stimulation_amp * 32768).astype(int)
+
+                main = f"""
+                #-----------Main-----------
+                    sub              R4,8,R11
+                    set_freq         {freq}
+
+                    # Rampup
+                    set_awg_offs     {up},{up}
+                    reset_ph
+                    upd_param        {self.ramp_time_ns} 
+
+                    # Steady state
+                    set_awg_offs     {hold},{hold}
+                    upd_param        8
+                    wait             R11
+
+                    # Reset ringdown
+                    set_awg_offs     {down},{down}
+                    upd_param        {self.ramp_time_ns}
+
+                    # Free ringdown
+                    set_awg_offs     0,0
+                    upd_param        {self.ringdown_time_ns}
+                    add              R4,{step_ns},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {self.ramp_time_ns}
+                    wait             R4
+                    wait             {self.ramp_time_ns}
+                    wait             {self.ringdown_time_ns}
+                    add              R4,{step_ns},R4
+                """
+
+            self.sequences[tone]['program'] += main
+
