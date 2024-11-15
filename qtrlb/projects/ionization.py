@@ -1074,7 +1074,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy, Scan2D):
 
     def check_attribute(self):
         super(IonizationDelaySpectroscopy, self).check_attribute()
-        assert 0 <= self.y_start < self.y_stop < self.steady_state_length + 2*self.ramp_time + self.ringdown_time, \
+        assert 0 <= self.y_start < self.y_stop < self.steady_state_length + 2 * self.ramp_time + self.ringdown_time, \
             "ISSS: All delay time must be in range [0, steady_state_length + 2*ramp_time + ringdown_time) ns."
 
 
@@ -1085,7 +1085,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy, Scan2D):
         So the sequence is R6--Spectroscopy--R12.
         """        
         for tone in self.tones:
-            length = self.stimulation_pulse_length_ns + 2 * self.ramp_time_ns + self.ringdown_time_ns
+            length = self.steady_state_length_ns + 2 * self.ramp_time_ns + self.ringdown_time_ns
 
             if tone in self.stimulation_tones:
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
