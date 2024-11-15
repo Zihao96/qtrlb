@@ -887,6 +887,7 @@ class IonizationSteadyState(IonizationBase):
     """
     Sweep the length of steady state drive in a typical ionization experiment:
     state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
+    This class allows detuned step-wise stimulation and does not allow acquisition.
     """
     def __init__(self,
                  cfg: MetaManager, 
@@ -896,10 +897,10 @@ class IonizationSteadyState(IonizationBase):
                  length_stop: float,
                  length_points: int,
                  stimulation_tones: str | list[str],
-                 stimulation_amp: float,
                  linewidth: float,
                  ramp_time: float,
-                 ringdown_time: float, 
+                 ringdown_time: float,
+                 detuning_ratio: float = 0.0,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
@@ -925,13 +926,13 @@ class IonizationSteadyState(IonizationBase):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel,
                          stimulation_tones=make_it_list(stimulation_tones),
-                         stimulation_amp=stimulation_amp,
                          linewidth=linewidth,
                          ramp_time=ramp_time,
                          ramp_time_ns=round(ramp_time / u.ns),
                          ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
                          ringdown_time=ringdown_time,
-                         ringdown_time_ns=round(ringdown_time / u.ns))
+                         ringdown_time_ns=round(ringdown_time / u.ns),
+                         detuning_ratio=detuning_ratio)
 
 
     def check_attribute(self):
@@ -957,10 +958,13 @@ class IonizationSteadyState(IonizationBase):
         for tone in self.tones:
             if tone in self.stimulation_tones:
                 freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+                amp = self.cfg.variables[f'{tone}/amp']
+                detuning = self.detuning_ratio * amp**2
+                freq_detuned = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
 
                 # Calculate the three amplitude.
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
-                up, hold, down = np.round(waveform * self.stimulation_amp * 32768).astype(int)
+                up, hold, down = np.round(waveform * amp * 32768).astype(int)
 
                 main = f"""
                 #-----------Main-----------
@@ -973,6 +977,7 @@ class IonizationSteadyState(IonizationBase):
                     upd_param        {self.ramp_time_ns} 
 
                     # Steady state
+                    set_freq         {freq_detuned}
                     set_awg_offs     {hold},{hold}
                     upd_param        8
                     wait             R11
@@ -995,6 +1000,148 @@ class IonizationSteadyState(IonizationBase):
                     wait             {self.ramp_time_ns}
                     wait             {self.ringdown_time_ns}
                     add              R4,{step_ns},R4
+                """
+
+            self.sequences[tone]['program'] += main
+
+
+class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy, Scan2D):
+    """
+    Sweep the spectroscopy frequency (x) and delay time (y) in a steady-state ionization experiment:
+    state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
+    The spectroscopy pulse is added during stimulation and free_ringdown.
+    This class allows detuned step-wise stimulation and does not allow acquisition.
+    The __init__ and check_attribute will use parents started from Scan2D.
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int,
+                 time_start: float,
+                 time_stop: float,
+                 time_points: int,
+                 stimulation_tones: str | list[str],
+                 steady_state_length: float,
+                 linewidth: float,
+                 ramp_time: float,
+                 ringdown_time: float,
+                 detuning_ratio: float = 0.0,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = SpectroscopyModel):
+        
+        super(IonizationDelaySpectroscopy, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits,
+            readout_tones=readout_tones,
+            scan_name='IonizationSteadyStateSpectroscopy',
+            x_plot_label='Pulse Detuning',
+            x_plot_unit='MHz',
+            x_start=detuning_start,
+            x_stop=detuning_stop,
+            x_points=detuning_points,
+            y_plot_label='Time', 
+            y_plot_unit='us', 
+            y_start=time_start, 
+            y_stop=time_stop, 
+            y_points=time_points, 
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel,
+            stimulation_tones=make_it_list(stimulation_tones),
+            steady_state_length=steady_state_length,
+            steady_state_length_ns=round(steady_state_length / u.ns),
+            linewidth=linewidth,
+            ramp_time=ramp_time,
+            ramp_time_ns=round(ramp_time / u.ns),
+            ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+            ringdown_time=ringdown_time,
+            ringdown_time_ns=round(ringdown_time / u.ns),
+            detuning_ratio=detuning_ratio
+        )
+        
+
+    def check_attribute(self):
+        super(IonizationDelaySpectroscopy, self).check_attribute()
+        assert 0 <= self.y_start < self.y_stop < self.steady_state_length + 2*self.ramp_time + self.ringdown_time, \
+            "ISSS: All delay time must be in range [0, steady_state_length + 2*ramp_time + ringdown_time) ns."
+
+
+    def add_main(self):
+        """
+        Here R11 is the total wait time excluding the length of the spectroscopy pulse.
+        R12 is the wait time after the end of the spectroscopy pulse. R12 = R11 - R6.
+        So the sequence is R6--Spectroscopy--R12.
+        """        
+        for tone in self.tones:
+            length = self.stimulation_pulse_length_ns + 2 * self.ramp_time_ns + self.ringdown_time_ns
+
+            if tone in self.stimulation_tones:
+                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
+                amp = self.cfg.variables[f'{tone}/amp']
+                detuning = self.detuning_ratio * amp**2
+                freq_detuned = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
+
+                # Calculate the three amplitude.
+                waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
+                up, hold, down = np.round(waveform * amp * 32768).astype(int)
+
+                main = f"""
+                #-----------Main-----------
+                    set_freq         {freq}
+
+                    # Rampup
+                    set_awg_offs     {up},{up}
+                    reset_ph
+                    upd_param        {self.ramp_time_ns} 
+
+                    # Steady state
+                    set_freq         {freq_detuned}
+                    set_awg_offs     {hold},{hold}
+                    upd_param        {self.steady_state_length_ns}
+
+                    # Reset ringdown
+                    set_awg_offs     {down},{down}
+                    upd_param        {self.ramp_time_ns}
+
+                    # Free ringdown
+                    set_awg_offs     0,0
+                    upd_param        {self.ringdown_time_ns}
+                """
+
+            elif tone in self.main_tones:
+                gain = round(self.cfg.variables[f'{tone}']['amp_180'] * 32768)
+                gain_drag = round(gain * self.cfg.variables[f'{tone}']['DRAG_weight'])
+                step = self.frequency_translator(self.x_step)
+                main = f"""
+                #-----------Main-----------
+                    move             {length - self.qubit_pulse_length_ns},R11
+                    nop
+                    sub              R11,R6,R12
+                    jlt              R6,1,@spec_pls
+                    wait             R6
+        spec_pls:   set_freq         R4
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    wait             R12
+                    add              R4,{step},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {length}
                 """
 
             self.sequences[tone]['program'] += main
