@@ -1,8 +1,9 @@
 from .ionization import IonizationAmpScan, IonizationAmpSquarePulse, IonizationRingDownScan, \
     IonizationLengthAmpScan, IonizationAmpSpectroscopy, IonizationDelaySpectroscopy, \
-    IonizationSteadyState
+    IonizationSteadyState, IonizationSteadyStateSpectroscopy
 
 __all__ = [
     'IonizationAmpScan', 'IonizationAmpSquarePulse', 'IonizationRingDownScan', 'IonizationLengthAmpScan',
-    'IonizationAmpSpectroscopy', 'IonizationDelaySpectroscopy', 'IonizationSteadyState'
+    'IonizationAmpSpectroscopy', 'IonizationDelaySpectroscopy', 'IonizationSteadyState',
+    'IonizationSteadyStateSpectroscopy'
 ]

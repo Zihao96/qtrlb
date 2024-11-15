@@ -1005,7 +1005,7 @@ class IonizationSteadyState(IonizationBase):
             self.sequences[tone]['program'] += main
 
 
-class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy, Scan2D):
+class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
     """
     Sweep the spectroscopy frequency (x) and delay time (y) in a steady-state ionization experiment:
     state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
@@ -1076,6 +1076,10 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy, Scan2D):
         super(IonizationDelaySpectroscopy, self).check_attribute()
         assert 0 <= self.y_start < self.y_stop < self.steady_state_length + 2 * self.ramp_time + self.ringdown_time, \
             "ISSS: All delay time must be in range [0, steady_state_length + 2*ramp_time + ringdown_time) ns."
+
+
+    def set_waveforms_acquisitions(self):
+        super(IonizationAmpScan, self).set_waveforms_acquisitions()
 
 
     def add_main(self):
