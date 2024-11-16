@@ -1092,10 +1092,9 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
             length = self.steady_state_length_ns + 2 * self.ramp_time_ns + self.ringdown_time_ns
 
             if tone in self.stimulation_tones:
-                freq = round(self.cfg.variables[f'{tone}/mod_freq'] * 4)
                 amp = self.cfg.variables[f'{tone}/amp']
                 detuning = self.detuning_ratio * amp**2
-                freq_detuned = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
+                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
 
                 # Calculate the three amplitude.
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
@@ -1111,7 +1110,6 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
                     upd_param        {self.ramp_time_ns} 
 
                     # Steady state
-                    set_freq         {freq_detuned}
                     set_awg_offs     {hold},{hold}
                     upd_param        {self.steady_state_length_ns}
 
