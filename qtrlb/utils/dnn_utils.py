@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 
 
 
-class RawTraceDataset(Dataset):
+class Dataset(Dataset):
     def __init__(self, tensors: torch.Tensor, labels: torch.Tensor):
         self.tensors = tensors
         self.labels = labels
@@ -19,7 +19,7 @@ class RawTraceDataset(Dataset):
         return self.tensors[index], self.labels[index]
 
 
-class FNN(torch.nn.Module):
+class NeuralNetwork(torch.nn.Module):
     def __init__(self, layer_stack: torch.nn.Sequential):
         super().__init__()
         self.layer_stack = layer_stack
@@ -35,7 +35,8 @@ class FNN(torch.nn.Module):
         return logits
 
 
-class ThreeLayersWithReLU(FNN):
+class ThreeLayersWithReLU(NeuralNetwork):
+    """arXiv:2407.17407"""
     def __init__(self, n_features: int, n_labels: int):
         shrink_ratio = np.cbrt(n_features / n_labels)
         super().__init__(
@@ -71,7 +72,7 @@ class ModelTraining:
 
     def run(self, model_kwargs: dict, loss_fn_kwargs: dict, optimizer_kwargs: dict):
         """
-        Run the training and validation.
+        Run the training process. This class and this method is typically used for final training.
         """
         self.model_kwargs = model_kwargs
         self.loss_fn_kwargs = loss_fn_kwargs
@@ -89,7 +90,7 @@ class ModelTraining:
         Get the training dataloader.
         """
         self.train_dataloader = DataLoader(
-            RawTraceDataset(self.train_data_tensor, self.train_label_tensor), 
+            Dataset(self.train_data_tensor, self.train_label_tensor), 
             self.batch_size, 
             shuffle=True
         )
@@ -118,7 +119,7 @@ class ModelTraining:
 
     def train_model(self):
         """
-        Train the model with several epochs.
+        Train the model with several epochs without any validation set.
         """
         metrics = {m: [] for m in ('train_loss', 'train_accr', 'valid_loss', 'valid_accr')}
 
@@ -263,8 +264,8 @@ class KFoldCrossValidation(ModelTraining):
         Get the training and validation dataloader for a single fold.
         """
         X_train, y_train, X_valid, y_valid = self.get_k_fold_data()
-        self.train_dataloader = DataLoader(RawTraceDataset(X_train, y_train), self.batch_size, shuffle=True)
-        self.valid_dataloader = DataLoader(RawTraceDataset(X_valid, y_valid), self.batch_size, shuffle=True)
+        self.train_dataloader = DataLoader(Dataset(X_train, y_train), self.batch_size, shuffle=True)
+        self.valid_dataloader = DataLoader(Dataset(X_valid, y_valid), self.batch_size, shuffle=True)
 
 
     def get_k_fold_data(self):

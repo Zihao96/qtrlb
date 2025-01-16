@@ -70,7 +70,7 @@ def gate_transpiler(gate_df: pd.DataFrame, tones: list) -> pd.DataFrame:
         pulse_df[col_name] = 'I'  # Add empty column to pulse_df first. Then fill with pulse.
         column = gate_df[col_name]
 
-        # Both row_name and row are string.
+        # Both row_name and gate are string.
         for row_name, gate in column.items():
 
             if gate == 'I':
