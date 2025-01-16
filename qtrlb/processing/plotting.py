@@ -118,8 +118,8 @@ def plot_IQ(ax: plt.Axes, I: np.ndarray, Q: np.ndarray, c: np.ndarray = None, **
         c = (c - c.min()) / c.max()  # Normalize the color to [0, 1].
     else:
         cmap = None
-    ax.scatter(I, Q, c=c, cmap=cmap, alpha=0.2)
-    ax.axvline(color='k', ls='dashed')    
+    ax.scatter(I, Q, s=24, c=c, marker='.', cmap=cmap, alpha=0.3, linewidth=0)
+    ax.axvline(color='k', ls='dashed')
     ax.axhline(color='k', ls='dashed')
     ax.set(xlabel='I', ylabel='Q', aspect='equal', **plot_setting)
     return ax

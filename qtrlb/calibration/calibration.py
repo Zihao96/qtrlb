@@ -786,31 +786,8 @@ class Scan:
         try:
             self.plot_main()
             if self.cfg.DAC.test_mode: return
-
-            if self.customized_data_process is not None:
-
-                if self.customized_data_process.endswith('sequential'):
-                    self.plot_multitone_populations()
-                    self.plot_IQ(c_key='MultitonePredicted_readout')
-
-                elif self.customized_data_process.endswith('mask'):
-                    self.plot_multitone_populations()
-                    self.plot_IQ(c_key='MultitonePredicted_readout', mask_key='Mask_union')
-
-                elif self.customized_data_process.endswith('corr'):
-                    self.plot_multitone_populations()
-                    self.plot_IQ()
-
-                else:
-                    print(f'Scan: Cannot plot population and IQ for {self.customized_data_process}')
-                    return
-
-            elif self.classification_enable: 
-                self.plot_populations()
-                self.plot_IQ()
-
-            else:
-                self.plot_IQ()
+            if self.classification_enable: self.plot_populations()
+            if self.cfg['variables.common/plot_IQ'] is True: self.plot_IQ()
 
         except Exception:
             self.plotting_traceback = traceback.format_exc()
@@ -872,8 +849,6 @@ class Scan:
         With for-for-if three layers nested, this is the best I can do.
         The heralding enable is protected since we have self.check_attribute().
         """
-        if self.cfg['variables.common/plot_IQ'] is False: return
-
         for rt_ in self.readout_tones_:
             rr, subtone = rt_.split('_')
             Is, Qs = self.measurement[rr][subtone][IQ_key]
@@ -923,36 +898,6 @@ class Scan:
             ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {rr}')
             fig.savefig(os.path.join(self.data_path, f'{rr}_Population.png'))
             fig.clear()
-            plt.close(fig)
-
-
-    def plot_multitone_populations(self, dpi: int = 150):
-        """
-        DEPRECATED
-        Plot population of multitone readout result.
-        In this case we have all level population under both resonators' key.
-        """
-        only_corr = self.customized_data_process.endswith('corr')
-
-        for r in self.readout_resonators:
-            fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
-
-            # Loop over all levels instead of the given readout_levels in cfg.
-            for level, data in enumerate(self.measurement[r]['PopulationCorrected_readout']):
-                ax[1].plot(self.x_values / self.x_unit_value, data, 
-                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-                if not only_corr:
-                    ax[0].plot(self.x_values / self.x_unit_value, 
-                               self.measurement[r]['PopulationNormalized_readout'][level], 
-                               c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
-
-            xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
-            ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
-            ax[1].set(xlabel=xlabel, ylabel='Corrected populations', ylim=(-0.05, 1.05))
-            if not only_corr: ax[0].legend()
-            ax[1].legend()
-            ax[0].set_title(f'{self.datetime_stamp}, {self.scan_name}, {r}')
-            fig.savefig(os.path.join(self.data_path, f'{r}_Population.png'))
             plt.close(fig)
 
 
@@ -1200,7 +1145,7 @@ class Scan2D(Scan):
         try:
             self.plot_main()
             if self.cfg.DAC.test_mode: return
-            self.plot_IQ()
+            if self.cfg['variables.common/plot_IQ'] is True: self.plot_IQ()
         except Exception:
             self.plotting_traceback = traceback.format_exc()
             print(f'Scan2D: Failed to plot {self.datetime_stamp} data. See Scan2D.plotting_traceback.')
@@ -1250,8 +1195,6 @@ class Scan2D(Scan):
         For more information, please check Scan.plot_IQ()
         The only difference here is we have double for loop, and we need to index y in data and plot.
         """
-        if self.cfg['variables.common/plot_IQ'] is False: return
-
         for rt_ in self.readout_tones_:
             rr, subtone = rt_.split('_')
             Is, Qs = self.measurement[rr][subtone][IQ_key]

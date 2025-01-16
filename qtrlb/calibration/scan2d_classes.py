@@ -274,7 +274,7 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         try:
             self.plot_main()
             self.plot_spectrum()
-            self.plot_IQ()
+            if self.cfg['variables.common/plot_IQ'] is True: self.plot_IQ()
         except Exception:
             self.plotting_traceback = traceback.format_exc()
             print(f'RTS: Failed to plot {self.datetime_stamp} data. See RTS.plotting_traceback.')
@@ -346,8 +346,6 @@ class ReadoutTemplateScan(Scan2D, LevelScan):
         Plot IQ data for all y_values, each y_value will have a plot with all levels.
         Code is similar to Scan.plot_IQ()
         """
-        if self.cfg['variables.common/plot_IQ'] is False: return
-
         for rt_ in self.readout_tones_:
             rr, subtone = rt_.split('_')
             Is, Qs = self.measurement[rr][subtone]['IQrotated_readout']
