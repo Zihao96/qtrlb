@@ -70,13 +70,13 @@ class ModelTraining:
         self.epochs = epochs
 
 
-    def run(self, model_kwargs: dict, loss_fn_kwargs: dict, optimizer_kwargs: dict):
+    def run(self, model_kwargs: dict = None, loss_fn_kwargs: dict = None, optimizer_kwargs: dict = None):
         """
         Run the training process. This class and this method is typically used for final training.
         """
-        self.model_kwargs = model_kwargs
-        self.loss_fn_kwargs = loss_fn_kwargs
-        self.optimizer_kwargs = optimizer_kwargs
+        self.model_kwargs = {} if model_kwargs is None else model_kwargs
+        self.loss_fn_kwargs = {} if loss_fn_kwargs is None else loss_fn_kwargs
+        self.optimizer_kwargs = {} if optimizer_kwargs is None else optimizer_kwargs
         
         self.get_dataloader()
         self.generate_model()
@@ -235,16 +235,16 @@ class ModelTraining:
 
 
 class KFoldCrossValidation(ModelTraining):
-    def run(self, k: int, model_kwargs: dict, loss_fn_kwargs: dict, optimizer_kwargs: dict):
+    def run(self, k: int, model_kwargs: dict = None, loss_fn_kwargs: dict = None, optimizer_kwargs: dict = None):
         """
         Run the k-fold cross validation.
         Attributes like 'i', 'model', 'loss_fn', 'optimizer', 'train_dataloader', 'valid_dataloader', \
         'metrics' will be reset during loop.
         """
         self.k = k
-        self.model_kwargs = model_kwargs
-        self.loss_fn_kwargs = loss_fn_kwargs
-        self.optimizer_kwargs = optimizer_kwargs
+        self.model_kwargs = {} if model_kwargs is None else model_kwargs
+        self.loss_fn_kwargs = {} if loss_fn_kwargs is None else loss_fn_kwargs
+        self.optimizer_kwargs = {} if optimizer_kwargs is None else optimizer_kwargs
 
         assert self.k > 1
         self.metrics = []
