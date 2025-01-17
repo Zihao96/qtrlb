@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from IPython import display
 from torch.utils.data import Dataset, DataLoader
+from qtrlb.processing.plotting import COLOR_LIST
 
 
 
@@ -305,6 +306,7 @@ class KFoldCrossValidation(ModelTraining):
 
         # Training and real time plotting
         fig, ax = plt.subplots(1, 1, dpi=150)
+        ax2 = ax.twinx()
         valid_accr = 0
 
         for epoch in range(1, self.epochs+1):
@@ -316,18 +318,23 @@ class KFoldCrossValidation(ModelTraining):
 
             # Refresh figure
             ax.cla()
-            for m, values in metrics.items(): ax.plot(x, values, label=m)
+            ax2.cla()
+            ax.plot(x, metrics['train_loss'], color=COLOR_LIST[0], label='train_loss')
+            ax.plot(x, metrics['valid_loss'], color=COLOR_LIST[1], label='valid_loss')
+            ax2.plot(x, metrics['train_accr'], color=COLOR_LIST[2], label='train_accr')
+            ax2.plot(x, metrics['valid_accr'], color=COLOR_LIST[3], label='valid_accr')
             ax.set(title=f'fold:{self.i}, valid_accr: {valid_accr:.4f}',
                    xlabel='Epochs', ylabel='loss/accuracy', xlim=(0, self.epochs))
-            ax.legend()
-            ax.grid()
+            ax2.set(xlim=(0, self.epochs), ylim=(0, 1))
+            ax2.legend()
+            ax2.grid()
             display.display(fig)
             display.clear_output(wait=True)
 
         self.metrics.append(metrics)
 
 
-    def plot_valid_accr_mean(self, ylim: tuple = (0.8, 1), text_loc: str = 'upper right'):
+    def plot_valid_accr_mean(self, ylim: tuple = (0.0, 1), text_loc: str = 'upper right'):
         """
         Plot the mean of validation accuracy of all folds.
         """
