@@ -52,6 +52,10 @@ class ThreeLayersWithReLU(NeuralNetwork):
 
 
 class ModelTraining:
+    """
+    A general class for training a model. It's typically used for final training.
+    It accepts model, loss and optimizer as types for the convenience of cross validations.
+    """
     def __init__(self, 
                  device: str,
                  Model: type, 
@@ -60,7 +64,8 @@ class ModelTraining:
                  train_data_tensor: torch.Tensor, 
                  train_label_tensor: torch.Tensor,
                  batch_size: int,
-                 epochs: int):
+                 epochs: int,
+                 **kwargs):
         self.device = device
         self.Model = Model
         self.Loss_fn = Loss_fn
@@ -69,6 +74,7 @@ class ModelTraining:
         self.train_label_tensor = train_label_tensor
         self.batch_size = batch_size
         self.epochs = epochs
+        for key, value in kwargs.items(): setattr(self, key, value)
 
 
     def run(self, model_kwargs: dict = None, loss_fn_kwargs: dict = None, optimizer_kwargs: dict = None):
@@ -334,7 +340,7 @@ class KFoldCrossValidation(ModelTraining):
         self.metrics.append(metrics)
 
 
-    def plot_valid_accr_mean(self, ylim: tuple = (0.0, 1), text_loc: str = 'upper right'):
+    def plot_valid_accr_mean(self, ylim: tuple = (0.0, 1), text_loc: str = 'lower right'):
         """
         Plot the mean of validation accuracy of all folds.
         """
