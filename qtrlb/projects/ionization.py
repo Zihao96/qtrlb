@@ -882,12 +882,11 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
                 plt.close('all')
 
 
-
 class IonizationSteadyState(IonizationBase):
     """
     Sweep the length of steady state drive in a typical ionization experiment:
-    state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
-    This class allows detuned step-wise stimulation and does not allow acquisition.
+    state preparation -> stimulation (rampup-steady_state-reset_rampdown) -> free_ringdown -> readout.
+    This class allows detuned step-wise stimulation (3 stages) and does not allow acquisition or arbitrary waveform.
     """
     def __init__(self,
                  cfg: MetaManager, 
@@ -900,7 +899,7 @@ class IonizationSteadyState(IonizationBase):
                  linewidth: float,
                  ramp_time: float,
                  ringdown_time: float,
-                 detuning_ratio: float = 0.0,
+                 detuning_coeff: float = 0.0,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
@@ -932,7 +931,7 @@ class IonizationSteadyState(IonizationBase):
                          ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
                          ringdown_time=ringdown_time,
                          ringdown_time_ns=round(ringdown_time / u.ns),
-                         detuning_ratio=detuning_ratio)
+                         detuning_coeff=detuning_coeff)
 
 
     def check_attribute(self):
@@ -958,10 +957,10 @@ class IonizationSteadyState(IonizationBase):
         for tone in self.tones:
             if tone in self.stimulation_tones:
                 amp = self.cfg.variables[f'{tone}/amp']
-                detuning = self.detuning_ratio * amp**2
+                detuning = self.detuning_coeff * amp**2
                 freq = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
 
-                # Calculate the three amplitude.
+                # Calculate the three amplitudes.
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
                 up, hold, down = np.round(waveform * amp * 32768).astype(int)
 
@@ -980,7 +979,7 @@ class IonizationSteadyState(IonizationBase):
                     upd_param        8
                     wait             R11
 
-                    # Reset ringdown
+                    # Reset rampdown
                     set_awg_offs     {down},{down}
                     upd_param        {self.ramp_time_ns}
 
@@ -1006,9 +1005,9 @@ class IonizationSteadyState(IonizationBase):
 class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
     """
     Sweep the spectroscopy frequency (x) and delay time (y) in a steady-state ionization experiment:
-    state preparation -> stimulation (rampup-steady_state-reset_ringdown) -> free_ringdown -> readout.
+    state preparation -> stimulation (rampup-steady_state-reset_rampdown) -> free_ringdown -> readout.
     The spectroscopy pulse is added during stimulation and free_ringdown.
-    This class allows detuned step-wise stimulation and does not allow acquisition.
+    This class allows detuned step-wise stimulation (3 stages) and does not allow acquisition or arbitrary waveform.
     The __init__ and check_attribute will use parents started from Scan2D.
     """
     def __init__(self,
@@ -1026,7 +1025,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
                  linewidth: float,
                  ramp_time: float,
                  ringdown_time: float,
-                 detuning_ratio: float = 0.0,
+                 detuning_coeff: float = 0.0,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
@@ -1066,7 +1065,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
             ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
             ringdown_time=ringdown_time,
             ringdown_time_ns=round(ringdown_time / u.ns),
-            detuning_ratio=detuning_ratio
+            detuning_coeff=detuning_coeff
         )
         
 
@@ -1091,7 +1090,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
 
             if tone in self.stimulation_tones:
                 amp = self.cfg.variables[f'{tone}/amp']
-                detuning = self.detuning_ratio * amp**2
+                detuning = self.detuning_coeff * amp**2
                 freq = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
 
                 # Calculate the three amplitude.
@@ -1111,7 +1110,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
                     set_awg_offs     {hold},{hold}
                     upd_param        {self.steady_state_length_ns}
 
-                    # Reset ringdown
+                    # Reset rampdown
                     set_awg_offs     {down},{down}
                     upd_param        {self.ramp_time_ns}
 
@@ -1146,3 +1145,283 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
 
             self.sequences[tone]['program'] += main
 
+
+class IonizationLandauZener(IonizationBase):
+    """
+    The Landau-Zener experiments of transmon ionization.
+    It's not really a parameter sweep, but a single point experiment.
+    We must sweep adiabticity ourside the qtrlb.Scan framework.
+    Sequence: \
+    state preparation -> stimulation (rampup-steady_state-LandauZener-reset_rampdown) -> free_ringdown -> readout.
+    This class allows detuned step-wise stimulation (4 stages) and does not allow acquisition or arbitrary waveform.
+
+    THE STEADY-STATE STAGE HAS NOT BEEN IMPLEMENTED YET (because in this detuning n_i is not stable).
+    We can set it to 0 now.
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 stimulation_tones: str | list[str],
+                 linewidth: float,
+                 ramp_time: float,
+                 steady_state_length: float,
+                 LandauZener_length: float,
+                 ringdown_time: float,
+                 amp_i: float,
+                 amp_f: float,
+                 amp_LZratio: float,
+                 detuning: float,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 1000,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = None):
+
+        super().__init__(cfg=cfg,
+                         drive_qubits=drive_qubits,
+                         readout_tones=readout_tones,
+                         scan_name='IonizationLandauZener',
+                         x_plot_label='',
+                         x_plot_unit='arb',
+                         x_start=1,
+                         x_stop=1,
+                         x_points=1,
+                         subspace=subspace,
+                         main_tones=main_tones,
+                         pre_gate=pre_gate,
+                         post_gate=post_gate,
+                         n_seqloops=n_seqloops,
+                         level_to_fit=level_to_fit,
+                         fitmodel=fitmodel,
+                         stimulation_tones=make_it_list(stimulation_tones),
+                         linewidth=linewidth,
+                         ramp_time=ramp_time,
+                         ramp_time_ns=round(ramp_time / u.ns),
+                         ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+                         steady_state_length=steady_state_length,
+                         steady_state_length_ns=round(steady_state_length / u.ns),
+                         LandauZener_length=LandauZener_length,
+                         LandauZener_length_ns=round(LandauZener_length / u.ns),
+                         ringdown_time=ringdown_time,
+                         ringdown_time_ns=round(ringdown_time / u.ns),
+                         amp_i=amp_i,
+                         amp_f=amp_f,
+                         amp_LZratio=amp_LZratio,
+                         detuning=detuning)
+
+
+    def check_attribute(self):
+        super().check_attribute()
+        assert 8 * u.ns < self.LandauZener_length, 'ILZ: The Landau-Zener length must be longer than 8 ns.'
+
+
+    def add_main(self):
+        for tone in self.tones:
+            if tone in self.stimulation_tones:
+                # 3-stages steady state drive amplitudes.
+                waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
+                up_i, hold_i, down_i = np.round(waveform * self.amp_i * 32768).astype(int)
+                up_f, hold_f, down_f = np.round(waveform * self.amp_f * 32768).astype(int)
+                LZ = np.round(self.amp_i / self.ramp_ratio * self.amp_LZratio * 32768).astype(int)
+                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
+
+                main = f"""
+                    set_freq         {freq}
+
+                    # Rampup
+                    set_awg_offs     {up_i},{up_i}
+                    reset_ph
+                    upd_param        {self.ramp_time_ns} 
+
+                    # # Steady-state   
+                    # set_awg_offs     {hold_i},{hold_i}
+                    # upd_param        {self.steady_state_length_ns}
+
+                    # Landau-Zener
+                    set_awg_offs     {LZ},{LZ}
+                    upd_param        {self.LandauZener_length_ns}
+
+                    # Reset rampdown
+                    set_awg_offs     {down_f},{down_f}
+                    upd_param        {self.ramp_time_ns}
+
+                    # Free ringdown
+                    set_awg_offs     0,0
+                    upd_param        {self.ringdown_time_ns}
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {self.ramp_time_ns}
+                    wait             {self.LandauZener_length_ns}
+                    wait             {self.ramp_time_ns}
+                    wait             {self.ringdown_time_ns}
+                """
+
+            self.sequences[tone]['program'] += main
+
+
+class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
+    """
+    Sweep the spectroscopy frequency (x) and delay time (y) in a Landau-Zener ionization experiment:
+    state preparation -> stimulation (rampup-steady_state-LandauZener-reset_rampdown) -> free_ringdown -> readout.
+    This class allows detuned step-wise stimulation (4 stages) and does not allow acquisition or arbitrary waveform.
+    The spectroscopy pulse is added during stimulation and free_ringdown.
+    The __init__ and check_attribute will use parents started from Scan2D.
+
+    THE STEADY-STATE STAGE HAS NOT BEEN IMPLEMENTED YET (because in this detuning n_i is not stable).
+    We can set it to 0 now.
+    """
+    def __init__(self,
+                 cfg: MetaManager, 
+                 drive_qubits: str | list[str],
+                 readout_tones: str | list[str],
+                 detuning_start: float, 
+                 detuning_stop: float, 
+                 detuning_points: int,
+                 time_start: float,
+                 time_stop: float,
+                 time_points: int,
+                 stimulation_tones: str | list[str],
+                 linewidth: float,
+                 ramp_time: float,
+                 steady_state_length: float,
+                 LandauZener_length: float,
+                 ringdown_time: float,
+                 amp_i: float,
+                 amp_f: float,
+                 amp_LZratio: float,
+                 detuning: float,
+                 subspace: str | list[str] = None,
+                 main_tones: str | list[str] = None,
+                 pre_gate: dict[str: list[str]] = None,
+                 post_gate: dict[str: list[str]] = None,
+                 n_seqloops: int = 10,
+                 level_to_fit: int | list[int] = None,
+                 fitmodel: Model = SpectroscopyModel):
+        
+        super(IonizationDelaySpectroscopy, self).__init__(
+            cfg=cfg, 
+            drive_qubits=drive_qubits,
+            readout_tones=readout_tones,
+            scan_name='IonizationLandauZenerSpectroscopy',
+            x_plot_label='Pulse Detuning',
+            x_plot_unit='MHz',
+            x_start=detuning_start,
+            x_stop=detuning_stop,
+            x_points=detuning_points,
+            y_plot_label='Time', 
+            y_plot_unit='us', 
+            y_start=time_start, 
+            y_stop=time_stop, 
+            y_points=time_points, 
+            subspace=subspace,
+            main_tones=main_tones,
+            pre_gate=pre_gate,
+            post_gate=post_gate,
+            n_seqloops=n_seqloops,
+            level_to_fit=level_to_fit,
+            fitmodel=fitmodel,
+            stimulation_tones=make_it_list(stimulation_tones),
+            linewidth=linewidth,
+            ramp_time=ramp_time,
+            ramp_time_ns=round(ramp_time / u.ns),
+            ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+            steady_state_length=steady_state_length,
+            steady_state_length_ns=round(steady_state_length / u.ns),
+            LandauZener_length=LandauZener_length,
+            LandauZener_length_ns=round(LandauZener_length / u.ns),
+            ringdown_time=ringdown_time,
+            ringdown_time_ns=round(ringdown_time / u.ns),
+            amp_i=amp_i,
+            amp_f=amp_f,
+            amp_LZratio=amp_LZratio,
+            detuning=detuning)
+        
+
+    def check_attribute(self):
+        super(IonizationDelaySpectroscopy, self).check_attribute()
+        assert (0 <= self.y_start < self.y_stop 
+                < 2 * self.ramp_time + self.steady_state_length + self.LandauZener_length + self.ringdown_time), \
+            "ILZS: All delay time must be in range \
+            [0, 2*ramp_time + steady_state_length + LandauZener_length + ringdown_time) ns."
+
+
+    def set_waveforms_acquisitions(self):
+        super(IonizationAmpScan, self).set_waveforms_acquisitions()
+
+
+    def add_main(self):
+        """
+        Here R11 is the total wait time excluding the length of the spectroscopy pulse.
+        R12 is the wait time after the end of the spectroscopy pulse. R12 = R11 - R6.
+        So the sequence is R6--Spectroscopy--R12.
+        """        
+        for tone in self.tones:
+            length = (2 * self.ramp_time_ns
+                      + self.steady_state_length_ns
+                      + self.LandauZener_length_ns
+                      + self.ringdown_time_ns)
+
+            if tone in self.stimulation_tones:
+                # 3-stages steady state drive amplitudes.
+                waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
+                up_i, hold_i, down_i = np.round(waveform * self.amp_i * 32768).astype(int)
+                up_f, hold_f, down_f = np.round(waveform * self.amp_f * 32768).astype(int)
+                LZ = np.round(self.amp_i / self.ramp_ratio * self.amp_LZratio * 32768).astype(int)
+                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
+
+                main = f"""
+                    set_freq         {freq}
+
+                    # Rampup
+                    set_awg_offs     {up_i},{up_i}
+                    reset_ph
+                    upd_param        {self.ramp_time_ns} 
+
+                    # # Steady-state   
+                    # set_awg_offs     {hold_i},{hold_i}
+                    # upd_param        {self.steady_state_length_ns}
+
+                    # Landau-Zener
+                    set_awg_offs     {LZ},{LZ}
+                    upd_param        {self.LandauZener_length_ns}
+
+                    # Reset rampdown
+                    set_awg_offs     {down_f},{down_f}
+                    upd_param        {self.ramp_time_ns}
+
+                    # Free ringdown
+                    set_awg_offs     0,0
+                    upd_param        {self.ringdown_time_ns}
+                """
+
+            elif tone in self.main_tones:
+                gain = round(self.cfg.variables[f'{tone}']['amp_180'] * 32768)
+                gain_drag = round(gain * self.cfg.variables[f'{tone}']['DRAG_weight'])
+                step = self.frequency_translator(self.x_step)
+                main = f"""
+                #-----------Main-----------
+                    move             {length - self.qubit_pulse_length_ns},R11
+                    nop
+                    sub              R11,R6,R12
+                    jlt              R6,1,@spec_pls
+                    wait             R6
+        spec_pls:   set_freq         R4
+                    set_awg_gain     {gain},{gain_drag}
+                    play             0,1,{self.qubit_pulse_length_ns}
+                    wait             R12
+                    add              R4,{step},R4
+                """
+
+            else:
+                main = f"""
+                #-----------Main-----------
+                    wait             {length}
+                """
+
+            self.sequences[tone]['program'] += main
