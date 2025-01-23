@@ -1218,6 +1218,10 @@ class IonizationLandauZener(IonizationBase):
         assert 8 * u.ns < self.LandauZener_length, 'ILZ: The Landau-Zener length must be longer than 8 ns.'
 
 
+    def add_xinit(self):
+        return super().add_xinit()
+
+
     def add_main(self):
         for tone in self.tones:
             if tone in self.stimulation_tones:
@@ -1353,10 +1357,6 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
 
     def set_waveforms_acquisitions(self):
         super(IonizationAmpScan, self).set_waveforms_acquisitions()
-
-
-    def add_xinit(self):
-        return super().add_xinit()
 
 
     def add_main(self):
