@@ -1355,6 +1355,10 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
         super(IonizationAmpScan, self).set_waveforms_acquisitions()
 
 
+    def add_xinit(self):
+        return super().add_xinit()
+
+
     def add_main(self):
         """
         Here R11 is the total wait time excluding the length of the spectroscopy pulse.
