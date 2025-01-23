@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import Model
 from abc import ABCMeta, abstractmethod
+from scipy.integrate import solve_ivp
 from matplotlib.offsetbox import AnchoredText
 
 import qtrlb.utils.units as u
@@ -13,6 +14,73 @@ from qtrlb.calibration.scan_classes import Spectroscopy
 from qtrlb.utils.waveforms import get_waveform
 from qtrlb.utils.general_utils import make_it_list
 from qtrlb.processing.fitting import fit, SpectroscopyModel
+PI = np.pi
+
+
+
+def Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_0, slope=0, phase=0):
+    """
+    Right-hand side of the equation of motion of a driven damping Kerr resonator in the drive frame.
+    Here we allow the drive amplitude Omega to ramp up linearly with a constant slope.
+    """
+    derivative = (
+        -1j * 2*PI * detuning * A 
+        -1j * 2*PI * Kerr * np.abs(A)**2 * A
+        -PI * kappa * A 
+        -1j * PI * (Omega_0 + slope * t) * np.exp(-1j * phase)
+    )
+    return derivative
+
+
+def mean_field_amplitude_v4(Kerr: float, kappa: float, ramp_time: float, t_: float,
+                            Omega_i: float, Omega_f: float, t_step: float,
+                            ramp_ratio: float = None, detuning: float = None, Omega_ratio: float = 1):
+    """
+    ALL PARMETERS ARE IN CYCLIC FREQEUENCY.
+    A shaped pulse with three stages: rampup, LZ, rampdown.
+    All stages use same detuning and save phase, while each stages has its own drive amplitude.
+
+    The rampup quickly prepare the resonator in to a targeting initial photon number n_i, \
+        corresponding to steady state photons n_i and amplitude Omega_i.
+    The LZ stage try to linearly increase photon number from n_i to n_f using a constant drive amplitude Omega_. \
+        Typically Omega_ > Omega_f, otherwise photons will curve down rather than being linear.
+    The rampdown quickly empty the resonator from a photon number n_f, \
+        corresponding to steady state photons n_f and amplitude Omega_f.
+
+    We leave the detuning and Omega_ratio as free parameters to be optimized.
+    Omega_ratio is used to determine the Omega_ in the LZ stage, \
+        and making sure it starts and ends at correct photon numbers
+    detuningo is used to find a frequency and its rotating frame such that the Kerr effect \
+        during three stages can be self-compensated and rampdown really empty the resonator.
+
+    The detuning is defined as w_r - w_d here.
+    To recover to v3 sequence, set Omega_i=Omega_f=Omega_.
+    """
+    if ramp_ratio is None: ramp_ratio = 1 / (1 - np.exp(-PI * kappa * ramp_time))
+    if detuning is None: detuning = - Kerr * np.abs(Omega_i / kappa) ** 2
+    Omega_up = Omega_i * ramp_ratio
+    Omega_ = Omega_i * Omega_ratio
+    Omega_down = Omega_f * (1 - ramp_ratio)
+
+    # Rampup
+    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_up)
+    t_up = np.linspace(0, ramp_time, round(ramp_time / t_step + 1))
+    sol = solve_ivp(fun, t_span=[t_up[0], t_up[-1]], y0=[0j], method='RK45', t_eval=t_up)
+    A_up = sol.y[0]
+
+    # Large but no ramping amplitude, but linear ramping photons
+    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_)
+    t_steady = np.linspace(0, t_, round(t_ / t_step + 1))
+    sol = solve_ivp(fun, t_span=[t_steady[0], t_steady[-1]], y0=[sol.y[0][-1]], method='RK45', t_eval=t_steady)
+    A_steady = sol.y[0]
+
+    # Rampdown
+    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_down)
+    t_down = np.linspace(0, ramp_time, round(ramp_time / t_step + 1))
+    sol = solve_ivp(fun, t_span=[t_down[0], t_down[-1]], y0=[sol.y[0][-1]], method='RK45', t_eval=t_down)
+    A_down = sol.y[0]
+
+    return A_up, A_steady, A_down
 
 
 
@@ -827,12 +895,38 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
 
     def plot_main(self, text_loc: str = 'lower right', dpi: int = 150):
         """
-        Here we will save all the plot without showing in console or make them attributes.
-        See Scan.plot_main() as reference.
+        Plot the 2D results and spectroscopy fitting plot at each time points.
+        Here we will save spectroscopy fitting plot without showing in console or make them attributes.
+        See Scan.plot_main() and Scan2D.plot_main() as reference.
         """
-        for i, rr in enumerate(self.readout_resonators):
-            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
+        self.figures = {}
 
+        for i, rr in enumerate(self.readout_resonators):
+            data = self.measurement[rr]['to_fit']
+            n_subplots = len(data)
+            xlabel = self.x_plot_label + f'[{self.x_plot_unit}]'
+            ylabel = self.y_plot_label + f'[{self.y_plot_unit}]'
+            title = f'{self.datetime_stamp}, {self.scan_name}, {rr}'
+
+            # 2D plot
+            fig, ax = plt.subplots(1, n_subplots, figsize=(7 * n_subplots, 8), dpi=dpi)
+            for l in range(n_subplots):
+                level = self.cfg[f'variables.{rr}/readout_levels'][l]
+                this_title = title + fr', $P_{{{level}}}$' if self.classification_enable else title
+                extent = [
+                    np.min(self.x_values) / self.x_unit_value, np.max(self.x_values) / self.x_unit_value, 
+                    np.min(self.y_values) / self.y_unit_value, np.max(self.y_values) / self.y_unit_value
+                ]
+                image = ax[l].imshow(data[l], cmap='Blues', interpolation='none', aspect='auto', 
+                                     vmin=0, vmax=1, origin='lower', extent=extent)
+                ax[l].set(title=this_title, xlabel=xlabel, ylabel=ylabel)
+                fig.colorbar(image, ax=ax[l], label='Probability/Coordinate', location='top')
+                
+            fig.savefig(os.path.join(self.data_path, f'{rr}.png'))
+            self.figures[rr] = fig
+
+            # Spectroscopy fitting plot.
+            level_index = self.level_to_fit[i] - self.cfg[f'variables.{rr}/lowest_readout_levels']      
             if self.classification_enable:
                 ylabel = fr'$P_{{\left|{self.level_to_fit[i]}\right\rangle}}$'
             else:
@@ -841,15 +935,14 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
             for j, time in enumerate(self.y_values):
                 fig, ax = plt.subplots(1, 1, dpi=dpi)
                 ax.plot(self.x_values / self.x_unit_value, self.measurement[rr]['to_fit'][level_index][j], 'k.')
-                ax.set(xlabel=self.x_plot_label + f'[{self.x_plot_unit}]', ylabel=ylabel, 
-                       title=f'{self.datetime_stamp}, {self.scan_name}, {rr}, Time{round(time / self.y_unit_value)}({self.y_plot_unit})')
+                ax.set(xlabel=xlabel, ylabel=ylabel, 
+                       title=f'{title}, Time{round(time / self.y_unit_value)}({self.y_plot_unit})')
 
                 if self.measurement[rr][f'fit_result_{j}'] is not None: 
                     # Raise resolution of fit result for smooth plot.
                     x = np.linspace(self.x_start, self.x_stop, self.x_points * 3)  
                     y = self.fit_result[rr][j].eval(x=x)
                     ax.plot(x / self.x_unit_value, y, 'm-')
-                    
                     fit_text = '\n'.join([f'{v.name} = {v.value:0.3g}' for v in self.fit_result[rr][j].params.values()])
                     ax.add_artist(AnchoredText(fit_text, loc=text_loc, prop={'color':'m'}))
 
