@@ -896,8 +896,8 @@ class IonizationSteadyState(IonizationBase):
                  length_stop: float,
                  length_points: int,
                  stimulation_tones: str | list[str],
-                 linewidth: float,
                  ramp_time: float,
+                 ramp_ratio: float,
                  ringdown_time: float,
                  detuning_coeff: float = 0.0,
                  subspace: str | list[str] = None,
@@ -925,10 +925,9 @@ class IonizationSteadyState(IonizationBase):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel,
                          stimulation_tones=make_it_list(stimulation_tones),
-                         linewidth=linewidth,
                          ramp_time=ramp_time,
                          ramp_time_ns=round(ramp_time / u.ns),
-                         ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+                         ramp_ratio=ramp_ratio,
                          ringdown_time=ringdown_time,
                          ringdown_time_ns=round(ringdown_time / u.ns),
                          detuning_coeff=detuning_coeff)
@@ -1022,8 +1021,8 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
                  time_points: int,
                  stimulation_tones: str | list[str],
                  steady_state_length: float,
-                 linewidth: float,
                  ramp_time: float,
+                 ramp_ratio: float,
                  ringdown_time: float,
                  detuning_coeff: float = 0.0,
                  subspace: str | list[str] = None,
@@ -1059,10 +1058,9 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
             stimulation_tones=make_it_list(stimulation_tones),
             steady_state_length=steady_state_length,
             steady_state_length_ns=round(steady_state_length / u.ns),
-            linewidth=linewidth,
             ramp_time=ramp_time,
             ramp_time_ns=round(ramp_time / u.ns),
-            ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+            ramp_ratio=ramp_ratio,
             ringdown_time=ringdown_time,
             ringdown_time_ns=round(ringdown_time / u.ns),
             detuning_coeff=detuning_coeff
@@ -1163,8 +1161,8 @@ class IonizationLandauZener(IonizationBase):
                  drive_qubits: str | list[str],
                  readout_tones: str | list[str],
                  stimulation_tones: str | list[str],
-                 linewidth: float,
                  ramp_time: float,
+                 ramp_ratio: float,
                  steady_state_length: float,
                  LandauZener_length: float,
                  ringdown_time: float,
@@ -1197,10 +1195,9 @@ class IonizationLandauZener(IonizationBase):
                          level_to_fit=level_to_fit,
                          fitmodel=fitmodel,
                          stimulation_tones=make_it_list(stimulation_tones),
-                         linewidth=linewidth,
                          ramp_time=ramp_time,
                          ramp_time_ns=round(ramp_time / u.ns),
-                         ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+                         ramp_ratio=ramp_ratio,
                          steady_state_length=steady_state_length,
                          steady_state_length_ns=round(steady_state_length / u.ns),
                          LandauZener_length=LandauZener_length,
@@ -1219,7 +1216,7 @@ class IonizationLandauZener(IonizationBase):
 
 
     def add_xinit(self):
-        return super().add_xinit()
+        return Scan.add_xinit(self)
 
 
     def add_main(self):
@@ -1291,8 +1288,8 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
                  time_stop: float,
                  time_points: int,
                  stimulation_tones: str | list[str],
-                 linewidth: float,
                  ramp_time: float,
+                 ramp_ratio: float,
                  steady_state_length: float,
                  LandauZener_length: float,
                  ringdown_time: float,
@@ -1331,10 +1328,9 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
             level_to_fit=level_to_fit,
             fitmodel=fitmodel,
             stimulation_tones=make_it_list(stimulation_tones),
-            linewidth=linewidth,
             ramp_time=ramp_time,
             ramp_time_ns=round(ramp_time / u.ns),
-            ramp_ratio=1 / (1 - np.exp(-np.pi * linewidth * ramp_time)),
+            ramp_ratio=ramp_ratio,
             steady_state_length=steady_state_length,
             steady_state_length_ns=round(steady_state_length / u.ns),
             LandauZener_length=LandauZener_length,
