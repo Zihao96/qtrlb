@@ -32,9 +32,9 @@ def Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_0, slope=0, phase=0):
     return derivative
 
 
-def mean_field_amplitude_v4(Kerr: float, kappa: float, ramp_time: float, t_: float,
-                            Omega_i: float, Omega_f: float, t_step: float,
-                            ramp_ratio: float = None, detuning: float = None, Omega_ratio: float = 1):
+def mean_field_amplitude_v4(Kerr: float, kappa: float, ramp_time: float, t_: float, t_step: float,
+                            Omega_i: float, Omega_: float = None, Omega_f: float = None,
+                            ramp_ratio: float = None, detuning: float = None):
     """
     ALL PARMETERS ARE IN CYCLIC FREQEUENCY.
     A shaped pulse with three stages: rampup, LZ, rampdown.
@@ -54,30 +54,31 @@ def mean_field_amplitude_v4(Kerr: float, kappa: float, ramp_time: float, t_: flo
         during three stages can be self-compensated and rampdown really empty the resonator.
 
     The detuning is defined as w_r - w_d here.
-    To recover to v3 sequence, set Omega_i=Omega_f=Omega_.
+    Simply keep default to recover v3 pulse.
     """
     if ramp_ratio is None: ramp_ratio = 1 / (1 - np.exp(-PI * kappa * ramp_time))
     if detuning is None: detuning = - Kerr * np.abs(Omega_i / kappa) ** 2
+    if Omega_ is None: Omega_ = Omega_i
+    if Omega_f is None: Omega_f = Omega_i
     Omega_up = Omega_i * ramp_ratio
-    Omega_ = Omega_i * Omega_ratio
     Omega_down = Omega_f * (1 - ramp_ratio)
 
     # Rampup
-    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_up)
     t_up = np.linspace(0, ramp_time, round(ramp_time / t_step + 1))
-    sol = solve_ivp(fun, t_span=[t_up[0], t_up[-1]], y0=[0j], method='RK45', t_eval=t_up)
+    sol = solve_ivp(lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_up),
+                    t_span=[t_up[0], t_up[-1]], y0=[0j], method='RK45', t_eval=t_up)
     A_up = sol.y[0]
 
-    # Large but no ramping amplitude, but linear ramping photons
-    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_)
+    # Quasi-steady state
     t_steady = np.linspace(0, t_, round(t_ / t_step + 1))
-    sol = solve_ivp(fun, t_span=[t_steady[0], t_steady[-1]], y0=[sol.y[0][-1]], method='RK45', t_eval=t_steady)
+    sol = solve_ivp(lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_),
+                    t_span=[t_steady[0], t_steady[-1]], y0=[A_up[-1]], method='RK45', t_eval=t_steady)
     A_steady = sol.y[0]
 
     # Rampdown
-    fun = lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_down)
     t_down = np.linspace(0, ramp_time, round(ramp_time / t_step + 1))
-    sol = solve_ivp(fun, t_span=[t_down[0], t_down[-1]], y0=[sol.y[0][-1]], method='RK45', t_eval=t_down)
+    sol = solve_ivp(lambda t, A: Kerr_oscillator(t, A, detuning, Kerr, kappa, Omega_down),
+                    t_span=[t_down[0], t_down[-1]], y0=[A_steady[-1]], method='RK45', t_eval=t_down)
     A_down = sol.y[0]
 
     return A_up, A_steady, A_down
