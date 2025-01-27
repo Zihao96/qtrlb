@@ -1261,7 +1261,7 @@ class IonizationLandauZener(IonizationBase):
                  ringdown_time: float,
                  amp_i: float,
                  amp_f: float,
-                 amp_LZratio: float,
+                 amp_LZ: float,
                  detuning: float,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
@@ -1299,7 +1299,7 @@ class IonizationLandauZener(IonizationBase):
                          ringdown_time_ns=round(ringdown_time / u.ns),
                          amp_i=amp_i,
                          amp_f=amp_f,
-                         amp_LZratio=amp_LZratio,
+                         amp_LZ=amp_LZ,
                          detuning=detuning)
 
 
@@ -1319,7 +1319,7 @@ class IonizationLandauZener(IonizationBase):
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
                 up_i, hold_i, down_i = np.round(waveform * self.amp_i * 32768).astype(int)
                 up_f, hold_f, down_f = np.round(waveform * self.amp_f * 32768).astype(int)
-                LZ = np.round(self.amp_i / self.ramp_ratio * self.amp_LZratio * 32768).astype(int)
+                up_LZ, LZ, down_LZ = np.round(waveform * self.amp_LZ * 32768).astype(int)
                 freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
 
                 main = f"""
@@ -1388,7 +1388,7 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
                  ringdown_time: float,
                  amp_i: float,
                  amp_f: float,
-                 amp_LZratio: float,
+                 amp_LZ: float,
                  detuning: float,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
@@ -1432,7 +1432,7 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
             ringdown_time_ns=round(ringdown_time / u.ns),
             amp_i=amp_i,
             amp_f=amp_f,
-            amp_LZratio=amp_LZratio,
+            amp_LZ=amp_LZ,
             detuning=detuning)
         
 
@@ -1465,7 +1465,7 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
                 up_i, hold_i, down_i = np.round(waveform * self.amp_i * 32768).astype(int)
                 up_f, hold_f, down_f = np.round(waveform * self.amp_f * 32768).astype(int)
-                LZ = np.round(self.amp_i / self.ramp_ratio * self.amp_LZratio * 32768).astype(int)
+                up_LZ, LZ, down_LZ = np.round(waveform * self.amp_LZ * 32768).astype(int)
                 freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
 
                 main = f"""
