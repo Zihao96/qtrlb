@@ -993,7 +993,7 @@ class IonizationSteadyState(IonizationBase):
                  ramp_time: float,
                  ramp_ratio: float,
                  ringdown_time: float,
-                 detuning_coeff: float = 0.0,
+                 detuning: float = 0.0,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
@@ -1024,7 +1024,7 @@ class IonizationSteadyState(IonizationBase):
                          ramp_ratio=ramp_ratio,
                          ringdown_time=ringdown_time,
                          ringdown_time_ns=round(ringdown_time / u.ns),
-                         detuning_coeff=detuning_coeff)
+                         detuning=detuning)
 
 
     def check_attribute(self):
@@ -1050,8 +1050,7 @@ class IonizationSteadyState(IonizationBase):
         for tone in self.tones:
             if tone in self.stimulation_tones:
                 amp = self.cfg.variables[f'{tone}/amp']
-                detuning = self.detuning_coeff * amp**2
-                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
+                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
 
                 # Calculate the three amplitudes.
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio
@@ -1114,11 +1113,11 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
                  time_stop: float,
                  time_points: int,
                  stimulation_tones: str | list[str],
-                 steady_state_length: float,
                  ramp_time: float,
                  ramp_ratio: float,
+                 steady_state_length: float,
                  ringdown_time: float,
-                 detuning_coeff: float = 0.0,
+                 detuning: float = 0.0,
                  subspace: str | list[str] = None,
                  main_tones: str | list[str] = None,
                  pre_gate: dict[str: list[str]] = None,
@@ -1150,14 +1149,14 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
             level_to_fit=level_to_fit,
             fitmodel=fitmodel,
             stimulation_tones=make_it_list(stimulation_tones),
-            steady_state_length=steady_state_length,
-            steady_state_length_ns=round(steady_state_length / u.ns),
             ramp_time=ramp_time,
             ramp_time_ns=round(ramp_time / u.ns),
             ramp_ratio=ramp_ratio,
+            steady_state_length=steady_state_length,
+            steady_state_length_ns=round(steady_state_length / u.ns),
             ringdown_time=ringdown_time,
             ringdown_time_ns=round(ringdown_time / u.ns),
-            detuning_coeff=detuning_coeff
+            detuning=detuning
         )
         
 
@@ -1182,8 +1181,7 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
 
             if tone in self.stimulation_tones:
                 amp = self.cfg.variables[f'{tone}/amp']
-                detuning = self.detuning_coeff * amp**2
-                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + detuning) * 4)
+                freq = round((self.cfg.variables[f'{tone}/mod_freq'] + self.detuning) * 4)
 
                 # Calculate the three amplitude.
                 waveform = np.array((self.ramp_ratio, 1.0, -1 * self.ramp_ratio + 1)) / self.ramp_ratio

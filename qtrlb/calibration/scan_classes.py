@@ -945,9 +945,9 @@ class CalibrateClassification(LevelScan):
             fig, ax = plt.subplots(2, 1, figsize=(6, 8), dpi=dpi)
             for i, level in enumerate(self.x_values):
                 ax[0].plot(self.x_values, self.measurement[rr]['PopulationNormalized_new'][i], 
-                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                           c=self.color_list[level], ls='-', marker='.', label=fr'$P_{{{level}}}$')
                 ax[1].plot(self.x_values, self.measurement[rr]['PopulationCorrected_new'][i], 
-                           c=f'C{level}', ls='-', marker='.', label=fr'$P_{{{level}}}$')
+                           c=self.color_list[level], ls='-', marker='.', label=fr'$P_{{{level}}}$')
 
             xlabel = f'{self.x_plot_label}[{self.x_plot_unit}]'
             ax[0].set(xlabel=xlabel, ylabel='Uncorrected populations', ylim=(-0.05, 1.05))
