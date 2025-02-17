@@ -1,7 +1,6 @@
 import secrets
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit import BasicAer
 from qiskit.compiler import transpile
 from qiskit.quantum_info.operators import Operator
 
@@ -95,11 +94,9 @@ def transpile_unitary_to_circuit(U: np.ndarray,
     https://qiskit.org/documentation/tutorials/circuits_advanced/02_operators_overview.html
     https://qiskit.org/documentation/stubs/qiskit.compiler.transpile.html
     """
-    backend = BasicAer.get_backend('qasm_simulator')
-    oper = Operator(U)
     circ = QuantumCircuit(1)
-    circ.append(oper, [0])
-    circ = transpile(circ, backend, basis_gates=list(basis_gates), optimization_level=3)
+    circ.append(Operator(U), [0])
+    circ = transpile(circ, basis_gates=list(basis_gates), optimization_level=3)
     return circ
     
     

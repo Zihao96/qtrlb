@@ -9,8 +9,8 @@ install_requires = [
     'ruamel.yaml<0.18.0',
     'pyvisa',
     'qblox-instruments==0.10.0',
-    'scikit-learn',
-    'qiskit',
+    'scikit-learn==1.6.1',
+    'qiskit==1.3.2',
     # 'scqubits',
 ]
 

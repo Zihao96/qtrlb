@@ -18,8 +18,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from itertools import combinations
 from scipy.optimize import minimize
-from sklearn.mixture import GaussianMixture
 from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
+from ._gmm import GaussianMixture
 PI = np.pi
 
 
