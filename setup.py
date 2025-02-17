@@ -2,19 +2,19 @@ from setuptools import setup
 from platform import platform
 
 install_requires = [
-    'qblox-instruments==0.10.0',
-    'scipy',
-    'scikit-learn',
-    'scqubits>=3.1.0',
-    'matplotlib==3.6.3',
-    'lmfit==1.1.0',
-    'qiskit==0.42.1',
-    'cirq==1.1.0',
-    'pyvisa==1.13.0',
+    'numpy',
+    'scipy', 
+    'matplotlib',
+    'lmfit',
     'ruamel.yaml<0.18.0',
+    'pyvisa',
+    'qblox-instruments==0.10.0',
+    'scikit-learn',
+    'qiskit',
+    # 'scqubits',
 ]
 
-if platform().startswith('macOS'): install_requires.append('pyvisa-py==0.7.0')
+if platform().startswith('macOS'): install_requires.append('pyvisa-py')
 
 
 setup(name='qtrlb',

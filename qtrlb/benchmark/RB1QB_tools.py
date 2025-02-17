@@ -4,10 +4,9 @@ from qiskit import QuantumCircuit
 from qiskit import BasicAer
 from qiskit.compiler import transpile
 from qiskit.quantum_info.operators import Operator
-from cirq.linalg.predicates import allclose_up_to_global_phase
+
 
 PI = np.pi
-
 CLIFFORD_SET_1QB = {
     'I': {'theta': 0, 'axis': (0, 0, 1)}, 
     'X': {'theta': PI, 'axis': (1, 0, 0)}, 
@@ -139,7 +138,11 @@ def find_Clifford_gate(U: np.ndarray, Clifford_set: dict) -> str:
     Allow a difference with global phase.
     """
     for k, v in Clifford_set.items():
-        if allclose_up_to_global_phase(v['unitary'], U): return k
+        V = v['unitary']
+        idx = np.unravel_index(np.argmax(np.abs(U), axis=None), U.shape)  # Index of maximum element
+        if not np.allclose(np.abs(U[idx]), np.abs(V[idx])): continue
+        global_phase = V[idx] / U[idx]
+        if np.allclose(U * global_phase, V): return k
     
     raise ValueError('There is no such Clifford gate!')
     
