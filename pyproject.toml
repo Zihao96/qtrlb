@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qtrlb"
+version = "0.2.0"
+dependencies = [
+  "numpy",
+  "scipy'" 
+  "matplotlib",
+  "lmfit",
+  "ruamel.yaml<0.18.0",
+  "pyvisa",
+  "qblox-instruments==0.10.0",
+  "scikit-learn==1.6.1",
+  "qiskit==1.3.2",
+  "pyvisa-py ; sys_platform == 'darwin'",
+]
+requires-python = ">=3.10"
+authors = [
+  { name="Zihao Wang", email="zhwang000@gmail.com" },
+  { name="Rayleigh Parker" },
+  { name="Elizabeth Champion" },
+  { name="Machiel S. Blok" },
+]
+description = "qtrlb: quantum control using Qblox"
+readme = "README.md"
+keywords = ["qblox", "quantum", "control"]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/Zihao96/qtrlb"
