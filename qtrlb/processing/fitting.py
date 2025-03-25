@@ -13,8 +13,7 @@
 # =============================================================================
 
 import numpy as np
-from lmfit import Model
-from lmfit.models import SineModel, QuadraticModel
+from lmfit.models import Model, SineModel, QuadraticModel
 from numpy import exp, sin
 from scipy.signal import find_peaks
 from qtrlb.utils.general_utils import make_it_list
