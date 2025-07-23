@@ -365,8 +365,8 @@ class IonizationRingDownScan(IonizationBase):
 
     def check_attribute(self):
         super().check_attribute()
-        assert 8 * u.ns < self.x_start < self.x_stop < 65536 * u.ns, \
-            'IRD: All ringdown time must be in range (8, 65536) ns.'
+        if not 8 * u.ns < self.x_start < self.x_stop < 65536 * u.ns:
+            raise ValueError('IRD: All ringdown time must be in range (8, 65536) ns.')
 
 
     def add_xinit(self):
@@ -467,8 +467,8 @@ class IonizationLengthAmpScan(Scan2D, IonizationAmpSquarePulse):
 
     def check_attribute(self):
         super().check_attribute()        
-        assert 8 * u.ns < self.y_start < self.y_stop < 65536 * u.ns, \
-            'ILAS: All stimulation length must be in range (8, 65536) ns.'
+        if not 8 * u.ns < self.y_start < self.y_stop < 65536 * u.ns:
+            raise ValueError('ILAS: All stimulation length must be in range (8, 65536) ns.')
 
 
     def add_yinit(self):
@@ -789,8 +789,8 @@ class IonizationDelaySpectroscopy(Scan2D, IonizationAmpScan, Spectroscopy):
 
     def check_attribute(self):
         super().check_attribute()
-        assert 0 <= self.y_start < self.y_stop < self.stimulation_pulse_length + self.ringdown_time, \
-            "IDS: All delay time must be in range [0, stimulation_pulse_length + ringdown_time) ns."
+        if not 0 <= self.y_start < self.y_stop < self.stimulation_pulse_length + self.ringdown_time:
+            raise ValueError("IDS: All delay time must be in range [0, stimulation_pulse_length + ringdown_time) ns.")
     
 
     def add_xinit(self):
@@ -1029,8 +1029,8 @@ class IonizationSteadyState(IonizationBase):
 
     def check_attribute(self):
         super().check_attribute()
-        assert 8 * u.ns < self.x_start < self.x_stop < 65536 * u.ns, \
-            'ISS: All drive length must be in range (8, 65536) ns.'
+        if not 8 * u.ns < self.x_start < self.x_stop < 65536 * u.ns:
+            raise ValueError('ISS: All drive length must be in range (8, 65536) ns.')
 
 
     def add_xinit(self):
@@ -1162,8 +1162,8 @@ class IonizationSteadyStateSpectroscopy(IonizationDelaySpectroscopy):
 
     def check_attribute(self):
         super(IonizationDelaySpectroscopy, self).check_attribute()
-        assert 0 <= self.y_start < self.y_stop < self.steady_state_length + 2 * self.ramp_time + self.ringdown_time, \
-            "ISSS: All delay time must be in range [0, steady_state_length + 2*ramp_time + ringdown_time) ns."
+        if not 0 <= self.y_start < self.y_stop < self.steady_state_length + 2 * self.ramp_time + self.ringdown_time:
+            raise ValueError("ISSS: All delay time must be in range [0, steady_state_length + 2*ramp_time + ringdown_time) ns.")
 
 
     def set_waveforms_acquisitions(self):
@@ -1304,7 +1304,8 @@ class IonizationLandauZener(IonizationBase):
 
     def check_attribute(self):
         super().check_attribute()
-        assert 8 * u.ns < self.LandauZener_length, 'ILZ: The Landau-Zener length must be longer than 8 ns.'
+        if not 8 * u.ns < self.LandauZener_length:
+            raise ValueError('ILZ: The Landau-Zener length must be longer than 8 ns.')
 
 
     def add_xinit(self):
@@ -1437,10 +1438,10 @@ class IonizationLandauZenerSpectroscopy(IonizationDelaySpectroscopy):
 
     def check_attribute(self):
         super(IonizationDelaySpectroscopy, self).check_attribute()
-        assert (0 <= self.y_start < self.y_stop 
-                < 2 * self.ramp_time + self.steady_state_length + self.LandauZener_length + self.ringdown_time), \
-            "ILZS: All delay time must be in range \
-            [0, 2*ramp_time + steady_state_length + LandauZener_length + ringdown_time) ns."
+        if not (0 <= self.y_start < self.y_stop 
+                < 2 * self.ramp_time + self.steady_state_length + self.LandauZener_length + self.ringdown_time):
+            raise ValueError("ILZS: All delay time must be in range \
+                             [0, 2*ramp_time + steady_state_length + LandauZener_length + ringdown_time) ns.")
 
 
     def set_waveforms_acquisitions(self):

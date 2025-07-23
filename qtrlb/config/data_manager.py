@@ -156,7 +156,8 @@ class DataManager(Config):
             raise ValueError('The datetime_stamp_stop should be later than datetime_stamp_start!!!')
             
         elif last_date == first_date:
-            assert first_time <= last_time, 'The datetime_stamp_stop should be later than datetime_stamp_start!!!'
+            if last_time < first_time:
+                raise ValueError('The datetime_stamp_stop should be later than datetime_stamp_start!!!')
 
             # Add data_path in this date between first and last time
             data_paths.extend(

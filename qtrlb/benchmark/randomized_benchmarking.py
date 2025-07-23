@@ -228,7 +228,8 @@ class RB1QB(RB1QBBase):
             n_random=n_random,
             remove_identity=remove_identity)
         
-        assert self.x_step.is_integer(), 'All n_gates should be integer.'
+        if not self.x_step.is_integer():
+            raise ValueError('RB1QB: All n_gates should be integer.')
         self.x_values = self.x_values.astype(int)
 
 

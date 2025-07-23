@@ -280,7 +280,7 @@ class DoubleExpSinModel(Model):
         # Find peaks
         height = fitting_kwargs['height'] if 'height' in fitting_kwargs else 10 * max(rfft) / len(rfft)
         peaks, _ = find_peaks(rfft, height)
-        assert len(peaks) == 2, f'fitting: Cannot fit {len(peaks)} peaks'
+        if len(peaks) != 2: raise ValueError(f'fitting: Cannot fit {len(peaks)} peaks')
 
         # Set initial guess of parameters.
         f_0 = rfft_freqs[peaks[0]]
@@ -326,7 +326,7 @@ class TripleExpSinModel(Model):
         # Find peaks
         height = fitting_kwargs['height'] if 'height' in fitting_kwargs else 15 * max(rfft) / len(rfft)
         peaks, _ = find_peaks(rfft, height)
-        assert len(peaks) == 3, f'fitting: Cannot fit {len(peaks)} peaks'
+        if len(peaks) != 3: raise ValueError(f'fitting: Cannot fit {len(peaks)} peaks')
 
         # Set initial guess of parameters.
         f_0 = rfft_freqs[peaks[0]]

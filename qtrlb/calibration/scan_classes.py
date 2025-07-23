@@ -256,9 +256,10 @@ class RabiScan(Scan):
         Check the total length of all waveforms since Qblox can only store 16384 samples.
         """
         total_length_ns = np.ceil(np.sum(self.x_values) * 1e9)
-        assert total_length_ns < 16384, f'The total pulse length {total_length_ns}ns is too long! \n'\
+        if total_length_ns >= 16384:
+            raise ValueError(f'The total pulse length {total_length_ns}ns is too long! \n'\
             'Suggestion: np.linspace(0,200,101), np.linspace(0,320,81), np.linspace(0,600,51).'\
-            'np.linspace(320,480,41), np.linspace(600,840,21)'
+            'np.linspace(320,480,41), np.linspace(600,840,21)')
             
 
     def add_xinit(self):
@@ -834,7 +835,7 @@ class CalibrateClassification(LevelScan):
 
     def check_attribute(self):
         super().check_attribute()
-        assert self.classification_enable, 'Please turn on classification.'
+        if not self.classification_enable: raise ValueError('Please turn on classification.')
           
     
     def process_data(self):
@@ -1158,7 +1159,7 @@ class QNDnessCheck(LevelScan):
 
     def check_attribute(self):
         super().check_attribute()
-        assert self.heralding_enable, 'QND: Please enable heralding.'
+        if not self.heralding_enable: raise ValueError('QND: Please enable heralding.')
 
 
     def add_heralding(self):
@@ -1246,11 +1247,14 @@ class TwoToneROCalibration(LevelScan):
 
     def check_attribute(self):
         super().check_attribute()
-        assert self.classification_enable, 'Please turn on classification.'
-        assert not self.heralding_enable, 'This Scan do not support heralding yet.'
-        assert self.customized_data_process is not None, 'Please specify customized data process.'
-        assert len(self.readout_levels_dict) == len(self.readout_tones) == 2, \
-                'Please specify two resonators and their own readout levels.'
+        if not self.classification_enable:
+            raise ValueError('Please turn on classification.')
+        if self.heralding_enable:
+            raise ValueError('This Scan do not support heralding yet.')
+        if self.customized_data_process is None:
+            raise ValueError('Please specify customized data process.')
+        if not len(self.readout_levels_dict) == len(self.readout_tones) == 2:
+            raise ValueError('Please specify two resonators and their own readout levels.')
 
 
     def process_data(self):
@@ -1406,8 +1410,10 @@ class MultitoneROCalibration(LevelScan):
 
     def check_attribute(self):
         super().check_attribute()
-        assert self.classification_enable, 'Please turn on classification.'
-        assert self.customized_data_process is not None, 'Please specify customized data process.'
+        if not self.classification_enable:
+            raise ValueError('Please turn on classification.')
+        if self.customized_data_process is None:
+            raise ValueError('Please specify customized data process.')
     
 
     def fit_data(self):

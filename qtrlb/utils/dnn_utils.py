@@ -253,7 +253,7 @@ class KFoldCrossValidation(ModelTraining):
         self.loss_fn_kwargs = {} if loss_fn_kwargs is None else loss_fn_kwargs
         self.optimizer_kwargs = {} if optimizer_kwargs is None else optimizer_kwargs
 
-        assert self.k > 1
+        if self.k <= 1: raise ValueError('k must be greater than 1.')
         self.metrics = []
 
         for i in range(self.k):

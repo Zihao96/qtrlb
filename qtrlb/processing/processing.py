@@ -92,9 +92,10 @@ def gmm_fit(input_data, n_components: int, covariance_type: str = 'ellipsoidal',
     As the result, what ever mask we have will yield same gmm parameters.
     User must slice the data by themself before sending into this function.
     """
-    assert not hasattr(input_data, 'mask'), 'Processing: MaskedArray are not supported by GaussianMixture.'
-    assert (refine is False) or (means is not None and covariances is not None), \
-        'Processing: Need to specify means and covariance for refined GMM fitting.'
+    if hasattr(input_data, 'mask'):
+        raise TypeError('Processing: MaskedArray are not supported by GaussianMixture.')
+    if (refine is True) and (means is None or covariances is None):
+        raise ValueError('Processing: Need to specify means and covariance for refined GMM fitting.')
 
     input_data = np.array(input_data)
     gmm = GaussianMixture(n_components, covariance_type=covariance_type, tol=tol, warm_start=refine)
@@ -143,7 +144,7 @@ def trim_mask(mask: list | np.ndarray) -> np.ndarray:
     heralding_test is not the only place to use this function!!!
     """
     mask = np.array(mask)
-    assert len(mask.shape) == 2, 'Process: Do not support trim other than 2D data yet.'
+    if len(mask.shape) != 2: raise ValueError('Process: Do not support trim other than 2D data yet.')
 
     n_pass_min = np.min(np.sum(mask == 0, axis=0))  
 
@@ -373,7 +374,7 @@ def two_tone_predict(input_data_0: list | np.ndarray,
 
     # Find intersection and check it's unique.
     intersection = np.intersect1d(levels_0, levels_1)
-    assert len(intersection) == 1, 'More than one state are reading out by both tone!'
+    if len(intersection) != 1: raise ValueError('More than one state are reading out by both tone!')
     intersection_array = intersection * np.ones(shape=input_data_0.shape)
 
     # Element-wise comparision for finding the contradiction.
@@ -412,7 +413,7 @@ def two_tone_normalize(input_data_0: list | np.ndarray,
 
     # Find intersection and check it's unique.
     intersection = np.intersect1d(levels_0, levels_1)
-    assert len(intersection) == 1, 'More than one state are reading out by both tone!'
+    if len(intersection) != 1: raise ValueError('More than one state are reading out by both tone!')
 
     flatten_data = (input_data_1 - intersection) + len(levels_1) * input_data_0
     levels = np.arange(len(levels_0) * len(levels_1))
@@ -457,7 +458,7 @@ def multitone_predict_sequential(*data_levels_tuple: tuple) -> np.ndarray:
 
         # Find intersection and check it's unique.
         intersection = np.intersect1d(levels_0, levels_1)
-        assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
+        if len(intersection) != 1: raise ValueError('More than one state are reading out by two neighbor tones!')
 
         # Element of the leak where data_0 equal to intersection will be 1 (leak), else 0 (keep).
         leak = (data_0 == intersection).astype(int)
@@ -526,7 +527,7 @@ def multitone_normalize(*data_levels_tuple: tuple, axis: int = 0, mask: np.ndarr
         
         # Find intersection and check it's unique.
         intersection = np.intersect1d(levels_0, levels_1)
-        assert len(intersection) == 1, 'More than one state are reading out by two neighbor tones!'
+        if len(intersection) != 1: raise ValueError('More than one state are reading out by two neighbor tones!')
 
         accumulated_length *= len(levels_0)
         flatten_data += accumulated_length * (data_1 - intersection)

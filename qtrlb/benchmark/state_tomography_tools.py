@@ -94,7 +94,7 @@ def generalized_Gell_Mann_matrices(d: int) -> list[np.ndarray]:
     Test: 8.3s vs 10.6s for 1000 repetition with d = 49.
     I guess it's about how Jupyter in VSCode treat 'for' loop.
     """
-    assert isinstance(d, int) and d >= 2, f'd must be integer no less than 2, not {d}'
+    if d < 2: raise ValueError(f'd must be an integer and no less than 2, not {d}')
 
     Gell_Mann_matrices = []
 

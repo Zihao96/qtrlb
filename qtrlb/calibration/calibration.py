@@ -165,17 +165,19 @@ class Scan:
         Note this method is usually called before we have self.tones and self.qudits.
         """
         for qudit in self.drive_qubits + self.readout_tones:
-            assert isinstance(qudit, str), f'The type of {qudit} is not a string!'
-            assert qudit.startswith(('Q', 'R')), f'The value of {qudit} is invalid.'
+            if not qudit.startswith(('Q', 'R')): raise ValueError(f'The value of {qudit} is invalid.')
         
         assert hasattr(u, self.x_plot_unit), f'The plot unit {self.x_plot_unit} has not been defined.'
-        assert self.x_stop >= self.x_start, 'Please use ascending value for x_values.'
-        assert len(self.subspace) == len(self.drive_qubits), 'Please specify subspace for each qubit.'
-        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
-        assert isinstance(self.pre_gate, dict), 'pre_gate must be dictionary like {"Q0": [gate1, gate2,...]}'
-        assert isinstance(self.post_gate, dict), 'post_gate must to be dictionary like {"Q0": [gate1, gate2,...]}'
-        assert self.num_bins <= 131072, 'x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
-        assert self.classification_enable >= self.heralding_enable, 'Please turn on classification for heralding.'
+        if self.x_stop < self.x_start:
+            raise ValueError('Please use ascending value for x_values.')
+        if len(self.subspace) != len(self.drive_qubits):
+            raise ValueError('Please specify subspace for each qubit.')
+        if len(self.level_to_fit) != len(self.readout_resonators):
+            raise ValueError('Please specify level_to_fit for each resonator.')
+        if self.num_bins > 131072:
+            raise ValueError('x_points * n_seqloops cannot exceed 131072! Please use n_pyloops!')
+        if self.classification_enable < self.heralding_enable:
+            raise ValueError('Please turn on classification for heralding.')
 
 
     @property
@@ -568,7 +570,7 @@ class Scan:
         Here I treat it as a gate, which means we can add label if we want, \
         and we can see it in self.gate_df
         """
-        assert length >= 4, f'The wait time need to be at least 4ns. Now it is {length}.'
+        if length < 4: raise ValueError(f'The wait time need to be at least 4ns. Now it is {length}.')
         multiple = round(length // divisor_ns)
         remainder = round(length % divisor_ns)
         
@@ -613,7 +615,7 @@ class Scan:
 
         default_lengths = [self.qubit_pulse_length_ns for _ in range(gate_df.shape[1])]
         lengths = make_it_list(lengths, default_lengths) 
-        assert len(lengths) == gate_df.shape[1], f'Scan: Please specify length for all gates(columns)!'
+        if len(lengths) != gate_df.shape[1]: raise ValueError(f'Scan: Please specify length for all gates(columns)!')
 
         pulse_df = gate_transpiler(gate_df, self.tones)  # Rightnow it gives same number of columns as gate_df.
         self.add_pulse(pulse_df, pulse_lengths=lengths, add_label=add_label, **pulse_kwargs)
@@ -906,7 +908,8 @@ class Scan:
         A covenient method for change level_to_fit then redo fit and plot.
         """
         self.level_to_fit = make_it_list(level_to_fit)
-        assert len(self.level_to_fit) == len(self.readout_resonators), 'Please specify level for all resonators.'
+        if len(self.level_to_fit) != len(self.readout_resonators):
+            raise ValueError('Please specify level for all resonators.')
         self.fit_data()
         self.plot_main()
 
@@ -917,8 +920,10 @@ class Scan:
         It will overwrite the self.fit_result and self.figures, but not the saved plot and fit_result in hdf5.
         """
         subspace = make_it_list(subspace, self.subspace)
-        assert self.classification_enable, 'This function only work when enabling classification.'
-        assert len(subspace) == len(self.readout_resonators), 'Please specify fitting subspace for each resonator.'
+        if not self.classification_enable: 
+            raise ValueError('This function only work when enabling classification.') 
+        if len(subspace) != len(self.readout_resonators): 
+            raise ValueError('Please specify fitting subspace for each resonator.')
 
         for i, rr in enumerate(self.readout_resonators):
             # Normalization.
@@ -965,7 +970,7 @@ class Scan:
         This is useful when we assign the frequency to register and treat it as a variable.
         When we call set_freq instruction in Q1ASM program, we can just pass negative frequency * 4.
         """
-        assert -500e6 <= freq <= 500e6, 'The frequency must between +-500MHz.'
+        if not -500e6 <= freq <= 500e6: raise ValueError('The frequency must between +-500MHz.')
         freq_4 = round(freq / freq_step)
         
         twos_complement_binary_str = format(freq_4 if freq_4 >= 0 else (1 << bit) + freq_4, f'0{bit}b')
@@ -981,7 +986,7 @@ class Scan:
         Still, this is useful when we assign the gain to register and treat it as a variable.
         When we call set_awg_gain with Immediate in Q1ASM program, we can just pass negative gain * 32768.
         """
-        assert -1 <= gain < 1, 'The gain must between [-1.0, 1.0).'
+        if not -1 <= gain < 1: raise ValueError('The gain must between [-1.0, 1.0).')
         gain = round(gain * gain_resolution)
         
         twos_complement_binary_str = format(gain if gain >= 0 else (1 << bit) + gain, f'0{bit}b')
@@ -1062,9 +1067,10 @@ class Scan2D(Scan):
         """
         super().check_attribute()
         assert hasattr(u, self.y_plot_unit), f'The plot unit {self.y_plot_unit} has not been defined.'
-        assert self.y_stop >= self.y_start, 'Please use ascending value for y_values.'
-        assert self.num_bins <= 131072, \
-            'x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!'
+        if self.y_stop < self.y_start:
+            raise ValueError('Please use ascending value for y_values.')
+        if self.num_bins > 131072:
+            raise ValueError('x_points * y_points * n_seqloops cannot exceed 131072! Please use n_pyloops!')
     
     
     def start_loop(self):

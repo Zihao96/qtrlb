@@ -463,7 +463,8 @@ class ReadoutFrequencyScan(ReadoutTemplateScan):
         Fit frequency and quality factor of resonators for a given level, then plot results.
         """
         level_to_fit = make_it_list(level_to_fit)
-        assert len(level_to_fit) == len(self.readout_resonators), 'Please specify level_to_fit for each resonator.'
+        if len(level_to_fit) != len(self.readout_resonators):
+            raise ValueError('Please specify level_to_fit for each resonator.')
 
         for i, rt in enumerate(self.readout_tones):
             # Fit
@@ -655,8 +656,8 @@ class ReadoutLengthAmpScan(ReadoutAmplitudeScan):
         self.length_plot_label = 'Readout Length'
         self.length_plot_unit = 'us'
         
-        assert 16384 * u.ns > self.length_stop >= self.length_start > 0, \
-            'Readout length must be ascending values in (0, 16384) ns.'
+        if not 16384 * u.ns > self.length_stop >= self.length_start > 0:
+            raise ValueError('Readout length must be ascending values in (0, 16384) ns.')
         self.length_values = np.linspace(self.length_start, self.length_stop, self.length_points)
         self.length_unit_value = getattr(u, self.length_plot_unit)
 
@@ -791,8 +792,10 @@ class DRAGWeightScan(Scan2D):
     def check_attribute(self):
         super().check_attribute()
         for tone in self.main_tones:
-            assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_start < 1, 'Start value exceed range.'
-            assert -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_stop < 1, 'Stop value exceed range.'
+            if not -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_start < 1:
+                raise ValueError('Start value exceed range.')
+            if not -1 <= self.cfg[f'variables.{tone}/amp_180'] * self.y_stop < 1:
+                raise ValueError('Stop value exceed range.')
 
 
     def add_yinit(self):

@@ -56,8 +56,8 @@ class StateTomography(Scan):
 
     def check_attribute(self):
         super().check_attribute()
-        assert self.classification_enable, 'STomo: Please turn on classification.'
-        assert all(ss == self.subspace[0] for ss in self.subspace), 'STomo: All subspace must be same.'
+        if not self.classification_enable: raise ValueError('STomo: Please turn on classification.')
+        if not all(ss == self.subspace[0] for ss in self.subspace): raise ValueError('STomo: All subspace must be same.')
 
 
     def generate_tomography_gates(self) -> None:
@@ -86,8 +86,8 @@ class StateTomography(Scan):
         """
         # Get gate set and check dimension.
         if isinstance(self.gate_set, str): self.gate_set = TOMOGRAPHY_GATE_SETS[self.gate_set]
-        assert int(self.subspace[0][-1]) + 1 == self.gate_set['d'], \
-            f"STomo: This gate set only work on {self.gate_set['d']} levels. Please check subspace."
+        if int(self.subspace[0][-1]) + 1 != self.gate_set['d']:
+            raise ValueError(f"STomo: This gate set only work on {self.gate_set['d']} levels. Please check subspace.")
         
         # Create tomography gates list.
         self.tomography_gates_list = []
@@ -95,7 +95,6 @@ class StateTomography(Scan):
             self.tomography_gates_list.append(
                 {q: single_combination[i] for i, q in enumerate(self.drive_qubits)}
             )
-
 
         # Reference: Original syntax by Berkeley and Ray.
         # [dict(zip(qubits, p)) for p in product(self.gate_set['gate'], repeat=len(qubits))]

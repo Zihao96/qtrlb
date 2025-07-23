@@ -114,8 +114,9 @@ class VariableManager(Config):
             print('Missing the module to run such function')
             return
 
-        assert transmon.startswith('Q'), 'Transmon must to be string like "Q0", "Q1".'
-        assert readout_tone.startswith('R'), 'Resonator must to be string like "R3/a", "R4/b".'
+        if not (transmon.startswith('Q') and readout_tone.startswith('R')):
+            raise ValueError('Transmon must to be string like "Q0", "Q1", \
+                             and resonator must to be string like "R3/a", "R4/b".')
         f01_GHz = self[f'{transmon}/01/freq'] / u.GHz
         alpha_GHz = self[f'{transmon}/12/anharmonicity'] / u.GHz
         fr_GHz = self[f'{readout_tone}/freq'] / u.GHz

@@ -31,7 +31,7 @@ def tone_to_qudit(tone: str | Iterable) -> str | list:
     tone_to_qudit([['Q2/01', 'Q3/12', 'R2/a'], ['Q2/01', 'Q2/12', 'R2']]) -> [['Q2', 'Q3', 'R2'], ['Q2', 'R2']]
     """
     if isinstance(tone, str):
-        assert tone.startswith(('Q', 'R')), f'Cannot translate {tone} to qudit.'
+        if not tone.startswith(('Q', 'R')): raise ValueError(f'Cannot translate {tone} to qudit.')
         try:
             qudit, _ = tone.split('/')
             return qudit
@@ -66,7 +66,7 @@ def split_subspace(subspace: str) -> tuple[int, int]:
     """
     Given a string like '23', '02', '910', '1011', split into two integer.
     """
-    assert subspace.isdecimal(), f'misc: Subspace string must be decimal.'
+    if not subspace.isdecimal(): raise ValueError(f'misc: Subspace string must be decimal.')
     level_low = int( subspace[ : int(len(subspace)/2)] )
     level_high = int( subspace[ int(len(subspace)/2) : ] )
     return level_low, level_high
