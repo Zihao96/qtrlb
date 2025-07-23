@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qtrlb"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
   "numpy",
   "scipy", 
@@ -12,13 +12,13 @@ dependencies = [
   "lmfit",
   "ruamel.yaml<0.18.0",
   "pyvisa",
-  "qblox-instruments==0.10.0",
+  "qblox-instruments==0.16.0",
   "scikit-learn==1.6.1",
   "qiskit==1.4.2",
   "scqubits; sys_platform != 'darwin'",
   "pyvisa-py; sys_platform == 'darwin'",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
   { name="Zihao Wang", email="zhwang000@gmail.com" },
   { name="Rayleigh Parker" },

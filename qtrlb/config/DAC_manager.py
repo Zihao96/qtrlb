@@ -90,8 +90,7 @@ class DACManager(Config):
                 getattr(self.module[tone], f'out{out}_lo_freq')(self.varman[f'lo_freq/M{mod}O{out}'])
                 self.sequencer[tone].sync_en(True)
                 self.sequencer[tone].mod_en_awg(True)
-                getattr(self.sequencer[tone], f'channel_map_path0_out{out*2}_en')(True)
-                getattr(self.sequencer[tone], f'channel_map_path1_out{out*2+1}_en')(True)
+                getattr(self.sequencer[tone], f'connect_out{out}')('IQ')
                 
             # Implement QRM-RF specific parameters.
             elif tone.startswith('R'):
@@ -104,8 +103,8 @@ class DACManager(Config):
                 self.sequencer[tone].demod_en_acq(True)
                 self.sequencer[tone].integration_length_acq(round(self.varman['common/integration_length'] * 1e9))
                 self.sequencer[tone].nco_prop_delay_comp_en(self.varman['common/nco_delay_comp'])
-                self.sequencer[tone].channel_map_path0_out0_en(True)
-                self.sequencer[tone].channel_map_path1_out1_en(True)
+                self.sequencer[tone].connect_out0('IQ')
+                self.sequencer[tone].connect_acq('in0')
                   
             # Correct sideband tone of mixer. Nulling LO tone was applied in common parameters.
             self.sequencer[tone].mixer_corr_gain_ratio(
@@ -141,6 +140,12 @@ class DACManager(Config):
         """
         if not 0 < int(RPM) < 5400: raise ValueError(f'DACManager: RPM {RPM} is not in range (0, 5400).')
         return self.qblox._write(f'STATus:QUEStionable:FANS:BP0:SPEed {int(RPM)}')
+    
+
+    def set_led_brightness(self, brightness: str) -> None:
+        if brightness not in ('high', 'low', 'off', 'medium'): 
+            raise ValueError(f'DACManager: brightness must be in ("high", "low", "off", "medium").')
+        return self.qblox.led_brightness(brightness)
 
     
     def disconnect_existed_map(self):
@@ -152,17 +157,10 @@ class DACManager(Config):
             if not (module.present() and module.is_rf_type): continue
 
             if module.is_qcm_type:
-                for sequencer in module.sequencers:
-                    for out in range(0, 4):
-                        if hasattr(sequencer, "channel_map_path{}_out{}_en".format(out%2, out)):
-                            sequencer.set("channel_map_path{}_out{}_en".format(out%2, out), False)
-
+                module.disconnect_outputs()
             elif module.is_qrm_type:
-                for sequencer in module.sequencers:
-                    for out in range(0, 2):
-                        if hasattr(sequencer, "channel_map_path{}_out{}_en".format(out%2, out)):
-                            sequencer.set("channel_map_path{}_out{}_en".format(out%2, out), False)
-
+                module.disconnect_outputs()
+                module.disconnect_inputs()
             else:
                 print(f'Failed to disconnect channel map for module type {module.module_type}')
             
@@ -184,20 +182,18 @@ class DACManager(Config):
                 print(f'Failed to disable LO for module type {module.module_type}')
 
 
-    def start_sequencer(self, tones: list, readout_tones: list, measurement: dict, jsons_path: str, keep_raw: bool = False):
+    def start_sequencer(self, tones: list, readout_tones: list, measurement: dict, jsons_path: str, 
+                        keep_raw: bool = False) -> None:
         """
-        Ask the instrument to start sequencer.
-        Then store the Heterodyned result into measurement.
+        Start sequencer, run the sequence program, and store the acquisition results.
+        Please refer to the Qblox official documentation of the get_acquisitions() method \
+            in Sequencer API for the data structure.
         
-        Reference about data structure:
-        https://qblox-qblox-instruments.readthedocs-hosted.com/en/master/api_reference/cluster.html#qblox_instruments.native.Cluster.get_acquisitions
-        
-        Note from Zihao(02/15/2023):
-        We need to call delete_scope_acquisition everytime.
-        Otherwise the binned result will accumulate and be averaged automatically for next repetition.
-        Within one repetition (one round), we can only keep raw data from last bin (last acquire instruction).
-        Which means for Scan, only the raw trace belong to last point in x_points will be stored.
-        So it's barely useful, but I still leave the interface here.
+        Each time we start sequencer and do acquisition, we can only keep raw (scope) data \
+            associated with the last bin (the last 'acquire' instruction), because the \
+            scope data in the buffer is always overwritten unless we store it to FPGA. \
+            For 1D scan, it means we can only keep the raw data of the last point in x_points.
+            It's occasionally useful.
         """
         # Arm sequencer first. It's necessary. Only armed sequencer will be started next.
         for tone in tones:
@@ -208,28 +204,26 @@ class DACManager(Config):
 
         for rt in readout_tones:
             rr, subtone = rt.split('/')
-
-            # We load its sequence json to get all keys in the acquisition.
-            with open(os.path.join(jsons_path, f'{rr}_{subtone}_sequence.json'), 'r', encoding='utf-8') as file:
-                sequence_dict = json.load(file)
-                acq_keys = sequence_dict['acquisitions'].keys()
-
             timeout = self['Module{}/acquisition_timeout'.format(self.varman[f'{rt}/mod'])]
-            seq_idx = int(self.varman[f'{rt}/seq'])
-           
-            # Wait the timeout in minutes and ask whether the acquisition finish on that sequencer. Raise error if not.
-            self.module[rt].get_acquisition_state(seq_idx, timeout)  
 
-            # Store the raw (scope) data from buffer of FPGA to larger RAM of instrument.
+            # We load the sequence dictionary to get all keys in the acquisition.
+            with open(os.path.join(jsons_path, f'{rr}_{subtone}_sequence.json'), 'r', encoding='utf-8') as file:
+                acq_keys = json.load(file)['acquisitions'].keys()
+
+            # Block the program until acquisition finish. Raise error when blocking time is longer than timeout (minutes).
+            # The timeout must be a non-zero positive integer.
+            self.sequencer[rt].get_acquisition_status(timeout)  
+
+            # Store the raw (scope) data from the buffer of the ADC to the larger RAM on the FPGA.
             if keep_raw: 
                 for key in acq_keys:
-                    self.module[rt].store_scope_acquisition(seq_idx, key)
+                    self.sequencer[rt].store_scope_acquisition(key)
             
-            # Retrive the heterodyned result (binned data) back to python in Host PC.
-            data = self.module[rt].get_acquisitions(seq_idx)
+            # Retrive the acquisition data from the FPGA to the host PC.
+            data = self.sequencer[rt].get_acquisitions()
             
             for key in acq_keys:
-                # Append list of each repetition into measurement dictionary.
+                # Add acquisition data into measurement dictionary.
                 measurement[rr][subtone][f'Heterodyned_{key}'][0].append(data[key]['acquisition']['bins']['integration']['path0']) 
                 measurement[rr][subtone][f'Heterodyned_{key}'][1].append(data[key]['acquisition']['bins']['integration']['path1'])
 
@@ -237,11 +231,11 @@ class DACManager(Config):
                     measurement[rr][subtone][f'raw_{key}'][0].append(data[key]['acquisition']['scope']['path0']['data']) 
                     measurement[rr][subtone][f'raw_{key}'][1].append(data[key]['acquisition']['scope']['path1']['data'])
 
-                # Clear the memory of instrument. 
+                # Clear both the stored scope acquisition and the bin acquisition on the FPGA.
                 # It's necessary otherwise the acquisition result will accumulate and be averaged.
-                self.module[rt].delete_acquisition_data(seq_idx, key)
+                # The scope data in the buffer of the ADC is always automatically overwritten.
+                self.sequencer[rt].delete_acquisition_data(all=True)
 
-        # In case of the sequencers don't stop correctly.
-        # Do not call qblox.reset() here since it will make debugging difficult.
+        # In case that the sequencers don't stop correctly.
         self.qblox.stop_sequencer()
 
