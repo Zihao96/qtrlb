@@ -172,8 +172,9 @@ def gate_str_to_matrix(gate_str: str, d: int = 2) -> np.ndarray:
         gate, subspace = gate_str.split('_')
         l = int(subspace[0])  # The lower level in this subspace.
         axis, angle = gate[0], float(gate[1:]) / 180 * PI
-    except ValueError:
-        raise ValueError(f'STomo_tools: Cannot translate gate {gate_str} into matrix!')
+    except ValueError as error:
+        error.add_note(f'STomo_tools: Cannot translate gate {gate_str} into matrix!')
+        raise error
 
     axis_dict = dict(zip(('X', 'Y', 'Z'), np.eye(3)))
     sub_matrix = unitary(angle, axis_dict[axis])

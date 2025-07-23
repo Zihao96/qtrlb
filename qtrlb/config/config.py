@@ -45,7 +45,6 @@ class Config:
             yaml = YAML(typ='safe', pure=True)
             with open(self.raw_file_path, 'r') as f:
                 self.config_raw = yaml.load(f)
-
         except FileNotFoundError:
             print(f'Config: Missing {self.suffix} Yaml file. Please check your working directory!!!')
             
@@ -160,8 +159,9 @@ class Config:
         for i, key in enumerate(keys_list):
             try:
                 result = result[key]
-            except KeyError:
-                raise KeyError(f'Config: There is no key "{key}" in {"/".join(keys_list[:i])}')
+            except KeyError as error:
+                error.add_note(f'Config: There is no key "{key}" in {"/".join(keys_list[:i])}')
+                raise error
 
         return result
     
@@ -245,9 +245,9 @@ class Config:
         # Make sure the input is indeed a string.
         try:
             result = string.split('/')
-        except AttributeError as e:
-            print(f'Config: The {string} is not a string.')
-            raise e
+        except AttributeError as error:
+            error.add_note(f'Config: The {string} is not a string.')
+            raise error
         
         # Remove all empty string ''            
         if remove_empty:
