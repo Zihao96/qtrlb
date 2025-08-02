@@ -474,7 +474,7 @@ class RamseyScan(Scan):
                  fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65528,
                  artificial_detuning: float = 0.0,
-                 AD_sign: int = None):
+                 AD_sign: int | None = 1):
         
         super().__init__(cfg=cfg,
                          drive_qubits=drive_qubits,

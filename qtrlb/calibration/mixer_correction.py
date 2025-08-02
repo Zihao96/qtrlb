@@ -1,5 +1,3 @@
-import os
-import json
 import time
 import numpy as np
 import ipywidgets as ipyw
@@ -92,8 +90,7 @@ class MixerCorrection:
             time.sleep(0.005)  # This sleep is important to make LO work correctly. 1 ms doesn't work.
             getattr(self.module, f'out{self.out}_lo_freq')(self.cfg[f'variables.lo_freq/M{self.mod}O{self.out}'])
             getattr(self.module, f'out{self.out}_att')(self.att)
-            getattr(self.sequencer, f'channel_map_path0_out{self.out * 2}_en')(True)
-            getattr(self.sequencer, f'channel_map_path1_out{self.out * 2 + 1}_en')(True)
+            getattr(self.sequencer, f'connect_out{self.out}')('IQ')
 
         elif self.tone.startswith('R'):
             self.att = self.cfg[f'DAC.Module{self.mod}/out0_att']
@@ -102,8 +99,8 @@ class MixerCorrection:
             self.module.out0_in0_lo_freq(self.cfg[f'variables.lo_freq/M{self.mod}O{self.out}'])
             self.module.out0_att(self.att)
             self.sequencer.nco_prop_delay_comp_en(True)
-            self.sequencer.channel_map_path0_out0_en(True)
-            self.sequencer.channel_map_path1_out1_en(True)
+            self.sequencer.connect_out0('IQ')
+            self.sequencer.connect_acq('in0')
 
 
     def create_ipywidget(self, 
