@@ -838,11 +838,7 @@ class DRAGWeightScan(Scan2D):
         for tone in self.main_tones:
             ssb_freq = self.cfg[f'variables.{tone}/mod_freq'] + self.cfg[f'variables.{tone}/pulse_detuning']
             ssb_freq_4 = round(ssb_freq * 4)
-
-            if ssb_freq_4 >= 0:
-                angle_90, angle_90n = round(250e6), round(750e6)
-            else:
-                angle_90, angle_90n = round(750e6), round(250e6)
+            angle_90, angle_90n = round(250e6), round(750e6)
 
             main = (f"""
                     move             0,R16

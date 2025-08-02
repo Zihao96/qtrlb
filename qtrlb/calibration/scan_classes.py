@@ -590,7 +590,7 @@ class EchoScan(Scan):
                  fitmodel: Model = ExpSinModel,
                  divisor_ns: int = 65528,
                  artificial_detuning: float = 0.0,
-                 AD_sign: int = None,
+                 AD_sign: int | None = +1,
                  echo_type: str = 'CP',
                  reverse_last_gate: bool = True):
         

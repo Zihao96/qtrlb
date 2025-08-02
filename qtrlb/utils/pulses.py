@@ -161,11 +161,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         freq = round((tone_dict['mod_freq'] + tone_dict['pulse_detuning']) * 4)
         gain = calculate_angle_to_gain(angle, tone_dict['amp_180'], tone_dict['amp_90'])
         gain_drag = round(gain * tone_dict['DRAG_weight'])
-
-        if tone_dict['mod_freq'] >= 0:
-            angle_90, angle_90n = round(250e6), round(750e6)
-        else:
-            angle_90, angle_90n = round(750e6), round(250e6)
+        angle_90, angle_90n = round(250e6), round(750e6)
         
         pulse_program = f"""
                     set_ph_delta     {angle_90n}
@@ -181,11 +177,7 @@ def pulse_interpreter(cfg, tone: str, pulse_string: str, length: int, **pulse_kw
         angle = pulse_string[1:]
         tone_dict = cfg[f'variables.{tone}']
 
-        # making sure we handle negative frequencies correctly - EC 2023-11-29
-        if tone_dict['mod_freq'] >= 0:
-            angle = round(float(angle) / 360 * 1e9)
-        else:
-            angle = round((1 - float(angle) / 360) * 1e9)
+        angle = round(float(angle) / 360 * 1e9)
         
         pulse_program = '' if angle == 0 else f"""
                     set_ph_delta     {angle}
