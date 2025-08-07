@@ -30,7 +30,7 @@ class HarmonicTransmon(scq.Transmon):
     Parameters
     ----------
     EJ:
-       Josephson energy
+        Josephson energies
     EC:
         charging energy
     ng:
@@ -48,7 +48,7 @@ class HarmonicTransmon(scq.Transmon):
 
     def __init__(
         self,
-        EJ: float,
+        EJ: list | np.ndarray,
         EC: float,
         ng: float,
         ncut: int,
@@ -152,7 +152,7 @@ class HarmonicTransmon(scq.Transmon):
 
 class CoupledHarmonicTransmonResonator:
     def __init__(self,
-                 EJ: list,
+                 EJ: list | np.ndarray,
                  EC: float,
                  ng: float,
                  ncut: int,
@@ -196,7 +196,7 @@ class CoupledHarmonicTransmonResonator:
 
                 max_overlap = 0
                 for eval, evec in zip(self.evals[:max_photons], self.evecs[:max_photons]):
-                    overlap = abs((evec.dag() * bare_state).full()[0, 0])
+                    overlap = abs(evec.dag() * bare_state)
                     if overlap < max_overlap: continue
                     max_overlap, energy = overlap, eval
 
