@@ -7,6 +7,7 @@ from qtrlb.processing import *
 from qtrlb.projects import *
 from qtrlb.config import *
 from qtrlb.instruments import *
+from qtrlb.utils import *
 
 
 
