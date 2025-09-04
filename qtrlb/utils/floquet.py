@@ -195,7 +195,7 @@ def fold_out_branch(branch: np.ndarray, f_d: float, threshold: float = None) -> 
 
 
 def identify_target_level(qe: np.ndarray, avc_idx: int, level: int, 
-                          second_derivative: float, max_gap: float = 100) -> int:
+                          d2n: float, max_gap: float = 100) -> int | None:
     """
     Identify the target level at an crossing without knowing if they are avoided.
     The target level should have close value and second derivative of quasienergies \
@@ -205,52 +205,48 @@ def identify_target_level(qe: np.ndarray, avc_idx: int, level: int,
     qe: sorted quasienergies with shape (n_amps, n_levels).
     avc_idx: the index of the avoided crossing.
     level: the index of the current branch.
-    second_derivative: the second derivative of quasienergies at the crossing of current branch.
+    d2n: the second derivative of quasienergies at the crossing of current branch.
     max_gap: the maximum allowed gap between the current branch and the target branch.
     """
     # We first identify levels that are close to (including) the current one.
     close_levels = np.where(
         np.abs(qe[avc_idx] - qe[avc_idx, level]) < max_gap
     )[0].tolist()
+    close_levels.remove(level)
 
-    if len(close_levels) > 1:
-        # Calculate the second derivatives of all branches at this index.
-        second_derivative_all_branches = np.abs(qe[avc_idx+1] - 2*qe[avc_idx] + qe[avc_idx-1])
-
-        # We then identify levels whose 2nd derivatives differ by less than 20%.
-        close_d2x_levels = np.where(
-            np.abs(second_derivative_all_branches - second_derivative) 
-            < (second_derivative / 5)
-        )[0].tolist()
-        close_d2x_levels.remove(level)
-
-        # We use the intersection of the two sets to identify the target level.
-        intersection = set(close_levels).intersection(set(close_d2x_levels))
-        assert len(intersection) == 1, 'Algorithm failed to extract the target level.'
-        target_level = intersection.pop()
-    else:
+    if len(close_levels) == 0:
+        target_level = None
+    elif len(close_levels) == 1:
         target_level = close_levels[0]
+    else:
+        # Pick one in close_levels that has closest second derivative to the current branch.
+        # Note that their difference could still be up to 30%.
+        d2n_all_branches = np.abs(qe[avc_idx+1] - 2*qe[avc_idx] + qe[avc_idx-1])
+        idx = np.argmin(np.abs(d2n_all_branches[close_levels] - d2n))
+        target_level = close_levels[idx]
     return target_level
 
 
-def get_gap(qe: np.ndarray, avc_idx: int, level: int, target_level: int) -> float:
+def get_gap(qe: np.ndarray, avc_idx: int, level: int, target_level: int) -> float | None:
     """
     Determin if there is a normal crossing or an avoided crossing at the index.
     Calculate the gap size when there is an avoided crossing.
-    If it is not an avoided crossing, return 0.
+    If it is not an avoided crossing, return None.
 
     We check if they form an avoided crossing by asking whether the qe of one branch is \
         always larger (smaller) than the other branch, both before and after the crossing.
     """
+    if target_level is None: return None
     sign = np.sign(
         (qe[avc_idx-1, target_level] - qe[avc_idx-1, level]) 
         * (qe[avc_idx+1, target_level] - qe[avc_idx+1, level]) 
     )
-    return float(np.abs(qe[avc_idx, target_level] - qe[avc_idx, level])) if sign > 0 else 0
+    if sign <= 0: return None
+    return float(np.abs(qe[avc_idx, target_level] - qe[avc_idx, level]))
 
 
 def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int = 0,
-                    min_second_derivative: float = 1e-4, max_gap: float = 100,
+                    min_d2n: float = 3e-4, max_gap: float = 25,
                     min_avc_indices_distance: int = 200) -> tuple[list[int], list[float]]:
     """
     Find the indices of all avoided crossings along a diabatic branch.
@@ -259,7 +255,7 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
     quasienergies_branches: sorted quasienergies with shape (n_amps, n_levels).
     f_d: drive frequency, the size of the first Brillouin zone.
     level: the index of the diabatic branch to analyze.
-    min_second_derivative: the minimum second derivative to identify a crossing.
+    min_d2n: the minimum second derivative to identify a crossing.
     max_gap: the maximum allowed gap between the current branch and the target branch.
     min_avc_indices_distance: the minimum allowed indices distance \
         between two adjacent avoided crossings to avoid double counting.
@@ -273,20 +269,26 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
 
     # Identify the first avoided crossing
     branch = fold_out_branch(qe[:, level], f_d)
-    second_derivatives = np.abs(np.diff(np.diff(branch)))
+    d2ns = np.abs(np.diff(np.diff(branch)))
     avc_idx = 0
 
-    while second_derivatives.max() >= min_second_derivative:
+    while d2ns.max() >= min_d2n:
         # When there is a peak in second derivatives, there must be an crossing.
         # Without know if they are avoided, we identify the target level first.
-        peaks, _ = find_peaks(second_derivatives, height=min_second_derivative)
-        peaks = peaks.tolist()
-        if len(peaks) == 0: break  # A half peak in the tail may not be identified by scipy.
-        avc_idx += peaks[0] + 1
-        target_level = identify_target_level(qe, avc_idx, level, second_derivatives[peaks[0]], max_gap)
+        peaks, _ = find_peaks(d2ns, height=min_d2n)
+        for peak in peaks:
+            # If there is a ture peak, end for loop and use its value.
+            if (d2ns[peak+2] < d2ns[peak+1]) and (d2ns[peak-2] < d2ns[peak-1]):
+                peak = int(peak)
+                break
+        else:
+            # There is no peak, or only tiny fluctuation, end while loop.
+            break
+        avc_idx += peak + 1
+        target_level = identify_target_level(qe, avc_idx, level, d2ns[peak], max_gap)
         
         # If they form an avoided crossing, we append it and switch to new branch.
-        if (gap := get_gap(qe, avc_idx, level, target_level)) != 0:
+        if (gap := get_gap(qe, avc_idx, level, target_level)) is not None:
             avc_indices.append(avc_idx)
             avc_gaps.append(gap)
             level = target_level
@@ -296,5 +298,5 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
         if qe.shape[0] - avc_idx < 3: break  # If there are not enough qe left.
 
         branch = fold_out_branch(qe[avc_idx:, level], f_d)
-        second_derivatives = np.abs(np.diff(np.diff(branch)))
+        d2ns = np.abs(np.diff(np.diff(branch)))
     return avc_indices, avc_gaps
