@@ -2,6 +2,7 @@ import numpy as np
 import qutip as qt
 from tqdm.notebook import trange
 from scipy.signal import find_peaks
+from qtrlb.processing.fitting import fit, QuadModel
 
 
 
@@ -247,7 +248,8 @@ def get_gap(qe: np.ndarray, avc_idx: int, level: int, target_level: int) -> floa
 
 def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int = 0,
                     min_d2n: float = 3e-4, max_gap: float = 25,
-                    min_avc_indices_distance: int = 200) -> tuple[list[int], list[float]]:
+                    min_avc_indices_distance: int = 200,
+                    refine_d2n: bool = True) -> tuple[list[int]]:
     """
     Find the indices of all avoided crossings along a diabatic branch.
 
@@ -266,6 +268,7 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
     qe = quasienergies_branches
     avc_indices = []
     avc_gaps = []
+    avc_d2ns = []
 
     # Identify the first avoided crossing
     branch = fold_out_branch(qe[:, level], f_d)
@@ -291,6 +294,11 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
         if (gap := get_gap(qe, avc_idx, level, target_level)) is not None:
             avc_indices.append(avc_idx)
             avc_gaps.append(gap)
+            if refine_d2n:
+                result = fit(d2ns[peak-1:peak+2], list(range(-1, 2)), QuadModel)
+                avc_d2ns.append(result.best_values['C'])
+            else:
+                avc_d2ns.append(float(d2ns[peak]))
             level = target_level
 
         # Step forward to avoid double counting.
@@ -299,4 +307,4 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
 
         branch = fold_out_branch(qe[avc_idx:, level], f_d)
         d2ns = np.abs(np.diff(np.diff(branch)))
-    return avc_indices, avc_gaps
+    return avc_indices, avc_gaps, avc_d2ns
