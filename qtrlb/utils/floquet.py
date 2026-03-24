@@ -269,6 +269,7 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
     avc_indices = []
     avc_gaps = []
     avc_d2ns = []
+    target_levels = []
 
     # Identify the first avoided crossing
     branch = fold_out_branch(qe[:, level], f_d)
@@ -294,6 +295,7 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
         if (gap := get_gap(qe, avc_idx, level, target_level)) is not None:
             avc_indices.append(avc_idx)
             avc_gaps.append(gap)
+            target_levels.append(target_level)
             if refine_d2n:
                 result = fit(d2ns[peak-1:peak+2], list(range(-1, 2)), QuadModel)
                 avc_d2ns.append(result.best_values['C'])
@@ -307,4 +309,4 @@ def get_avc_indices(quasienergies_branches: np.ndarray, f_d: float, level: int =
 
         branch = fold_out_branch(qe[avc_idx:, level], f_d)
         d2ns = np.abs(np.diff(np.diff(branch)))
-    return avc_indices, avc_gaps, avc_d2ns
+    return avc_indices, avc_gaps, avc_d2ns, target_levels
